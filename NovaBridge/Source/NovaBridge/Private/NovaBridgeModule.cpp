@@ -221,21 +221,21 @@ void FNovaBridgeModule::StartHttpServer()
 		ApiRouteCount++;
 		RouteHandles.Add(HttpRouter->BindRoute(
 			FHttpPath(Path), Verbs,
-			[this, Handler](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) -> bool
-			{
-				UE_LOG(LogNovaBridge, Verbose, TEXT("[%s] %s %s"),
-					*FDateTime::Now().ToString(),
-					HttpVerbToString(Request.Verb),
-					*Request.RelativePath.GetPath());
-				return (this->*Handler)(Request, OnComplete);
-			}
+			FHttpRequestHandler::CreateLambda([this, Handler](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) -> bool
+				{
+					UE_LOG(LogNovaBridge, Verbose, TEXT("[%s] %s %s"),
+						*FDateTime::Now().ToString(),
+						HttpVerbToString(Request.Verb),
+						*Request.RelativePath.GetPath());
+					return (this->*Handler)(Request, OnComplete);
+				})
 		));
 		RouteHandles.Add(HttpRouter->BindRoute(
 			FHttpPath(Path), EHttpServerRequestVerbs::VERB_OPTIONS,
-			[this](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) -> bool
-			{
-				return HandleCorsPreflight(Request, OnComplete);
-			}
+			FHttpRequestHandler::CreateLambda([this](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) -> bool
+				{
+					return HandleCorsPreflight(Request, OnComplete);
+				})
 		));
 	};
 
