@@ -21,6 +21,7 @@ on:
 jobs:
   build-macos:
     name: Build macOS Plugin
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_SELF_HOSTED_BUILDS == 'true' }}
     runs-on: [self-hosted, macOS, ARM64, unreal]
     steps:
       - name: Checkout
@@ -29,7 +30,7 @@ jobs:
       - name: Build Plugin (Mac)
         shell: bash
         env:
-          UE_ROOT_INPUT: ${{ github.event.inputs.ue_root_mac || '' }}
+          UE_ROOT_INPUT: ${{ github.event.inputs.ue_root_mac || vars.UE_ROOT_MAC || '' }}
         run: |
           set -euo pipefail
           chmod +x scripts/ci/build_plugin_mac.sh
@@ -46,6 +47,7 @@ jobs:
 
   build-windows:
     name: Build Windows Plugin
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_SELF_HOSTED_BUILDS == 'true' }}
     runs-on: [self-hosted, Windows, X64, unreal]
     steps:
       - name: Checkout
@@ -54,7 +56,7 @@ jobs:
       - name: Build Plugin (Windows)
         shell: pwsh
         env:
-          UE_ROOT_INPUT: ${{ github.event.inputs.ue_root_win || '' }}
+          UE_ROOT_INPUT: ${{ github.event.inputs.ue_root_win || vars.UE_ROOT_WIN || '' }}
         run: |
           ./scripts/ci/build_plugin_win.ps1 -RepoRoot "$env:GITHUB_WORKSPACE" -OutputRoot "$env:RUNNER_TEMP/artifacts-win" -UERootOverride "$env:UE_ROOT_INPUT"
 

@@ -4,6 +4,12 @@ This repo includes GitHub Actions workflow:
 
 - `.github/workflows/build-plugin-self-hosted.yml`
 
+Bootstrap commands are in:
+
+- `docs/RUNNER_SETUP.md`
+- `scripts/ci/setup_runner_mac.sh`
+- `scripts/ci/setup_runner_win.ps1`
+
 It builds NovaBridge plugin packages on your own machines:
 
 - macOS ARM64 runner (M1/M2 MacBook)
@@ -59,6 +65,7 @@ Each artifact includes:
 - This workflow uses your local Unreal installs; no cloud Unreal license setup is required.
 - If a job says no runner found, verify labels and runner online status.
 - If Unreal path fails, set `UE_ROOT` correctly or pass workflow input overrides.
+- Push-triggered jobs are disabled until repo variable `ENABLE_SELF_HOSTED_BUILDS=true`.
 
 ## 5) Using Virtual Computers
 
