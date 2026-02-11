@@ -1,0 +1,19 @@
+# UE5 build artifacts
+NovaBridge/Binaries/
+NovaBridge/Intermediate/
+
+# Node
+node_modules/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Blender
+*.blend1
+
+# Exports cache
+exports/
+*.obj
+*.fbx

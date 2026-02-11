@@ -1,0 +1,11 @@
+{
+  "id": "nova-blender",
+  "name": "Nova Blender Bridge",
+  "version": "1.0.0",
+  "description": "Blender 3D modeling tools - create meshes, sculpt, export, and import into UE5",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

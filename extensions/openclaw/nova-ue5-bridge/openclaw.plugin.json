@@ -1,0 +1,11 @@
+{
+  "id": "nova-ue5-bridge",
+  "name": "Nova UE5 Bridge",
+  "version": "1.0.0",
+  "description": "UE5 editor control bridge - gives Nova full programmatic control over Unreal Engine 5",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
