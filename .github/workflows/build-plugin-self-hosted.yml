@@ -1,0 +1,68 @@
+name: Build Plugin (Self-Hosted)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ue_root_mac:
+        description: "Optional UE root override for macOS runner"
+        required: false
+        type: string
+      ue_root_win:
+        description: "Optional UE root override for Windows runner"
+        required: false
+        type: string
+  push:
+    branches: ["main"]
+    paths:
+      - "NovaBridge/**"
+      - "scripts/ci/**"
+      - ".github/workflows/build-plugin-self-hosted.yml"
+
+jobs:
+  build-macos:
+    name: Build macOS Plugin
+    runs-on: [self-hosted, macOS, ARM64, unreal]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Plugin (Mac)
+        shell: bash
+        env:
+          UE_ROOT_INPUT: ${{ github.event.inputs.ue_root_mac || '' }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/ci/build_plugin_mac.sh
+          ./scripts/ci/build_plugin_mac.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/artifacts-mac" "$UE_ROOT_INPUT"
+
+      - name: Upload Artifact (Mac)
+        uses: actions/upload-artifact@v4
+        with:
+          name: NovaBridge-Mac
+          path: |
+            ${{ runner.temp }}/artifacts-mac/*.zip
+            ${{ runner.temp }}/artifacts-mac/**/manifest.txt
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows Plugin
+    runs-on: [self-hosted, Windows, X64, unreal]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Plugin (Windows)
+        shell: pwsh
+        env:
+          UE_ROOT_INPUT: ${{ github.event.inputs.ue_root_win || '' }}
+        run: |
+          ./scripts/ci/build_plugin_win.ps1 -RepoRoot "$env:GITHUB_WORKSPACE" -OutputRoot "$env:RUNNER_TEMP/artifacts-win" -UERootOverride "$env:UE_ROOT_INPUT"
+
+      - name: Upload Artifact (Win)
+        uses: actions/upload-artifact@v4
+        with:
+          name: NovaBridge-Win64
+          path: |
+            ${{ runner.temp }}/artifacts-win/*.zip
+            ${{ runner.temp }}/artifacts-win/**/manifest.txt
+          if-no-files-found: error
