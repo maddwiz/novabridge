@@ -37,7 +37,8 @@ WantedBy=default.target
 SERVICE
 
 systemctl --user daemon-reload
-systemctl --user enable --now "${SERVICE_NAME}"
+systemctl --user enable "${SERVICE_NAME}"
+systemctl --user restart "${SERVICE_NAME}"
 
 echo "Installed and started ${SERVICE_NAME}"
 echo "Service file: ${SERVICE_PATH}"
