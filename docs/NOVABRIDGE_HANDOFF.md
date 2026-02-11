@@ -40,6 +40,10 @@ AI Agent → OpenClaw Blender Extension → Blender (Python/MB-Lab) → OBJ expo
 | `Source/NovaBridge/Public/NovaBridgeModule.h` | 88 | Header: class FNovaBridgeModule, all handler declarations |
 | `Source/NovaBridge/Private/NovaBridgeModule.cpp` | 2149 | Implementation: all 29 HTTP route handlers |
 
+**Threading model:** Every handler dispatches work to `ENamedThreads::GameThread` via `AsyncTask()`. The HTTP server runs on a background thread. All UE5 API calls happen on the game thread.
+
+**Important:** POST request bodies require null-termination. The handler adds `\0` manually because UE5's HTTP server body bytes are NOT null-terminated.
+
 **Dependencies (Build.cs):**
 - Public: Core, CoreUObject, Engine, HTTPServer, Json, JsonUtilities
 - Private: UnrealEd, EditorScriptingUtilities, Slate/SlateCore, InputCore, LevelEditor, MeshDescription, StaticMeshDescription, MeshConversion, RawMesh, RenderCore, RHI, ImageWrapper, AssetRegistry, AssetTools, MaterialEditor, Kismet, KismetCompiler, BlueprintGraph
@@ -118,6 +122,10 @@ AI Agent → OpenClaw Blender Extension → Blender (Python/MB-Lab) → OBJ expo
 
 This extension wraps each NovaBridge HTTP endpoint into an OpenClaw tool-use format that LLMs can call. It handles the HTTP connection, Content-Length header, JSON parsing, and error formatting.
 
+**Note:** The extension actually registers **29 tools** (1:1 mapping to all 29 routes), including blueprint create/add-component/compile, build_lighting, and exec_command.
+
+**Special behavior:** `ue5_viewport_screenshot` saves the base64 image to `/home/nova/.openclaw/workspace/screenshots/viewport-<timestamp>.png` and returns both a text content block (with metadata) AND an image content block (so the LLM can see the screenshot visually).
+
 ### 2c. OpenClaw nova-blender Extension (JS — Blender pipeline)
 
 **Location:** `/home/nova/.openclaw/extensions/nova-blender/`
@@ -174,7 +182,7 @@ This extension wraps each NovaBridge HTTP endpoint into an OpenClaw tool-use for
 
 2. **Ground plane in MB-Lab export**: The `generate-mblab-female.py` script doesn't delete the ground plane before export. This creates a large flat surface underneath the body. **Fix:** Add `bpy.ops.mesh.select_all()` + delete non-character objects before export.
 
-3. **No FBX import support in NovaBridge**: The `asset/import` handler currently only supports OBJ files. FBX would preserve skeleton/armature data needed for animation. **Fix:** Add FBX import using UFbxFactory in C++.
+3. **No FBX import support in NovaBridge**: The `asset/import` handler currently only supports OBJ files (runtime check: "FBX SDK unavailable on ARM64"). FBX would preserve skeleton/armature data needed for animation. **Fix:** On x86 Windows/Mac/Linux where FBX SDK is available, add FBX import using UFbxFactory in C++. The ARM64 restriction is a runtime check that can be made conditional per-platform.
 
 4. **Screenshot returns JSON with base64**: The viewport screenshot returns `{"image": "<base64>"}` instead of raw PNG. This works but is inefficient for large images. **Fix (optional):** Add a `?format=raw` query parameter option.
 
@@ -443,6 +451,51 @@ UnrealEditor LinuxArm64 Development -NoBuildUHT -SkipPreBuildTargets
 | UE5 Logs | `/home/nova/UnrealEngine/Engine/Saved/Logs/Unreal.log` |
 | Blender Binary | `/usr/bin/blender` (v4.0.2) |
 | Export Cache | `/home/nova/.openclaw/workspace/exports/` |
+
+---
+
+---
+
+## 11. KEY IMPLEMENTATION DETAILS FOR THE NEXT AGENT
+
+### OBJ Import Parser (in NovaBridgeModule.cpp)
+- Custom OBJ parser handles `v`, `vt`, `vn`, and `f` lines
+- Supports n-gon triangulation by fan
+- Coordinate conversion: OBJ Y is negated, UV V is flipped (1-V)
+- Meshes built using `FMeshDescription` + `BuildFromMeshDescriptions`
+
+### Scene Spawn Class Shortcuts
+Spawn supports these friendly class names (no need for full class paths):
+- `StaticMeshActor`, `PointLight`, `DirectionalLight`, `SpotLight`
+- `CameraActor`, `PlayerStart`, `SkyLight`
+- `ExponentialHeightFog`, `PostProcessVolume`
+- Also accepts full class paths like `/Script/Engine.PointLight`
+
+### Mesh Primitives
+`mesh/primitive` supports: `cube`/`box` (24 tris), `plane` (2 tris), `sphere` (16 rings x 24 segments), `cylinder` (24 segments)
+
+### Material System
+- `material/create` optionally wires a `UMaterialExpressionConstant4Vector` (base color) into the material graph
+- `material/set-param` works on `UMaterialInstanceConstant` only (not base materials)
+- Supports `scalar` and `vector` parameter types
+
+### Blender Extension Constants
+- `BLENDER_BIN = '/usr/bin/blender'` (needs to be configurable for cross-platform)
+- `EXPORT_DIR = '/tmp/nova-blender-exports'`
+- `SCRIPTS_DIR = '/home/nova/.openclaw/workspace/embodiment/avatar/blender/scripts'`
+- Blender runs with `DISPLAY: ''` (headless)
+
+### The blender_to_ue5 Pipeline (step by step)
+1. Takes user-provided `script` (inline Python) or `script_path` (file path)
+2. Appends OBJ export code that: applies all modifiers, exports OBJ with UVs/normals, forward=-Y, up=Z
+3. Runs `blender --background [blend_file] --python <combined_script>` (180s timeout)
+4. POST to `localhost:30010/nova/asset/import` with the OBJ file path
+5. Returns result with `next_steps` hint: use `ue5_scene_spawn` + `ue5_set_property` to place the mesh
+
+### Installed Blender Addons (on this machine)
+Both at `/home/nova/.config/blender/4.0/scripts/addons/`:
+- **MB-Lab** — parametric human body generator (18K+ vertices, armature, face topology, UV maps)
+- **CharMorph** — character morphing, posing, hair, finalization
 
 ---
 
