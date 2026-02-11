@@ -1,6 +1,13 @@
 # UE5 build artifacts
 NovaBridge/Binaries/
 NovaBridge/Intermediate/
+**/Binaries/
+**/Intermediate/
+**/Saved/
+**/DerivedDataCache/
+*.sln
+*.VC.db
+*.VC.opendb
 
 # Node
 node_modules/
