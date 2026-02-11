@@ -3,6 +3,16 @@ name: Build Plugin (Self-Hosted)
 on:
   workflow_dispatch:
     inputs:
+      build_macos:
+        description: "Run macOS build job"
+        required: false
+        default: true
+        type: boolean
+      build_windows:
+        description: "Run Windows build job"
+        required: false
+        default: false
+        type: boolean
       ue_root_mac:
         description: "Optional UE root override for macOS runner"
         required: false
@@ -21,7 +31,7 @@ on:
 jobs:
   build-macos:
     name: Build macOS Plugin
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_SELF_HOSTED_BUILDS == 'true' }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.build_macos != 'false') || (github.event_name != 'workflow_dispatch' && vars.ENABLE_SELF_HOSTED_BUILDS == 'true') }}
     runs-on: [self-hosted, macOS, ARM64, unreal]
     steps:
       - name: Checkout
@@ -47,7 +57,7 @@ jobs:
 
   build-windows:
     name: Build Windows Plugin
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_SELF_HOSTED_BUILDS == 'true' }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.build_windows != 'false') || (github.event_name != 'workflow_dispatch' && vars.ENABLE_SELF_HOSTED_BUILDS == 'true') }}
     runs-on: [self-hosted, Windows, X64, unreal]
     steps:
       - name: Checkout
