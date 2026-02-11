@@ -2,6 +2,7 @@
 
 1. Copy `NovaBridge/` into your UE project plugins directory.
 2. Launch UE with a `.uproject` path (use `NovaBridgeDefault` or `NovaBridgeDemo` if needed).
+   - Linux service helper: `./scripts/install_linux_service.sh`
 3. Confirm API health:
    - `curl http://localhost:30010/nova/health`
    - `curl http://localhost:30010/nova/project/info`

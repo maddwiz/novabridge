@@ -28,6 +28,14 @@ Optional custom NovaBridge port:
 UnrealEditor /path/to/YourProject.uproject -NovaBridgePort=30010 -RenderOffScreen -unattended
 ```
 
+## Optional User Service (systemd)
+
+Install and run the provided user service (defaults to `NovaBridgeDefault`):
+
+```bash
+./scripts/install_linux_service.sh
+```
+
 ## Verify
 
 ```bash
