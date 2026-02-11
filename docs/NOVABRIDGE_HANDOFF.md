@@ -499,5 +499,841 @@ Both at `/home/nova/.config/blender/4.0/scripts/addons/`:
 
 ---
 
+## 12. SALE-READY ROADMAP
+
+This is the complete, step-by-step roadmap to take NovaBridge from working prototype to sellable product. Every task is ordered by priority and dependency. An agent or developer should work through these phases in order.
+
+---
+
+### PHASE 1: FIX CRITICAL BUGS (Week 1, Days 1-3)
+*These block everything else. Nothing is sellable until these are fixed.*
+
+#### 1.1 Fix the OBJ Scale Mismatch
+
+**Problem:** Blender exports in meters (1 unit = 1 meter). UE5 uses centimeters (1 unit = 1 cm). So a 1.7m tall body imports as 1.7 UE5 units — invisible without 100x scale.
+
+**Fix in `NovaBridgeModule.cpp`, `HandleAssetImport`:**
+Add a scale parameter and default to 100x for OBJ imports.
+
+```cpp
+// After parsing the OBJ vertices, before building the mesh:
+float ImportScale = 100.0f; // Default: convert meters to cm
+if (JsonBody->HasField("scale"))
+{
+    ImportScale = JsonBody->GetNumberField("scale");
+}
+
+// Apply to every vertex position:
+for (auto& Vertex : Vertices)
+{
+    Vertex.X *= ImportScale;
+    Vertex.Y *= ImportScale;
+    Vertex.Z *= ImportScale;
+}
+```
+
+Also update the `nova-blender` extension's `blender_to_ue5` tool to pass `scale: 100` in the import request.
+
+**Alternative (simpler):** Fix it in the Blender export script by scaling the mesh 100x before exporting:
+```python
+# In the OBJ export code appended by nova-blender/index.js:
+bpy.ops.transform.resize(value=(100, 100, 100))
+bpy.ops.object.transform_apply(scale=True)
+```
+
+#### 1.2 Fix the Ground Plane in MB-Lab Exports
+
+**Problem:** `generate-mblab-female.py` exports everything including any ground planes, cameras, or lights that MB-Lab creates.
+
+**Fix in `generate-mblab-female.py`, before the save/export:**
+```python
+# Delete everything except the character mesh
+for obj in list(bpy.data.objects):
+    if obj.type != 'MESH' or obj.name == 'Cube':
+        bpy.data.objects.remove(obj, do_unlink=True)
+    elif obj.type == 'MESH':
+        # Check if it's a flat plane (ground) - delete if bounding box is very flat
+        dims = obj.dimensions
+        if dims.z < 0.01 and dims.x > 1 and dims.y > 1:
+            bpy.data.objects.remove(obj, do_unlink=True)
+```
+
+Also fix in the `objExportCode()` function in `nova-blender/index.js` — add a cleanup step that removes non-mesh objects and flat planes before export.
+
+#### 1.3 Fix the "No Project" Startup Problem
+
+**Problem:** UE5 starts to the project browser in headless mode and gets stuck.
+
+**Fix:** Create a minimal default project:
+```bash
+# On each platform, create a blank project using UE5:
+# 1. Open UE5 GUI, create new Blank project called "NovaBridgeDefault"
+# 2. Save it
+# 3. Reference it in the launch command:
+UnrealEditor /path/to/NovaBridgeDefault.uproject -RenderOffScreen -nosplash -unattended
+```
+
+For distribution, ship a pre-made `.uproject` + minimal `Config/` and `Content/` folder. The project just needs to exist — it can be empty.
+
+**Coding tip:** Add a `/nova/project/info` endpoint that returns the current project name and path, so agents can verify a project is loaded.
+
+#### 1.4 Fix Property Name Confusion
+
+**Problem:** AI agents try `PointLightComponent0.Intensity` but the actual name is `LightComponent0.Intensity`. The `scene/get` response includes `set_property_prefix` hints but agents still get it wrong.
+
+**Fix in `HandleSceneSetProperty`:**
+```cpp
+// Before the current property lookup, add fuzzy matching:
+// If exact component not found, try matching by class name
+if (!FoundComponent)
+{
+    FString RequestedComponent = PropertyParts[0];
+    for (auto* Comp : Actor->GetComponents())
+    {
+        // Match "PointLightComponent0" to a component whose CLASS is UPointLightComponent
+        FString ClassName = Comp->GetClass()->GetName();
+        if (ClassName.Contains(RequestedComponent) || RequestedComponent.Contains(ClassName))
+        {
+            FoundComponent = Comp;
+            break;
+        }
+    }
+}
+```
+
+---
+
+### PHASE 2: CROSS-PLATFORM (Week 1-2, Days 3-7)
+*Windows is the #1 priority. 90%+ of UE5 developers use Windows.*
+
+#### 2.1 Test and Fix Windows Build
+
+**Steps:**
+1. Clone the repo on a Windows machine with UE5 5.1+ source or installed
+2. Copy `NovaBridge/` to `YourProject/Plugins/NovaBridge/`
+3. Generate Visual Studio project files: `GenerateProjectFiles.bat`
+4. Build in Visual Studio or via `RunUAT.bat`
+
+**Expected issues and fixes:**
+
+- **Socket includes:** The HTTPServer module should handle this, but if you get winsock errors, add to Build.cs:
+  ```csharp
+  if (Target.Platform == UnrealTargetPlatform.Win64)
+  {
+      PublicSystemLibraries.Add("ws2_32.lib");
+  }
+  ```
+
+- **File path separators:** The OBJ import handler uses file paths. UE5's `FPaths` normalizes internally, but verify that `file_path` parameter works with both `/` and `\` on Windows.
+
+- **FBX import:** On Windows, the FBX SDK IS available. Remove the ARM64 restriction:
+  ```cpp
+  // Change this:
+  if (!FilePath.EndsWith(TEXT(".obj")))
+  {
+      SendErrorResponse(OnComplete, TEXT("Only .obj files supported..."));
+  }
+
+  // To this:
+  if (FilePath.EndsWith(TEXT(".fbx")))
+  {
+      // Use UFbxFactory for FBX import
+      UFbxFactory* FbxFactory = NewObject<UFbxFactory>();
+      // ... (see UE5 FbxFactory documentation)
+  }
+  else if (FilePath.EndsWith(TEXT(".obj")))
+  {
+      // Existing OBJ import code
+  }
+  ```
+
+- **Blender path:** In `nova-blender/index.js`, change from hardcoded path:
+  ```javascript
+  // Old:
+  const BLENDER_BIN = '/usr/bin/blender';
+
+  // New:
+  const BLENDER_BIN = process.env.NOVABRIDGE_BLENDER_PATH
+      || (process.platform === 'win32' ? 'C:\\Program Files\\Blender Foundation\\Blender 4.0\\blender.exe'
+      : process.platform === 'darwin' ? '/Applications/Blender.app/Contents/MacOS/Blender'
+      : '/usr/bin/blender');
+  ```
+
+#### 2.2 Test and Fix Mac Build
+
+**Steps:**
+1. Clone on Mac with Apple Silicon or Intel
+2. UE5 on Mac uses Metal renderer
+3. Launch: `UnrealEditor YourProject.uproject -metal -RenderOffScreen -nosplash -unattended`
+
+**Expected issues:**
+- Metal rendering may behave differently for SceneCapture screenshots
+- Blender path: `/Applications/Blender.app/Contents/MacOS/Blender`
+- File permissions: macOS may block headless Blender execution (need to handle Gatekeeper)
+
+#### 2.3 Make Port Configurable
+
+**Currently hardcoded as `30010` in NovaBridgeModule.cpp:**
+```cpp
+static constexpr uint32 HttpPort = 30010;
+```
+
+**Fix:** Read from config or command line:
+```cpp
+uint32 HttpPort = 30010;
+if (FParse::Value(FCommandLine::Get(), TEXT("-NovaBridgePort="), HttpPort))
+{
+    UE_LOG(LogNovaBridge, Log, TEXT("NovaBridge using custom port: %d"), HttpPort);
+}
+```
+
+Now users can launch with `-NovaBridgePort=8080` if 30010 conflicts.
+
+#### 2.4 Make All Paths Configurable
+
+In the OpenClaw extensions, replace ALL hardcoded paths with environment variables or config:
+
+```javascript
+// nova-blender/index.js
+const EXPORT_DIR = process.env.NOVABRIDGE_EXPORT_DIR || path.join(os.tmpdir(), 'novabridge-exports');
+const SCRIPTS_DIR = process.env.NOVABRIDGE_SCRIPTS_DIR || path.join(__dirname, 'scripts');
+const UE5_PORT = parseInt(process.env.NOVABRIDGE_PORT || '30010');
+```
+
+Ship the blender scripts inside the extension package (not in a separate workspace directory).
+
+---
+
+### PHASE 3: ADD FBX IMPORT (Week 2, Days 7-10)
+*This is critical for serious 3D work. OBJ loses armatures, animations, and materials.*
+
+#### 3.1 Add FBX Import to NovaBridge
+
+**In `HandleAssetImport`, add FBX support on platforms where FBX SDK is available:**
+
+```cpp
+#include "Factories/FbxFactory.h"
+#include "Factories/FbxImportUI.h"
+
+// In the handler:
+if (FilePath.EndsWith(TEXT(".fbx")) || FilePath.EndsWith(TEXT(".FBX")))
+{
+    UFbxFactory* Factory = NewObject<UFbxFactory>();
+    Factory->SetAutomatedAssetImportData(NewObject<UAutomatedAssetImportData>());
+
+    // Configure import settings
+    Factory->ImportUI->bImportMesh = true;
+    Factory->ImportUI->bImportAnimations = false; // Start with mesh only
+    Factory->ImportUI->bImportMaterials = false;
+    Factory->ImportUI->SkeletalMeshImportData->bImportMorphTargets = true;
+
+    // Auto-detect: skeletal or static mesh
+    Factory->ImportUI->MeshTypeToImport = FBXIT_StaticMesh; // or FBXIT_SkeletalMesh
+
+    // Import
+    UAssetImportTask* Task = NewObject<UAssetImportTask>();
+    Task->Filename = FilePath;
+    Task->DestinationPath = DestPath;
+    Task->bAutomated = true;
+    Task->bReplaceExisting = true;
+    Task->Factory = Factory;
+
+    FAssetToolsModule& AssetToolsModule = FModuleManager::GetModuleChecked<FAssetToolsModule>("AssetTools");
+    AssetToolsModule.Get().ImportAssetTasks({Task});
+}
+```
+
+**Build.cs addition needed:**
+```csharp
+PrivateDependencyModuleNames.Add("FBXImport"); // or check exact module name
+```
+
+#### 3.2 Update Blender Extension for FBX
+
+In `nova-blender/index.js`, change the export format from OBJ to FBX:
+
+```javascript
+function fbxExportCode(outPath) {
+    return `
+import bpy
+for obj in bpy.data.objects:
+    if obj.type == 'MESH':
+        for mod in obj.modifiers:
+            bpy.context.view_layer.objects.active = obj
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+
+bpy.ops.export_scene.fbx(
+    filepath="${outPath.replace(/\\/g, '/')}",
+    use_selection=False,
+    apply_scale_options='FBX_SCALE_ALL',
+    add_leaf_bones=False,
+    mesh_smooth_type='FACE',
+    use_mesh_modifiers=True
+)
+print(f"[Nova] FBX exported to: ${outPath.replace(/\\/g, '/')}")
+`;
+}
+```
+
+Keep OBJ as a fallback for ARM64 Linux where FBX SDK isn't available.
+
+---
+
+### PHASE 4: PYTHON SDK + MCP SERVER (Week 2-3, Days 10-17)
+*This is what makes it sellable to the AI developer market.*
+
+#### 4.1 Create Python SDK
+
+Create `python-sdk/novabridge.py` — a simple, zero-dependency Python wrapper:
+
+```python
+"""NovaBridge Python SDK - Control UE5 from Python."""
+import json
+import urllib.request
+
+class NovaBridge:
+    def __init__(self, host="localhost", port=30010):
+        self.base_url = f"http://{host}:{port}/nova"
+
+    def _get(self, path):
+        req = urllib.request.Request(f"{self.base_url}{path}")
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read())
+
+    def _post(self, path, data=None):
+        body = json.dumps(data or {}).encode()
+        req = urllib.request.Request(
+            f"{self.base_url}{path}",
+            data=body,
+            headers={"Content-Type": "application/json", "Content-Length": str(len(body))}
+        )
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return json.loads(resp.read())
+
+    def health(self):
+        return self._get("/health")
+
+    def scene_list(self):
+        return self._get("/scene/list")
+
+    def spawn(self, actor_class, label=None, x=0, y=0, z=0, **kwargs):
+        data = {"class": actor_class, "x": x, "y": y, "z": z}
+        if label: data["label"] = label
+        data.update(kwargs)
+        return self._post("/scene/spawn", data)
+
+    def delete(self, name):
+        return self._post("/scene/delete", {"name": name})
+
+    def transform(self, name, location=None, rotation=None, scale=None):
+        data = {"name": name}
+        if location: data["location"] = location
+        if rotation: data["rotation"] = rotation
+        if scale: data["scale"] = scale
+        return self._post("/scene/transform", data)
+
+    def get_actor(self, name):
+        return self._post("/scene/get", {"name": name})
+
+    def set_property(self, name, prop, value):
+        return self._post("/scene/set-property", {"name": name, "property": prop, "value": value})
+
+    def import_asset(self, file_path, asset_name=None, destination="/Game"):
+        data = {"file_path": file_path, "destination": destination}
+        if asset_name: data["asset_name"] = asset_name
+        return self._post("/asset/import", data)
+
+    def screenshot(self, save_path=None):
+        import base64
+        result = self._get("/viewport/screenshot")
+        if save_path and "image" in result:
+            with open(save_path, "wb") as f:
+                f.write(base64.b64decode(result["image"]))
+        return result
+
+    def set_camera(self, location=None, rotation=None, fov=None):
+        data = {}
+        if location: data["location"] = location
+        if rotation: data["rotation"] = rotation
+        if fov: data["fov"] = fov
+        return self._post("/viewport/camera/set", data)
+
+    def create_material(self, name, color=None, path="/Game"):
+        data = {"name": name, "path": path}
+        if color: data["color"] = color
+        return self._post("/material/create", data)
+
+    def exec_command(self, command):
+        return self._post("/exec/command", {"command": command})
+
+
+# Usage example:
+# ue5 = NovaBridge()
+# ue5.spawn("PointLight", label="Sun", x=0, y=0, z=500)
+# ue5.screenshot("my_scene.png")
+```
+
+**This is critical** — it lets people use NovaBridge without OpenClaw. Pure Python, no dependencies, works everywhere.
+
+#### 4.2 Create MCP Server
+
+MCP (Model Context Protocol) is what Claude Desktop, Cursor, Windsurf, and other AI tools use for tool integration. An MCP server for NovaBridge would let users control UE5 directly from Claude Desktop.
+
+Create `mcp-server/novabridge_mcp.py`:
+
+```python
+"""NovaBridge MCP Server - Use UE5 from Claude Desktop, Cursor, etc."""
+import json
+import sys
+import urllib.request
+
+# MCP uses JSON-RPC over stdin/stdout
+# See: https://modelcontextprotocol.io/docs
+
+TOOLS = [
+    {
+        "name": "ue5_health",
+        "description": "Check if Unreal Engine 5 is running and NovaBridge is active",
+        "inputSchema": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "ue5_spawn",
+        "description": "Spawn an actor in the UE5 scene. Types: StaticMeshActor, PointLight, DirectionalLight, SpotLight, SkyLight, CameraActor, PlayerStart, ExponentialHeightFog, PostProcessVolume",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "class": {"type": "string", "description": "Actor class to spawn"},
+                "label": {"type": "string", "description": "Display name for the actor"},
+                "x": {"type": "number", "default": 0},
+                "y": {"type": "number", "default": 0},
+                "z": {"type": "number", "default": 0},
+            },
+            "required": ["class"]
+        }
+    },
+    {
+        "name": "ue5_scene_list",
+        "description": "List all actors in the current UE5 scene with their transforms",
+        "inputSchema": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "ue5_screenshot",
+        "description": "Take a screenshot of the UE5 viewport. Returns the image.",
+        "inputSchema": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "ue5_set_camera",
+        "description": "Set the viewport camera position and rotation",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"},
+                "pitch": {"type": "number"}, "yaw": {"type": "number"}, "roll": {"type": "number"},
+                "fov": {"type": "number"}
+            }
+        }
+    },
+    # ... add all 29 tools following same pattern
+]
+
+# Implement the MCP stdio transport and tool dispatch
+# Reference: https://github.com/modelcontextprotocol/python-sdk
+```
+
+**For the actual implementation**, use the official MCP Python SDK:
+```bash
+pip install mcp
+```
+
+Then users add to their `claude_desktop_config.json`:
+```json
+{
+    "mcpServers": {
+        "novabridge": {
+            "command": "python",
+            "args": ["/path/to/novabridge_mcp.py"]
+        }
+    }
+}
+```
+
+**This is the highest-value feature for sales.** AI developers can control UE5 directly from Claude Desktop without any custom code.
+
+---
+
+### PHASE 5: EXAMPLES AND DEMO CONTENT (Week 3, Days 17-19)
+*Buyers need to see it working before they buy.*
+
+#### 5.1 Create Example Scripts
+
+**`examples/python/01_hello_world.py`:**
+```python
+"""Spawn a cube with a red material and take a screenshot."""
+from novabridge import NovaBridge
+
+ue5 = NovaBridge()
+print(ue5.health())
+
+# Create a red material
+ue5.create_material("RedMaterial", color={"r": 1, "g": 0, "b": 0})
+
+# Spawn a primitive cube
+ue5.exec_command("py ue5.mesh_primitive('cube', 'MyCube')")
+
+# Spawn it in the scene
+actor = ue5.spawn("StaticMeshActor", label="RedCube", x=0, y=0, z=100)
+
+# Set up a camera and take a screenshot
+ue5.set_camera(location={"x": 300, "y": 0, "z": 150}, rotation={"pitch": -10, "yaw": 180, "roll": 0})
+ue5.screenshot("hello_world.png")
+print("Screenshot saved to hello_world.png")
+```
+
+**`examples/python/02_build_room.py`:**
+```python
+"""Build a simple room with walls, floor, lighting, and furniture."""
+from novabridge import NovaBridge
+
+ue5 = NovaBridge()
+
+# Create materials
+ue5.create_material("WallMaterial", color={"r": 0.9, "g": 0.9, "b": 0.85})
+ue5.create_material("FloorMaterial", color={"r": 0.4, "g": 0.3, "b": 0.2})
+
+# Build floor, walls using mesh primitives
+# ... (full example showing a complete room build)
+```
+
+**`examples/python/03_ai_scene_builder.py`:**
+```python
+"""Use an LLM to describe a scene, then build it in UE5."""
+# Shows how to integrate with OpenAI/Anthropic API + NovaBridge
+```
+
+**`examples/curl/` — shell script examples:**
+```bash
+#!/bin/bash
+# Spawn a point light
+curl -X POST http://localhost:30010/nova/scene/spawn \
+  -H "Content-Type: application/json" \
+  -d '{"class":"PointLight","label":"MyLight","x":0,"y":0,"z":300}'
+```
+
+Create at least 5 examples covering: basic scene, materials, lighting, Blender pipeline, screenshot automation.
+
+#### 5.2 Create a Demo Video Script
+
+Write a script (not code — a video script) that shows:
+1. **0:00-0:15** — "What if AI could build 3D worlds for you?"
+2. **0:15-0:45** — Show Claude Desktop sending commands to UE5 via MCP
+3. **0:45-1:15** — AI spawns objects, sets up lighting, creates materials
+4. **1:15-1:45** — Blender pipeline: AI generates a character body, imports to UE5
+5. **1:45-2:00** — Final screenshot of the complete scene + call to action
+
+Record this using OBS or similar. Post on YouTube, Twitter/X, UE5 forums.
+
+#### 5.3 Create a Sample UE5 Project
+
+Ship a pre-made UE5 project called `NovaBridgeDemo` that includes:
+- A basic level with floor, sky, and lighting
+- NovaBridge plugin already installed and enabled
+- A README inside the project explaining how to launch headless
+- Pre-imported sample meshes the examples reference
+
+---
+
+### PHASE 6: DOCUMENTATION (Week 3, Days 19-21)
+*Professional docs are the difference between a $50 and $200 product.*
+
+#### 6.1 API Reference (`docs/API.md`)
+
+For EVERY endpoint, document:
+- URL and HTTP method
+- All parameters with types, defaults, and descriptions
+- Example request (curl)
+- Example response (JSON)
+- Error responses
+- Notes and gotchas
+
+Example format:
+```markdown
+### POST /nova/scene/spawn
+
+Spawn a new actor in the current level.
+
+**Parameters:**
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| class | string | yes | | Actor class (see supported types below) |
+| label | string | no | auto | Display name |
+| x | number | no | 0 | X position |
+| y | number | no | 0 | Y position |
+| z | number | no | 0 | Z position |
+| pitch | number | no | 0 | Pitch rotation |
+| yaw | number | no | 0 | Yaw rotation |
+| roll | number | no | 0 | Roll rotation |
+
+**Supported classes:** StaticMeshActor, PointLight, DirectionalLight, SpotLight, ...
+
+**Example:**
+​```bash
+curl -X POST http://localhost:30010/nova/scene/spawn \
+  -H "Content-Type: application/json" \
+  -d '{"class": "PointLight", "label": "Sun", "z": 500}'
+​```
+
+**Response:**
+​```json
+{
+    "name": "PointLight_0",
+    "label": "Sun",
+    "class": "PointLight",
+    "path": "/Temp/Untitled.Untitled:PersistentLevel.PointLight_0",
+    "transform": { ... }
+}
+​```
+```
+
+#### 6.2 Platform Setup Guides
+
+**`docs/SETUP_WINDOWS.md`:**
+- Prerequisites (UE5 version, Visual Studio, Blender)
+- Step-by-step plugin installation
+- Building from source
+- Launching headless
+- Firewall configuration (port 30010)
+- Troubleshooting common issues
+
+**`docs/SETUP_MAC.md`:**
+- Same structure, Mac-specific (Metal renderer, Gatekeeper, brew install blender)
+
+**`docs/SETUP_LINUX.md`:**
+- Same structure, Linux-specific (Vulkan, systemd service, X11/headless)
+
+#### 6.3 Architecture Guide (`docs/ARCHITECTURE.md`)
+
+- System diagram (the ASCII art from Section 1 of this handoff)
+- How the HTTP server works inside UE5
+- Threading model explanation
+- How SceneCapture works for screenshots
+- How the OBJ parser works
+- How the Blender pipeline works
+- How to add a new endpoint (step-by-step)
+
+---
+
+### PHASE 7: POLISH AND HARDENING (Week 4, Days 21-25)
+*Make it feel professional, not like a prototype.*
+
+#### 7.1 Error Handling
+
+**Current state:** Errors return inconsistent formats. Some return `{"error": "message"}`, some crash.
+
+**Fix:** Standardize ALL error responses:
+```cpp
+// In NovaBridgeModule.cpp, create a standard error helper:
+void SendErrorResponse(const FHttpResultCallback& OnComplete, const FString& Message, int32 Code = 400)
+{
+    TSharedPtr<FJsonObject> ErrorJson = MakeShareable(new FJsonObject);
+    ErrorJson->SetStringField("status", "error");
+    ErrorJson->SetStringField("error", Message);
+    ErrorJson->SetNumberField("code", Code);
+
+    FString ResponseBody;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResponseBody);
+    FJsonSerializer::Serialize(ErrorJson.ToSharedRef(), Writer);
+
+    auto Response = FHttpServerResponse::Create(ResponseBody, TEXT("application/json"));
+    OnComplete(MoveTemp(Response));
+}
+```
+
+Add try-catch equivalent (UE5 uses `ensure` and null checks) around EVERY handler.
+
+#### 7.2 Input Validation
+
+Validate all inputs before processing:
+```cpp
+// Example: validate actor name exists before trying to transform
+if (!JsonBody->HasField("name") || JsonBody->GetStringField("name").IsEmpty())
+{
+    SendErrorResponse(OnComplete, TEXT("Missing required parameter: 'name'"));
+    return true;
+}
+```
+
+#### 7.3 Add Request Logging
+
+Add optional request logging for debugging:
+```cpp
+UE_LOG(LogNovaBridge, Verbose, TEXT("[%s] %s %s"),
+    *FDateTime::Now().ToString(),
+    *Request.Verb,
+    *Request.RelativePath.GetPath());
+```
+
+Users can enable verbose logging with `-LogCmds="LogNovaBridge Verbose"`.
+
+#### 7.4 Add CORS Headers
+
+For web-based clients (important if someone builds a web UI):
+```cpp
+// In every response:
+Response->Headers.Add("Access-Control-Allow-Origin", "*");
+Response->Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+Response->Headers.Add("Access-Control-Allow-Headers", "Content-Type");
+```
+
+Also add an OPTIONS handler for preflight requests.
+
+#### 7.5 Add Rate Limiting / Safety
+
+Prevent accidental infinite loops:
+```cpp
+// In HandleSceneSpawn:
+static int32 SpawnCount = 0;
+static double LastResetTime = 0;
+double Now = FPlatformTime::Seconds();
+if (Now - LastResetTime > 60.0) { SpawnCount = 0; LastResetTime = Now; }
+if (++SpawnCount > 100)
+{
+    SendErrorResponse(OnComplete, TEXT("Rate limit: max 100 spawns per minute"));
+    return true;
+}
+```
+
+---
+
+### PHASE 8: PACKAGING FOR DISTRIBUTION (Week 4, Days 25-28)
+
+#### 8.1 UE5 Marketplace Packaging
+
+To sell on the UE5 Marketplace:
+1. Follow Epic's [Marketplace Guidelines](https://www.unrealengine.com/marketplace/guidelines)
+2. Plugin must build against the INSTALLED version of UE5 (not source build)
+3. Must include `.uplugin` with proper metadata
+4. Must include documentation
+5. Submit via the [Publisher Portal](https://publish.unrealengine.com/)
+
+**Update the `.uplugin` for marketplace:**
+```json
+{
+    "FriendlyName": "NovaBridge - AI Scene Control",
+    "Description": "Give AI agents full programmatic control over UE5 via HTTP API. 29 endpoints for scene manipulation, asset management, material creation, viewport control, and Blender integration.",
+    "Category": "Editor",
+    "CreatedBy": "MaddWiz",
+    "CreatedByURL": "https://github.com/maddwiz",
+    "DocsURL": "https://github.com/maddwiz/novabridge/docs",
+    "MarketplaceURL": "",
+    "SupportURL": "https://github.com/maddwiz/novabridge/issues",
+    "IsBetaVersion": false,
+    "CanContainContent": true
+}
+```
+
+#### 8.2 Standalone Distribution (Gumroad/Itch.io)
+
+Faster than Marketplace (no review process). Create a ZIP containing:
+```
+NovaBridge-v1.0/
+├── NovaBridge/               # UE5 plugin folder — drop into Plugins/
+├── NovaBridgeDemo/           # Sample UE5 project
+├── python-sdk/               # Python SDK
+├── mcp-server/               # MCP server for Claude Desktop
+├── blender/                  # Blender scripts
+├── examples/                 # Example scripts
+├── docs/                     # Documentation
+├── README.md
+├── LICENSE
+└── QUICK_START.md
+```
+
+Price: $99-149 on Gumroad. Sell via Twitter/X, Reddit r/unrealengine, AI Discord servers.
+
+#### 8.3 Create a Landing Page
+
+Simple one-page site (can use Carrd.co for $19/year):
+- Hero: "AI-Powered Unreal Engine 5 Control"
+- Demo video/GIF
+- Feature list
+- "Works with Claude, GPT, any LLM"
+- Buy button
+- Link to docs
+
+---
+
+### PHASE 9: ADVANCED FEATURES (Month 2+)
+*These aren't needed for v1 but add significant value for v2.*
+
+#### 9.1 Animation Support
+Add endpoints:
+- `/nova/animation/play` — play an animation on a SkeletalMeshActor
+- `/nova/animation/stop` — stop animation
+- `/nova/animation/list` — list available animations
+- `/nova/animation/import` — import animation from FBX
+
+This requires switching from StaticMesh to SkeletalMesh workflow.
+
+#### 9.2 Sequencer Control
+- `/nova/sequencer/create` — create a Level Sequence
+- `/nova/sequencer/add-track` — add actor/camera track
+- `/nova/sequencer/add-keyframe` — add transform keyframe at time
+- `/nova/sequencer/play` — play the sequence
+- `/nova/sequencer/render` — render to video file
+
+#### 9.3 Pixel Streaming Integration
+Let users see the UE5 viewport in real-time via WebRTC:
+- Enable UE5 Pixel Streaming plugin alongside NovaBridge
+- Add `/nova/stream/start` and `/nova/stream/stop` endpoints
+- Users get a live video feed of what the AI is building
+
+#### 9.4 Multi-Agent Support
+- Add session/namespace support so multiple AI agents can work in the same UE5 instance
+- Each agent gets its own SceneCapture camera
+- Add locking/ownership per actor
+
+#### 9.5 World Partition / Level Streaming
+- `/nova/level/create` — create sub-levels
+- `/nova/level/load` — load/unload streaming levels
+- Support for large world building
+
+---
+
+### PRICING STRATEGY
+
+| Product | Price | Platform | Revenue Potential |
+|---------|-------|----------|-------------------|
+| UE5 Marketplace Plugin | $99-149 | Epic Marketplace | $10-30K/year |
+| Standalone + MCP Server | $149-199 | Gumroad/Itch.io | $20-50K/year |
+| Pro License (includes support) | $499/year | Direct sales | $50-100K/year |
+| SaaS (hosted UE5 API) | $49-199/month | Your own infrastructure | $100K+/year |
+
+**Recommended v1 launch:** $99 on Gumroad, include everything (plugin + Python SDK + MCP server + examples). Undercut the market to build user base. Raise price to $149-199 after 50+ sales and positive reviews.
+
+---
+
+### TIMELINE SUMMARY
+
+| Phase | Days | What | Blocks Sales? |
+|-------|------|------|---------------|
+| 1. Fix Critical Bugs | 1-3 | Scale, ground plane, project, properties | YES |
+| 2. Cross-Platform | 3-7 | Windows build, Mac build, configurable paths | YES |
+| 3. FBX Import | 7-10 | FBX support on Windows/Mac | Partially |
+| 4. Python SDK + MCP | 10-17 | SDK, MCP server, non-OpenClaw users | YES |
+| 5. Examples & Demo | 17-19 | Scripts, video, sample project | YES |
+| 6. Documentation | 19-21 | API ref, setup guides, architecture | YES |
+| 7. Polish | 21-25 | Error handling, validation, CORS, logging | Partially |
+| 8. Packaging | 25-28 | ZIP distribution, Gumroad listing, landing page | YES |
+| 9. Advanced Features | Month 2+ | Animation, Sequencer, Pixel Streaming | No (v2) |
+
+**Minimum viable product for first sale: Phases 1-6 (~3 weeks of focused work)**
+
+---
+
+*This roadmap was generated on 2026-02-10. Market conditions in AI tooling are evolving rapidly. The MCP server integration is the highest-leverage feature to prioritize — every AI coding tool (Claude Code, Cursor, Windsurf, Continue) supports MCP and developers are actively looking for UE5 integrations.*
+
+---
+
 *Total codebase: ~3,248 lines across 6 source files. This is a small, focused system.*
 *The entire thing can be understood by a new developer in a few hours.*
