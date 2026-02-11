@@ -1,0 +1,12 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.1",
+  "Category": "NovaBridge",
+  "Description": "Sample project for NovaBridge demos.",
+  "Plugins": [
+    {
+      "Name": "NovaBridge",
+      "Enabled": true
+    }
+  ]
+}

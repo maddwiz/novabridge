@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NovaBridge - AI Control for Unreal Engine 5</title>
+  <style>
+    :root {
+      --bg-0: #0d1117;
+      --bg-1: #161b22;
+      --bg-2: #1f2937;
+      --text: #f5f7fb;
+      --muted: #b8c0cc;
+      --accent: #19c37d;
+      --accent-2: #0ea5e9;
+      --card: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.14);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "SF Pro Text", "Helvetica Neue", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1100px 700px at 5% -10%, #0b3d2e 0%, transparent 60%),
+        radial-gradient(900px 600px at 95% -20%, #10354d 0%, transparent 60%),
+        linear-gradient(180deg, var(--bg-0), var(--bg-1) 60%, var(--bg-2));
+      min-height: 100vh;
+    }
+
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 28px 20px 64px; }
+
+    .hero {
+      padding: 48px 24px;
+      border: 1px solid var(--border);
+      background: linear-gradient(120deg, rgba(25,195,125,0.12), rgba(14,165,233,0.08));
+      border-radius: 18px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.8rem, 4vw, 3rem);
+      line-height: 1.1;
+      letter-spacing: 0.2px;
+    }
+
+    .subtitle {
+      margin-top: 14px;
+      color: var(--muted);
+      max-width: 760px;
+      font-size: 1.05rem;
+      line-height: 1.6;
+    }
+
+    .cta-row { margin-top: 22px; display: flex; gap: 12px; flex-wrap: wrap; }
+
+    .btn {
+      text-decoration: none;
+      padding: 11px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-weight: 600;
+      transition: transform .2s ease, border-color .2s ease;
+    }
+
+    .btn:hover { transform: translateY(-1px); border-color: #ffffff66; }
+    .btn.primary { background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: #041014; border: 0; }
+
+    .grid {
+      margin-top: 26px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .card h3 { margin: 0 0 8px; font-size: 1rem; }
+    .card p { margin: 0; color: var(--muted); font-size: 0.95rem; line-height: 1.45; }
+
+    .foot { margin-top: 26px; color: var(--muted); font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>AI-Powered Unreal Engine 5 Control</h1>
+      <p class="subtitle">
+        NovaBridge exposes 30 HTTP endpoints for scene creation, asset import, materials, viewport camera,
+        screenshots, and automation. Includes a Blender pipeline, Python SDK, and MCP server.
+      </p>
+      <div class="cta-row">
+        <a class="btn primary" href="https://github.com/maddwiz/novabridge">View Repository</a>
+        <a class="btn" href="../docs/API.md">API Reference</a>
+        <a class="btn" href="../QUICK_START.md">Quick Start</a>
+      </div>
+      <div class="grid">
+        <article class="card">
+          <h3>UE5 API</h3>
+          <p>Scene, assets, materials, camera, blueprint, and editor command endpoints.</p>
+        </article>
+        <article class="card">
+          <h3>Blender Bridge</h3>
+          <p>Run scripts headlessly, export models, and import directly into UE5.</p>
+        </article>
+        <article class="card">
+          <h3>AI Integration</h3>
+          <p>Use OpenClaw tools, Python SDK, or MCP for Claude/Cursor/Windsurf workflows.</p>
+        </article>
+        <article class="card">
+          <h3>Cross-Platform</h3>
+          <p>Plugin targets Win64, Mac, Linux, and LinuxArm64 in the descriptor.</p>
+        </article>
+      </div>
+      <p class="foot">NovaBridge by MaddWiz. Built for autonomous scene generation and AI-assisted world building.</p>
+    </section>
+  </main>
+</body>
+</html>

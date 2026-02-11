@@ -55,6 +55,10 @@ The `extensions/openclaw/nova-blender` bridge now supports environment-based con
 - MCP server: [mcp-server](mcp-server)
 - Examples: [examples](examples)
 - Headless project template: [NovaBridgeDefault](NovaBridgeDefault)
+- Demo project scaffold: [NovaBridgeDemo](NovaBridgeDemo)
+- Release checklist: [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md)
+- Demo video script: [demo/VIDEO_SCRIPT.md](demo/VIDEO_SCRIPT.md)
+- Landing page starter: [site/index.html](site/index.html)
 
 ## Setup Guides
 
@@ -62,6 +66,17 @@ The `extensions/openclaw/nova-blender` bridge now supports environment-based con
 - Windows: [docs/SETUP_WINDOWS.md](docs/SETUP_WINDOWS.md)
 - macOS: [docs/SETUP_MAC.md](docs/SETUP_MAC.md)
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- Build status: [docs/BUILD_STATUS.md](docs/BUILD_STATUS.md)
+
+## Packaging
+
+Create a distribution zip:
+
+```bash
+./scripts/package_release.sh v1.0.0
+```
+
+Output is written to `dist/NovaBridge-v1.0.0.zip`.
 
 ## Platforms
 
@@ -72,4 +87,4 @@ The `extensions/openclaw/nova-blender` bridge now supports environment-based con
 
 ## License
 
-Proprietary - All rights reserved.
+Proprietary - All rights reserved. See [LICENSE](LICENSE).
