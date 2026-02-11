@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FGenericCrashContext>
+<RuntimeProperties>
+<CrashVersion>3</CrashVersion>
+<ExecutionGuid>789E26243EF044B8B91475B3D9011AF4</ExecutionGuid>
+<CrashGUID>UECC-LinuxArm64-9D28F7786D8A45FEA1D722FD136EFB6B_0001</CrashGUID>
+<IsEnsure>true</IsEnsure>
+<IsStall>false</IsStall>
+<IsAssert>false</IsAssert>
+<CrashType>Ensure</CrashType>
+<ErrorMessage>Ensure condition failed: false [File:./Runtime/CoreUObject/Private/UObject/UObjectGlobals.cpp] [Line: 2985]
+Class which was marked abstract was trying to be loaded.  It will be nulled out on save. None MaterialInterface
+Stack: 
+0x000044db4b521d38 UnrealEditor-CoreUObject.so!UnknownFunction(0x771d37)
+0x000044db4b52256c UnrealEditor-CoreUObject.so!_Z20StaticAllocateObjectPK6UClassP7UObject5FName12EObjectFlags20EInternalObjectFlagsbPbP8UPackage(+0x36b)
+0x000044db4b5200dc UnrealEditor-CoreUObject.so!_Z30StaticConstructObject_InternalRK32FStaticConstructObjectParameters(+0x4c3)
+0x000044db4e0b1698 UnrealEditor-Engine.so!UnknownFunction(0x2a11697)
+0x000044db4e0b1268 UnrealEditor-Engine.so!UnknownFunction(0x2a11267)
+0x000044db4e09d1c0 UnrealEditor-Engine.so!UnknownFunction(0x29fd1bf)
+0x000044db4e066b0c UnrealEditor-Engine.so!_ZN25UVolumetricCloudComponentC2ERK18FObjectInitializer(+0xe3)
+0x000044db4b5d80f0 UnrealEditor-CoreUObject.so!_ZN6UClass19CreateDefaultObjectEv(+0x417)
+0x000044db4b505384 UnrealEditor-CoreUObject.so!_Z26ProcessNewlyLoadedUObjects5FNameb(+0x13db)
+0x0000000000261df8 UnrealEditor!UnknownFunction(0x61df7)
+0x0000000000252ea4 UnrealEditor!UnknownFunction(0x52ea3)
+0x000044db552932c8 UnrealEditor-UnixCommonStartup.so!_Z14CommonUnixMainiPPcPFiPKDsEPFvvE(+0x503)
+0x000044db553a84c4 libc.so.6!UnknownFunction(0x284c3)
+0x000044db553a8598 libc.so.6!__libc_start_main(+0x97)
+0x0000000000240bb0 UnrealEditor!_start(+0x2f)
+</ErrorMessage>
+<CrashReporterMessage></CrashReporterMessage>
+<ProcessId>201017</ProcessId>
+<SecondsSinceStart>0</SecondsSinceStart>
+<IsInternalBuild>false</IsInternalBuild>
+<IsPerforceBuild>false</IsPerforceBuild>
+<IsSourceDistribution>true</IsSourceDistribution>
+<GameName>UE-NovaBridgeDefault</GameName>
+<ExecutableName>UnrealEditor</ExecutableName>
+<BuildConfiguration>Development</BuildConfiguration>
+<GameSessionID></GameSessionID>
+<PlatformName>LinuxEditor</PlatformName>
+<PlatformNameIni>LinuxArm64</PlatformNameIni>
+<EngineMode>Editor</EngineMode>
+<EngineModeEx>Unset</EngineModeEx>
+<DeploymentName></DeploymentName>
+<EngineVersion>5.1.0-0+UE5</EngineVersion>
+<CommandLine> /home/nova/novabridge/NovaBridgeDefault/NovaBridgeDefault.uproject -vulkan -RenderOffScreen -nosplash -nosound -unattended -nopause</CommandLine>
+<LanguageLCID>0</LanguageLCID>
+<AppDefaultLocale>en_US</AppDefaultLocale>
+<BuildVersion>UE5-CL-0</BuildVersion>
+<Symbols>UE5-CL-0-LinuxArm64-Development</Symbols>
+<IsUERelease>false</IsUERelease>
+<IsRequestingExit>false</IsRequestingExit>
+<UserName></UserName>
+<BaseDir>/home/nova/UnrealEngine/Engine/Binaries/LinuxArm64/</BaseDir>
+<RootDir>/home/nova/UnrealEngine/</RootDir>
+<MachineId>7AF66F30966A49B6886E00E2FCE4B42F-000003E9</MachineId>
+<LoginId>7af66f30966a49b6886e00e2fce4b42f-000003e9</LoginId>
+<EpicAccountId></EpicAccountId>
+<SourceContext></SourceContext>
+<UserDescription></UserDescription>
+<UserActivityHint></UserActivityHint>
+<CrashDumpMode>0</CrashDumpMode>
+<GameStateName></GameStateName>
+<Misc.NumberOfCores>20</Misc.NumberOfCores>
+<Misc.NumberOfCoresIncludingHyperthreads>20</Misc.NumberOfCoresIncludingHyperthreads>
+<Misc.Is64bitOperatingSystem>1</Misc.Is64bitOperatingSystem>
+<Misc.CPUVendor>ARM</Misc.CPUVendor>
+<Misc.CPUBrand>CPUPart_0xd87 rev1</Misc.CPUBrand>
+<Misc.PrimaryGPUBrand>NVIDIA PCI-id: 10de-2e12 (10de-0000) (NVIDIA UNIX Open Kernel M</Misc.PrimaryGPUBrand>
+<Misc.OSVersionMajor>Ubuntu 24.04.3 LTS</Misc.OSVersionMajor>
+<Misc.OSVersionMinor>6.14.0-1015-nvidia</Misc.OSVersionMinor>
+<MemoryStats.TotalPhysical>128524255232</MemoryStats.TotalPhysical>
+<MemoryStats.TotalVirtual>17179865088</MemoryStats.TotalVirtual>
+<MemoryStats.PageSize>4096</MemoryStats.PageSize>
+<MemoryStats.TotalPhysicalGB>120</MemoryStats.TotalPhysicalGB>
+<MemoryStats.AvailablePhysical>0</MemoryStats.AvailablePhysical>
+<MemoryStats.AvailableVirtual>0</MemoryStats.AvailableVirtual>
+<MemoryStats.UsedPhysical>0</MemoryStats.UsedPhysical>
+<MemoryStats.PeakUsedPhysical>0</MemoryStats.PeakUsedPhysical>
+<MemoryStats.UsedVirtual>0</MemoryStats.UsedVirtual>
+<MemoryStats.PeakUsedVirtual>0</MemoryStats.PeakUsedVirtual>
+<MemoryStats.bIsOOM>0</MemoryStats.bIsOOM>
+<MemoryStats.OOMAllocationSize>0</MemoryStats.OOMAllocationSize>
+<MemoryStats.OOMAllocationAlignment>0</MemoryStats.OOMAllocationAlignment>
+<NumMinidumpFramesToIgnore>7</NumMinidumpFramesToIgnore>
+<CallStack></CallStack>
+<PCallStack>
+
+       UnrealEditor-CoreUObject 0x000044db4adb0000 + 771d38          
+       UnrealEditor-CoreUObject 0x000044db4adb0000 + 77256c          
+       UnrealEditor-CoreUObject 0x000044db4adb0000 + 7700dc          
+            UnrealEditor-Engine 0x000044db4b6a0000 + 2a11698         
+            UnrealEditor-Engine 0x000044db4b6a0000 + 2a11268         
+            UnrealEditor-Engine 0x000044db4b6a0000 + 29fd1c0         
+            UnrealEditor-Engine 0x000044db4b6a0000 + 29c6b0c         
+       UnrealEditor-CoreUObject 0x000044db4adb0000 + 8280f0          
+       UnrealEditor-CoreUObject 0x000044db4adb0000 + 755384          
+                   UnrealEditor 0x0000000000200000 + 61df8           
+                   UnrealEditor 0x0000000000200000 + 52ea4           
+ UnrealEditor-UnixCommonStartup 0x000044db55280000 + 132c8           
+                        libc.so 0x000044db55380000 + 284c4           
+                        libc.so 0x000044db55380000 + 28598           
+                   UnrealEditor 0x0000000000200000 + 40bb0           
+</PCallStack>
+<PCallStackHash>CEB55E895583E9477CC1F11D085A9E4998044203</PCallStackHash>
+</RuntimeProperties>
+<PlatformProperties>
+<CrashSignal>5</CrashSignal>
+<CrashSignalName>Trace/breakpoint trap</CrashSignalName>
+<PlatformCallbackResult>0</PlatformCallbackResult>
+<CrashTrigger>0</CrashTrigger>
+</PlatformProperties>
+<EngineData>
+<MatchingDPStatus_LinuxEditor>No errors</MatchingDPStatus_LinuxEditor>
+<RHI.RHIName>Vulkan</RHI.RHIName>
+<RHI.AdapterName>NVIDIA Tegra NVIDIA GB10</RHI.AdapterName>
+<RHI.UserDriverVersion>580.95</RHI.UserDriverVersion>
+<RHI.InternalDriverVersion>580.95</RHI.InternalDriverVersion>
+<RHI.DriverDate>01-01-01</RHI.DriverDate>
+<RHI.FeatureLevel>SM5</RHI.FeatureLevel>
+<RHI.GPUVendor>NVIDIA</RHI.GPUVendor>
+<RHI.DeviceId>2E12</RHI.DeviceId>
+<DeviceProfile.Name>LinuxEditor</DeviceProfile.Name>
+</EngineData>
+<GameData>
+</GameData>
+</FGenericCrashContext>

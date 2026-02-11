@@ -17,3 +17,7 @@ Thumbs.db
 exports/
 *.obj
 *.fbx
+
+# Python
+__pycache__/
+*.pyc

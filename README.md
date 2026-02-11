@@ -4,7 +4,7 @@ HTTP API bridge giving AI agents full programmatic control over Unreal Engine 5.
 
 ## What it does
 
-NovaBridge is a UE5 Editor plugin that exposes 29 HTTP endpoints for scene manipulation, asset management, material creation, viewport control, and more. Combined with a Blender integration pipeline, AI agents can autonomously generate 3D content and build scenes in Unreal Engine.
+NovaBridge is a UE5 Editor plugin that exposes 30 HTTP endpoints for scene manipulation, asset management, material creation, viewport control, and more. Combined with a Blender integration pipeline, AI agents can autonomously generate 3D content and build scenes in Unreal Engine.
 
 ## Architecture
 
@@ -24,9 +24,44 @@ AI Agent → Blender (Python/MB-Lab) → OBJ export → NovaBridge import → UE
 3. Launch UE5: `UnrealEditor YourProject.uproject -RenderOffScreen -nosplash -unattended -nopause`
 4. Test: `curl http://localhost:30010/nova/health`
 
+For headless startup without an existing project, use `NovaBridgeDefault/NovaBridgeDefault.uproject`.
+
 ## API Endpoints
 
 See [docs/NOVABRIDGE_HANDOFF.md](docs/NOVABRIDGE_HANDOFF.md) for full API reference.
+Primary API reference lives at [docs/API.md](docs/API.md).
+
+## Recent Fixes
+
+- `POST /nova/asset/import` now accepts optional `scale` (default `100`) to normalize Blender meter-scale OBJ files to UE centimeters.
+- `POST /nova/scene/set-property` now includes class-name alias matching for component prefixes (for example, `PointLightComponent0.Intensity` resolves correctly).
+- MB-Lab export cleanup removes non-character scene objects/ground planes before export.
+
+## Blender Extension Configuration
+
+The `extensions/openclaw/nova-blender` bridge now supports environment-based configuration:
+
+- `NOVABRIDGE_BLENDER_PATH` (default platform path)
+- `NOVABRIDGE_EXPORT_DIR` (default OS temp dir `novabridge-exports`)
+- `NOVABRIDGE_SCRIPTS_DIR` (default auto-detected from extension `scripts/` or repo blender scripts)
+- `NOVABRIDGE_OUTPUT_DIR` (default `<NOVABRIDGE_EXPORT_DIR>/output`)
+- `NOVABRIDGE_HOST` (default `localhost`)
+- `NOVABRIDGE_PORT` (default `30010`)
+- `NOVABRIDGE_IMPORT_SCALE` (default `100`)
+
+## New Integrations
+
+- Python SDK: [python-sdk](python-sdk)
+- MCP server: [mcp-server](mcp-server)
+- Examples: [examples](examples)
+- Headless project template: [NovaBridgeDefault](NovaBridgeDefault)
+
+## Setup Guides
+
+- Linux: [docs/SETUP_LINUX.md](docs/SETUP_LINUX.md)
+- Windows: [docs/SETUP_WINDOWS.md](docs/SETUP_WINDOWS.md)
+- macOS: [docs/SETUP_MAC.md](docs/SETUP_MAC.md)
+- Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ## Platforms
 

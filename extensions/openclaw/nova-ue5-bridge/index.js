@@ -3,16 +3,18 @@ const fs = require('fs');
 const path = require('path');
 const { Type } = require('@sinclair/typebox');
 
-const UE5_PORT = 30010;
-const UE5_HOST = 'localhost';
+const UE5_PORT_RAW = Number.parseInt(process.env.NOVABRIDGE_PORT || '30010', 10);
+const UE5_PORT = Number.isFinite(UE5_PORT_RAW) && UE5_PORT_RAW > 0 ? UE5_PORT_RAW : 30010;
+const UE5_HOST = process.env.NOVABRIDGE_HOST || 'localhost';
+const SCREENSHOT_DIR = process.env.NOVABRIDGE_SCREENSHOT_DIR || '/home/nova/.openclaw/workspace/screenshots';
 
-function ue5Request(method, path, body) {
+function ue5Request(method, urlPath, body) {
   return new Promise((resolve, reject) => {
     const bodyStr = body ? JSON.stringify(body) : null;
     const options = {
       hostname: UE5_HOST,
       port: UE5_PORT,
-      path: path,
+      path: urlPath,
       method: method,
       headers: { 'Content-Type': 'application/json' },
       timeout: 30000,
@@ -64,6 +66,14 @@ const plugin = {
       description: 'Check if UE5 editor is running and responsive',
       parameters: Type.Object({}),
       async execute(_id, _params) { return run('GET', '/nova/health'); },
+    });
+
+    api.registerTool({
+      name: 'ue5_project_info',
+      label: 'UE5 Project Info',
+      description: 'Get loaded UE5 project name/path info to verify editor startup state.',
+      parameters: Type.Object({}),
+      async execute(_id, _params) { return run('GET', '/nova/project/info'); },
     });
 
     api.registerTool({
@@ -221,6 +231,7 @@ const plugin = {
         file_path: Type.String({ description: 'Absolute path to the file on disk (e.g. /tmp/model.fbx)' }),
         asset_name: Type.Optional(Type.String({ description: 'Name for the imported asset' })),
         destination: Type.Optional(Type.String({ description: 'UE5 content path (default: /Game)' })),
+        scale: Type.Optional(Type.Number({ description: 'Optional scale factor for OBJ imports (default: 100)' })),
       }),
       async execute(_id, params) { return run('POST', '/nova/asset/import', params); },
     });
@@ -326,16 +337,22 @@ const plugin = {
       name: 'ue5_viewport_screenshot',
       label: 'UE5 Screenshot',
       description: 'Capture a screenshot of the editor viewport. Saves PNG to workspace/screenshots/ and returns the file path. Use to SEE what you are building.',
-      parameters: Type.Object({}),
-      async execute(_id, _params) {
+      parameters: Type.Object({
+        width: Type.Optional(Type.Number({ description: 'Optional capture width (64-3840)' })),
+        height: Type.Optional(Type.Number({ description: 'Optional capture height (64-2160)' })),
+      }),
+      async execute(_id, params) {
         try {
-          const result = await ue5Request('GET', '/nova/viewport/screenshot');
+          const query = [];
+          if (Number.isFinite(params.width) && params.width > 0) query.push(`width=${Math.round(params.width)}`);
+          if (Number.isFinite(params.height) && params.height > 0) query.push(`height=${Math.round(params.height)}`);
+          const endpoint = query.length > 0 ? `/nova/viewport/screenshot?${query.join('&')}` : '/nova/viewport/screenshot';
+          const result = await ue5Request('GET', endpoint);
           if (result.image) {
-            const dir = '/home/nova/.openclaw/workspace/screenshots';
-            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            if (!fs.existsSync(SCREENSHOT_DIR)) fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
             const ts = new Date().toISOString().replace(/[:.]/g, '-');
             const filename = `viewport-${ts}.png`;
-            const filepath = path.join(dir, filename);
+            const filepath = path.join(SCREENSHOT_DIR, filename);
             fs.writeFileSync(filepath, Buffer.from(result.image, 'base64'));
             const sizeKB = Math.round(fs.statSync(filepath).size / 1024);
             const resolution = result.width ? `${result.width}x${result.height}` : '1280x720';
@@ -368,6 +385,8 @@ const plugin = {
           yaw: Type.Optional(Type.Number()),
           roll: Type.Optional(Type.Number()),
         })),
+        fov: Type.Optional(Type.Number({ description: 'Field of view in degrees' })),
+        show_flags: Type.Optional(Type.Record(Type.String(), Type.Boolean(), { description: 'Optional SceneCapture show flags map, e.g. {"Grid": false, "BSP": false}' })),
       }),
       async execute(_id, params) { return run('POST', '/nova/viewport/camera/set', params); },
     });

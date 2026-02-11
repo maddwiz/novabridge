@@ -1,18 +1,35 @@
 const { execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const http = require('http');
 const https = require('https');
 const { Type } = require('@sinclair/typebox');
 
-const BLENDER_BIN = '/usr/bin/blender';
-const EXPORT_DIR = '/tmp/nova-blender-exports';
-const SCRIPTS_DIR = '/home/nova/.openclaw/workspace/embodiment/avatar/blender/scripts';
-const UE5_PORT = 30010;
-const UE5_HOST = 'localhost';
+const BLENDER_BIN = process.env.NOVABRIDGE_BLENDER_PATH
+  || (process.platform === 'win32'
+    ? 'C:\\Program Files\\Blender Foundation\\Blender 4.0\\blender.exe'
+    : process.platform === 'darwin'
+      ? '/Applications/Blender.app/Contents/MacOS/Blender'
+      : '/usr/bin/blender');
+const EXPORT_DIR = process.env.NOVABRIDGE_EXPORT_DIR || path.join(os.tmpdir(), 'novabridge-exports');
+const SCRIPT_DIR_CANDIDATES = [
+  process.env.NOVABRIDGE_SCRIPTS_DIR,
+  path.resolve(__dirname, 'scripts'),
+  path.resolve(__dirname, '../../../blender/scripts'),
+  '/home/nova/.openclaw/workspace/embodiment/avatar/blender/scripts',
+].filter(Boolean);
+const SCRIPTS_DIR = SCRIPT_DIR_CANDIDATES.find((dir) => fs.existsSync(dir)) || SCRIPT_DIR_CANDIDATES[0];
+const OUTPUT_DIR = process.env.NOVABRIDGE_OUTPUT_DIR || path.join(EXPORT_DIR, 'output');
+const UE5_PORT_RAW = Number.parseInt(process.env.NOVABRIDGE_PORT || '30010', 10);
+const UE5_PORT = Number.isFinite(UE5_PORT_RAW) && UE5_PORT_RAW > 0 ? UE5_PORT_RAW : 30010;
+const UE5_HOST = process.env.NOVABRIDGE_HOST || 'localhost';
+const UE5_IMPORT_SCALE_RAW = Number.parseFloat(process.env.NOVABRIDGE_IMPORT_SCALE || '100');
+const UE5_IMPORT_SCALE = Number.isFinite(UE5_IMPORT_SCALE_RAW) && UE5_IMPORT_SCALE_RAW > 0 ? UE5_IMPORT_SCALE_RAW : 100;
 
 // Ensure export dir exists
 if (!fs.existsSync(EXPORT_DIR)) fs.mkdirSync(EXPORT_DIR, { recursive: true });
+if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
 function ue5Request(method, urlPath, body) {
   return new Promise((resolve, reject) => {
@@ -85,8 +102,18 @@ function downloadFile(url, destPath) {
 
 // OBJ export code for Blender (used by export and pipeline tools)
 function objExportCode(outPath) {
+  const normalizedOutPath = outPath.replace(/\\/g, '/');
   return `
 import bpy
+
+# Remove non-mesh objects and flatten artifacts (e.g., MB-Lab ground plane).
+for obj in list(bpy.data.objects):
+    if obj.type != 'MESH':
+        bpy.data.objects.remove(obj, do_unlink=True)
+        continue
+    dims = obj.dimensions
+    if dims.z < 0.01 and dims.x > 1.0 and dims.y > 1.0:
+        bpy.data.objects.remove(obj, do_unlink=True)
 
 # Apply all modifiers before export
 for obj in bpy.data.objects:
@@ -100,7 +127,7 @@ for obj in bpy.data.objects:
 
 # Export as OBJ with normals and UVs
 bpy.ops.wm.obj_export(
-    filepath="${outPath}",
+    filepath="${normalizedOutPath}",
     export_selected_objects=False,
     export_uv=True,
     export_normals=True,
@@ -184,12 +211,11 @@ const plugin = {
             }
           };
           scanDir(SCRIPTS_DIR);
-          const outputDir = '/home/nova/.openclaw/workspace/embodiment/avatar/output';
           const outputs = [];
-          if (fs.existsSync(outputDir)) {
-            for (const f of fs.readdirSync(outputDir)) {
+          if (fs.existsSync(OUTPUT_DIR)) {
+            for (const f of fs.readdirSync(OUTPUT_DIR)) {
               if (f.endsWith('.blend') || f.endsWith('.obj') || f.endsWith('.glb')) {
-                outputs.push(path.join(outputDir, f));
+                outputs.push(path.join(OUTPUT_DIR, f));
               }
             }
           }
@@ -303,6 +329,7 @@ const plugin = {
             file_path: objPath,
             asset_name: params.asset_name,
             destination: params.ue5_path || '/Game',
+            scale: UE5_IMPORT_SCALE,
           });
 
           return json({
@@ -386,6 +413,7 @@ ${importLine}
               file_path: objPath,
               asset_name: params.asset_name,
               destination: '/Game',
+              scale: UE5_IMPORT_SCALE,
             });
             result.ue5_import = ue5Result;
           }

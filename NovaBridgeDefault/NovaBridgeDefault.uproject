@@ -1,0 +1,13 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.0",
+  "Category": "",
+  "Description": "Minimal default project for headless NovaBridge startup",
+  "Modules": [],
+  "Plugins": [
+    {
+      "Name": "NovaBridge",
+      "Enabled": true
+    }
+  ]
+}

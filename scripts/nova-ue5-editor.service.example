@@ -1,0 +1,12 @@
+[Unit]
+Description=NovaBridge UE5 Editor
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=/path/to/UnrealEditor /path/to/novabridge/NovaBridgeDefault/NovaBridgeDefault.uproject -RenderOffScreen -nosplash -nosound -unattended -nopause -NovaBridgePort=30010
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

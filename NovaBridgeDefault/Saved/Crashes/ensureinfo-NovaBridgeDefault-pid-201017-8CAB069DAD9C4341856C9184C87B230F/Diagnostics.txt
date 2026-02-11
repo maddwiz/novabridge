@@ -1,0 +1,34 @@
+Generating report for minidump
+
+Application version 5.1.0.0
+ ... built from changelist 0
+
+OS version Linux 6.14.0-1015-nvidia (network name: spark-4c54)
+Running 20 aarch64 processors (20 logical cores)
+Exception was "Ensure condition failed: false [File:./Runtime/CoreUObject/Private/UObject/UObjectGlobals.cpp] [Line: 2985]"
+
+<SOURCE START>
+<SOURCE END>
+
+<CALLSTACK START>
+UnrealEditor-CoreUObject.so!UnknownFunction(0x771d37)
+UnrealEditor-CoreUObject.so!_Z20StaticAllocateObjectPK6UClassP7UObject5FName12EObjectFlags20EInternalObjectFlagsbPbP8UPackage(+0x36b)
+UnrealEditor-CoreUObject.so!_Z30StaticConstructObject_InternalRK32FStaticConstructObjectParameters(+0x4c3)
+UnrealEditor-Engine.so!UnknownFunction(0x2a11697)
+UnrealEditor-Engine.so!UnknownFunction(0x2a11267)
+UnrealEditor-Engine.so!UnknownFunction(0x29fd1bf)
+UnrealEditor-Engine.so!_ZN25UVolumetricCloudComponentC2ERK18FObjectInitializer(+0xe3)
+UnrealEditor-CoreUObject.so!_ZN6UClass19CreateDefaultObjectEv(+0x417)
+UnrealEditor-CoreUObject.so!_Z26ProcessNewlyLoadedUObjects5FNameb(+0x13db)
+UnrealEditor!UnknownFunction(0x61df7)
+UnrealEditor!UnknownFunction(0x52ea3)
+UnrealEditor-UnixCommonStartup.so!_Z14CommonUnixMainiPPcPFiPKDsEPFvvE(+0x503)
+libc.so.6!UnknownFunction(0x284c3)
+libc.so.6!__libc_start_main(+0x97)
+UnrealEditor!_start(+0x2f)
+
+<CALLSTACK END>
+
+0 loaded modules
+
+Report end!

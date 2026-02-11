@@ -77,15 +77,55 @@
 // Asset Import
 #include "AssetImportTask.h"
 #include "Misc/FileHelper.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "Misc/Paths.h"
+#include "Misc/App.h"
 
 // Image
 #include "IImageWrapperModule.h"
 #include "IImageWrapper.h"
 #include "Misc/Base64.h"
+#include "ShowFlags.h"
 
 #define LOCTEXT_NAMESPACE "FNovaBridgeModule"
 
 DEFINE_LOG_CATEGORY_STATIC(LogNovaBridge, Log, All);
+
+static FString NormalizeComponentKey(FString Value)
+{
+	FString Out;
+	Out.Reserve(Value.Len());
+	for (TCHAR Ch : Value)
+	{
+		if (FChar::IsAlnum(Ch))
+		{
+			Out.AppendChar(FChar::ToLower(Ch));
+		}
+	}
+
+	// Ignore trailing numeric suffixes often used in component names (e.g. LightComponent0).
+	while (Out.Len() > 0 && FChar::IsDigit(Out[Out.Len() - 1]))
+	{
+		Out.LeftChopInline(1, false);
+	}
+
+	return Out;
+}
+
+static const TCHAR* HttpVerbToString(EHttpServerRequestVerbs Verb)
+{
+	switch (Verb)
+	{
+	case EHttpServerRequestVerbs::VERB_GET: return TEXT("GET");
+	case EHttpServerRequestVerbs::VERB_POST: return TEXT("POST");
+	case EHttpServerRequestVerbs::VERB_PUT: return TEXT("PUT");
+	case EHttpServerRequestVerbs::VERB_PATCH: return TEXT("PATCH");
+	case EHttpServerRequestVerbs::VERB_DELETE: return TEXT("DELETE");
+	case EHttpServerRequestVerbs::VERB_OPTIONS: return TEXT("OPTIONS");
+	default: return TEXT("UNKNOWN");
+	}
+}
 
 // Helper to find actor by name in editor world
 static AActor* FindActorByName(const FString& Name)
@@ -155,6 +195,20 @@ void FNovaBridgeModule::ShutdownModule()
 
 void FNovaBridgeModule::StartHttpServer()
 {
+	ApiRouteCount = 0;
+	int32 ParsedPort = 0;
+	if (FParse::Value(FCommandLine::Get(), TEXT("NovaBridgePort="), ParsedPort))
+	{
+		if (ParsedPort > 0 && ParsedPort <= 65535)
+		{
+			HttpPort = static_cast<uint32>(ParsedPort);
+		}
+		else
+		{
+			UE_LOG(LogNovaBridge, Warning, TEXT("Invalid -NovaBridgePort=%d, falling back to default %d"), ParsedPort, HttpPort);
+		}
+	}
+
 	HttpRouter = FHttpServerModule::Get().GetHttpRouter(HttpPort);
 	if (!HttpRouter)
 	{
@@ -164,17 +218,30 @@ void FNovaBridgeModule::StartHttpServer()
 
 	auto Bind = [this](const TCHAR* Path, EHttpServerRequestVerbs Verbs, bool (FNovaBridgeModule::*Handler)(const FHttpServerRequest&, const FHttpResultCallback&))
 	{
+		ApiRouteCount++;
 		RouteHandles.Add(HttpRouter->BindRoute(
 			FHttpPath(Path), Verbs,
 			[this, Handler](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) -> bool
 			{
+				UE_LOG(LogNovaBridge, Verbose, TEXT("[%s] %s %s"),
+					*FDateTime::Now().ToString(),
+					HttpVerbToString(Request.Verb),
+					*Request.RelativePath.GetPath());
 				return (this->*Handler)(Request, OnComplete);
+			}
+		));
+		RouteHandles.Add(HttpRouter->BindRoute(
+			FHttpPath(Path), EHttpServerRequestVerbs::VERB_OPTIONS,
+			[this](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) -> bool
+			{
+				return HandleCorsPreflight(Request, OnComplete);
 			}
 		));
 	};
 
 	// Health check
 	Bind(TEXT("/nova/health"), EHttpServerRequestVerbs::VERB_GET, &FNovaBridgeModule::HandleHealth);
+	Bind(TEXT("/nova/project/info"), EHttpServerRequestVerbs::VERB_GET, &FNovaBridgeModule::HandleProjectInfo);
 
 	// Scene
 	Bind(TEXT("/nova/scene/list"), EHttpServerRequestVerbs::VERB_GET, &FNovaBridgeModule::HandleSceneList);
@@ -219,7 +286,7 @@ void FNovaBridgeModule::StartHttpServer()
 	Bind(TEXT("/nova/exec/command"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleExecCommand);
 
 	FHttpServerModule::Get().StartAllListeners();
-	UE_LOG(LogNovaBridge, Log, TEXT("NovaBridge HTTP server started on port %d with %d routes"), HttpPort, RouteHandles.Num());
+	UE_LOG(LogNovaBridge, Log, TEXT("NovaBridge HTTP server started on port %d with %d API routes"), HttpPort, ApiRouteCount);
 }
 
 void FNovaBridgeModule::StopHttpServer()
@@ -232,6 +299,7 @@ void FNovaBridgeModule::StopHttpServer()
 		}
 		RouteHandles.Empty();
 	}
+	ApiRouteCount = 0;
 	FHttpServerModule::Get().StopAllListeners();
 }
 
@@ -252,6 +320,26 @@ TSharedPtr<FJsonObject> FNovaBridgeModule::ParseRequestBody(const FHttpServerReq
 	return JsonObj;
 }
 
+void FNovaBridgeModule::AddCorsHeaders(TUniquePtr<FHttpServerResponse>& Response) const
+{
+	if (!Response)
+	{
+		return;
+	}
+
+	Response->Headers.FindOrAdd(TEXT("Access-Control-Allow-Origin")).Add(TEXT("*"));
+	Response->Headers.FindOrAdd(TEXT("Access-Control-Allow-Methods")).Add(TEXT("GET, POST, OPTIONS"));
+	Response->Headers.FindOrAdd(TEXT("Access-Control-Allow-Headers")).Add(TEXT("Content-Type, Authorization"));
+	Response->Headers.FindOrAdd(TEXT("Access-Control-Max-Age")).Add(TEXT("86400"));
+}
+
+bool FNovaBridgeModule::HandleCorsPreflight(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	(void)Request;
+	SendOkResponse(OnComplete);
+	return true;
+}
+
 void FNovaBridgeModule::SendJsonResponse(const FHttpResultCallback& OnComplete, TSharedPtr<FJsonObject> JsonObj, int32 StatusCode)
 {
 	FString ResponseStr;
@@ -259,13 +347,16 @@ void FNovaBridgeModule::SendJsonResponse(const FHttpResultCallback& OnComplete, 
 	FJsonSerializer::Serialize(JsonObj.ToSharedRef(), Writer);
 	TUniquePtr<FHttpServerResponse> Response = FHttpServerResponse::Create(ResponseStr, TEXT("application/json"));
 	Response->Code = static_cast<EHttpServerResponseCodes>(StatusCode);
+	AddCorsHeaders(Response);
 	OnComplete(MoveTemp(Response));
 }
 
 void FNovaBridgeModule::SendErrorResponse(const FHttpResultCallback& OnComplete, const FString& Error, int32 StatusCode)
 {
 	TSharedPtr<FJsonObject> JsonObj = MakeShareable(new FJsonObject);
+	JsonObj->SetStringField(TEXT("status"), TEXT("error"));
 	JsonObj->SetStringField(TEXT("error"), Error);
+	JsonObj->SetNumberField(TEXT("code"), StatusCode);
 	SendJsonResponse(OnComplete, JsonObj, StatusCode);
 }
 
@@ -286,7 +377,20 @@ bool FNovaBridgeModule::HandleHealth(const FHttpServerRequest& Request, const FH
 	JsonObj->SetStringField(TEXT("status"), TEXT("ok"));
 	JsonObj->SetStringField(TEXT("engine"), TEXT("UnrealEngine"));
 	JsonObj->SetNumberField(TEXT("port"), HttpPort);
-	JsonObj->SetNumberField(TEXT("routes"), RouteHandles.Num());
+	JsonObj->SetNumberField(TEXT("routes"), ApiRouteCount);
+	SendJsonResponse(OnComplete, JsonObj);
+	return true;
+}
+
+bool FNovaBridgeModule::HandleProjectInfo(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	(void)Request;
+	TSharedPtr<FJsonObject> JsonObj = MakeShareable(new FJsonObject);
+	JsonObj->SetStringField(TEXT("status"), TEXT("ok"));
+	JsonObj->SetStringField(TEXT("project_name"), FApp::GetProjectName());
+	JsonObj->SetStringField(TEXT("project_file"), FPaths::GetProjectFilePath());
+	JsonObj->SetStringField(TEXT("project_dir"), FPaths::ProjectDir());
+	JsonObj->SetStringField(TEXT("content_dir"), FPaths::ProjectContentDir());
 	SendJsonResponse(OnComplete, JsonObj);
 	return true;
 }
@@ -335,11 +439,16 @@ bool FNovaBridgeModule::HandleSceneSpawn(const FHttpServerRequest& Request, cons
 		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
 		return true;
 	}
+	if (!Body->HasTypedField<EJson::String>(TEXT("class")) || Body->GetStringField(TEXT("class")).IsEmpty())
+	{
+		SendErrorResponse(OnComplete, TEXT("Missing required parameter: 'class'"));
+		return true;
+	}
 
 	FString ClassName = Body->GetStringField(TEXT("class"));
-	double X = Body->GetNumberField(TEXT("x"));
-	double Y = Body->GetNumberField(TEXT("y"));
-	double Z = Body->GetNumberField(TEXT("z"));
+	double X = Body->HasField(TEXT("x")) ? Body->GetNumberField(TEXT("x")) : 0.0;
+	double Y = Body->HasField(TEXT("y")) ? Body->GetNumberField(TEXT("y")) : 0.0;
+	double Z = Body->HasField(TEXT("z")) ? Body->GetNumberField(TEXT("z")) : 0.0;
 	double Pitch = Body->HasField(TEXT("pitch")) ? Body->GetNumberField(TEXT("pitch")) : 0.0;
 	double Yaw = Body->HasField(TEXT("yaw")) ? Body->GetNumberField(TEXT("yaw")) : 0.0;
 	double Roll = Body->HasField(TEXT("roll")) ? Body->GetNumberField(TEXT("roll")) : 0.0;
@@ -347,6 +456,20 @@ bool FNovaBridgeModule::HandleSceneSpawn(const FHttpServerRequest& Request, cons
 
 	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, ClassName, X, Y, Z, Pitch, Yaw, Roll, Label]()
 	{
+		static int32 SpawnCount = 0;
+		static double SpawnWindowStart = 0.0;
+		const double Now = FPlatformTime::Seconds();
+		if (Now - SpawnWindowStart > 60.0)
+		{
+			SpawnWindowStart = Now;
+			SpawnCount = 0;
+		}
+		if (++SpawnCount > 100)
+		{
+			SendErrorResponse(OnComplete, TEXT("Rate limit: max 100 scene spawns per minute"), 429);
+			return;
+		}
+
 		if (!GEditor)
 		{
 			SendErrorResponse(OnComplete, TEXT("No editor"), 500);
@@ -617,6 +740,45 @@ bool FNovaBridgeModule::HandleSceneSetProperty(const FHttpServerRequest& Request
 				{
 					FoundComp = Comp;
 					break;
+				}
+			}
+			if (!FoundComp)
+			{
+				const FString RequestedKey = NormalizeComponentKey(CompName);
+				if (!RequestedKey.IsEmpty())
+				{
+					for (UActorComponent* Comp : Components)
+					{
+						const FString CompNameKey = NormalizeComponentKey(Comp->GetName());
+						FString ClassName = Comp->GetClass()->GetName();
+						const FString ClassNameKey = NormalizeComponentKey(ClassName);
+
+						// Class names usually start with U (e.g. UPointLightComponent); allow matching without it.
+						if (ClassName.StartsWith(TEXT("U")))
+						{
+							ClassName.RightChopInline(1, false);
+						}
+						const FString ClassNameNoPrefixKey = NormalizeComponentKey(ClassName);
+
+						const bool bClassMatch =
+							(RequestedKey == ClassNameKey) ||
+							(RequestedKey == ClassNameNoPrefixKey) ||
+							(RequestedKey.Contains(ClassNameKey)) ||
+							(RequestedKey.Contains(ClassNameNoPrefixKey)) ||
+							(ClassNameKey.Contains(RequestedKey)) ||
+							(ClassNameNoPrefixKey.Contains(RequestedKey));
+
+						const bool bNameMatch =
+							(RequestedKey == CompNameKey) ||
+							(RequestedKey.Contains(CompNameKey)) ||
+							(CompNameKey.Contains(RequestedKey));
+
+						if (bClassMatch || bNameMatch)
+						{
+							FoundComp = Comp;
+							break;
+						}
+					}
 				}
 			}
 			if (FoundComp)
@@ -941,6 +1103,7 @@ bool FNovaBridgeModule::HandleAssetImport(const FHttpServerRequest& Request, con
 	FString FilePath = Body->GetStringField(TEXT("file_path"));
 	FString AssetName = Body->HasField(TEXT("asset_name")) ? Body->GetStringField(TEXT("asset_name")) : TEXT("");
 	FString Destination = Body->HasField(TEXT("destination")) ? Body->GetStringField(TEXT("destination")) : TEXT("/Game");
+	const float ImportScale = Body->HasField(TEXT("scale")) ? static_cast<float>(Body->GetNumberField(TEXT("scale"))) : 100.0f;
 
 	if (FilePath.IsEmpty())
 	{
@@ -953,15 +1116,63 @@ bool FNovaBridgeModule::HandleAssetImport(const FHttpServerRequest& Request, con
 		SendErrorResponse(OnComplete, FString::Printf(TEXT("File not found: %s"), *FilePath));
 		return true;
 	}
-
-	// Only support OBJ files (FBX SDK not available on ARM64)
-	if (!FilePath.EndsWith(TEXT(".obj")))
+	if (!FMath::IsFinite(ImportScale) || ImportScale <= 0.0f)
 	{
-		SendErrorResponse(OnComplete, TEXT("Only .obj files supported for import (FBX SDK unavailable on ARM64). Export from Blender as OBJ."));
+		SendErrorResponse(OnComplete, TEXT("Invalid 'scale'. Provide a positive number."));
 		return true;
 	}
 
-	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, FilePath, AssetName, Destination]()
+	const bool bIsObj = FilePath.EndsWith(TEXT(".obj"), ESearchCase::IgnoreCase);
+	const bool bIsFbx = FilePath.EndsWith(TEXT(".fbx"), ESearchCase::IgnoreCase);
+	if (!bIsObj && !bIsFbx)
+	{
+		SendErrorResponse(OnComplete, TEXT("Unsupported file format. Supported: .obj, .fbx"));
+		return true;
+	}
+
+	if (bIsFbx)
+	{
+		AsyncTask(ENamedThreads::GameThread, [this, OnComplete, FilePath, AssetName, Destination]()
+		{
+			UAssetImportTask* Task = NewObject<UAssetImportTask>();
+			Task->Filename = FilePath;
+			Task->DestinationPath = Destination;
+			Task->bAutomated = true;
+			Task->bReplaceExisting = true;
+			Task->bSave = true;
+			if (!AssetName.IsEmpty())
+			{
+				Task->DestinationName = AssetName;
+			}
+
+			FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+			TArray<UAssetImportTask*> Tasks;
+			Tasks.Add(Task);
+			AssetToolsModule.Get().ImportAssetTasks(Tasks);
+
+			if (Task->ImportedObjectPaths.Num() == 0)
+			{
+				SendErrorResponse(OnComplete, TEXT("FBX import failed. This platform/build may not have FBX importer support enabled."));
+				return;
+			}
+
+			TArray<TSharedPtr<FJsonValue>> ImportedAssets;
+			for (const FString& ImportedPath : Task->ImportedObjectPaths)
+			{
+				ImportedAssets.Add(MakeShareable(new FJsonValueString(ImportedPath)));
+			}
+
+			TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+			Result->SetStringField(TEXT("status"), TEXT("ok"));
+			Result->SetStringField(TEXT("format"), TEXT("fbx"));
+			Result->SetArrayField(TEXT("imported_assets"), ImportedAssets);
+			Result->SetStringField(TEXT("source_file"), FilePath);
+			SendJsonResponse(OnComplete, Result);
+		});
+		return true;
+	}
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, FilePath, AssetName, Destination, ImportScale]()
 	{
 		// Parse OBJ file
 		FString ObjContent;
@@ -1073,7 +1284,7 @@ bool FNovaBridgeModule::HandleAssetImport(const FHttpServerRequest& Request, con
 						FVector Pos = Positions[FV.PosIdx];
 						// OBJ: X right, Y up, Z towards viewer. UE5: X forward, Y right, Z up.
 						// Common conversion: swap Y and Z
-						ExpandedPositions.Add(FVector(Pos.X, -Pos.Y, Pos.Z));
+						ExpandedPositions.Add(FVector(Pos.X * ImportScale, -Pos.Y * ImportScale, Pos.Z * ImportScale));
 					}
 					else
 					{
@@ -1162,6 +1373,7 @@ bool FNovaBridgeModule::HandleAssetImport(const FHttpServerRequest& Request, con
 		Result->SetNumberField(TEXT("triangles"), NumTris);
 		Result->SetNumberField(TEXT("original_positions"), Positions.Num());
 		Result->SetNumberField(TEXT("original_faces"), Faces.Num());
+		Result->SetNumberField(TEXT("import_scale"), ImportScale);
 		SendJsonResponse(OnComplete, Result);
 	});
 	return true;
@@ -1785,6 +1997,7 @@ bool FNovaBridgeModule::HandleViewportScreenshot(const FHttpServerRequest& Reque
 {
 	// Parse optional width/height from query params
 	int32 ReqWidth = 0, ReqHeight = 0;
+	bool bRawPng = false;
 	if (Request.QueryParams.Contains(TEXT("width")))
 	{
 		ReqWidth = FCString::Atoi(*Request.QueryParams[TEXT("width")]);
@@ -1793,8 +2006,13 @@ bool FNovaBridgeModule::HandleViewportScreenshot(const FHttpServerRequest& Reque
 	{
 		ReqHeight = FCString::Atoi(*Request.QueryParams[TEXT("height")]);
 	}
+	if (Request.QueryParams.Contains(TEXT("format")))
+	{
+		const FString Format = Request.QueryParams[TEXT("format")].ToLower();
+		bRawPng = (Format == TEXT("raw") || Format == TEXT("png"));
+	}
 
-	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, ReqWidth, ReqHeight]()
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, ReqWidth, ReqHeight, bRawPng]()
 	{
 		if (!GEditor)
 		{
@@ -1854,6 +2072,20 @@ bool FNovaBridgeModule::HandleViewportScreenshot(const FHttpServerRequest& Reque
 		TArray64<uint8> PngData = ImageWrapper->GetCompressed(0);
 		if (PngData.Num() > 0)
 		{
+			if (bRawPng)
+			{
+				TArray<uint8> RawPng;
+				RawPng.Append(PngData.GetData(), static_cast<int32>(PngData.Num()));
+
+				TUniquePtr<FHttpServerResponse> Response = FHttpServerResponse::Create(MoveTemp(RawPng), TEXT("image/png"));
+				Response->Code = EHttpServerResponseCodes::Ok;
+				Response->Headers.FindOrAdd(TEXT("X-NovaBridge-Width")).Add(FString::FromInt(Width));
+				Response->Headers.FindOrAdd(TEXT("X-NovaBridge-Height")).Add(FString::FromInt(Height));
+				AddCorsHeaders(Response);
+				OnComplete(MoveTemp(Response));
+				return;
+			}
+
 			FString Base64 = FBase64::Encode(PngData.GetData(), PngData.Num());
 
 			TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
@@ -1882,6 +2114,8 @@ bool FNovaBridgeModule::HandleViewportSetCamera(const FHttpServerRequest& Reques
 
 	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, Body]()
 	{
+		TArray<FString> UnknownShowFlags;
+
 		if (Body->HasField(TEXT("location")))
 		{
 			TSharedPtr<FJsonObject> Loc = Body->GetObjectField(TEXT("location"));
@@ -1905,6 +2139,34 @@ bool FNovaBridgeModule::HandleViewportSetCamera(const FHttpServerRequest& Reques
 		if (Body->HasField(TEXT("fov")))
 		{
 			CameraFOV = Body->GetNumberField(TEXT("fov"));
+		}
+
+		if (Body->HasTypedField<EJson::Object>(TEXT("show_flags")))
+		{
+			EnsureCaptureSetup();
+			if (CaptureActor.IsValid())
+			{
+				USceneCaptureComponent2D* CaptureComp = CaptureActor->GetCaptureComponent2D();
+				TSharedPtr<FJsonObject> ShowFlagsObj = Body->GetObjectField(TEXT("show_flags"));
+				for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : ShowFlagsObj->Values)
+				{
+					bool bEnabled = false;
+					if (!Pair.Value.IsValid() || !Pair.Value->TryGetBool(bEnabled))
+					{
+						UnknownShowFlags.Add(Pair.Key);
+						continue;
+					}
+
+					const int32 FlagIndex = FEngineShowFlags::FindIndexByName(*Pair.Key);
+					if (FlagIndex < 0)
+					{
+						UnknownShowFlags.Add(Pair.Key);
+						continue;
+					}
+
+					CaptureComp->ShowFlags.SetSingleFlag(static_cast<uint32>(FlagIndex), bEnabled);
+				}
+			}
 		}
 
 		// Update capture actor position if it exists
@@ -1933,6 +2195,15 @@ bool FNovaBridgeModule::HandleViewportSetCamera(const FHttpServerRequest& Reques
 		Result->SetObjectField(TEXT("rotation"), RotObj);
 
 		Result->SetNumberField(TEXT("fov"), CameraFOV);
+		if (UnknownShowFlags.Num() > 0)
+		{
+			TArray<TSharedPtr<FJsonValue>> Unknown;
+			for (const FString& FlagName : UnknownShowFlags)
+			{
+				Unknown.Add(MakeShareable(new FJsonValueString(FlagName)));
+			}
+			Result->SetArrayField(TEXT("unknown_show_flags"), Unknown);
+		}
 		SendJsonResponse(OnComplete, Result);
 	});
 	return true;

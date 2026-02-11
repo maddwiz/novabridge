@@ -17,6 +17,8 @@ public:
 private:
 	void StartHttpServer();
 	void StopHttpServer();
+	bool HandleCorsPreflight(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
+	void AddCorsHeaders(TUniquePtr<struct FHttpServerResponse>& Response) const;
 
 	// JSON helpers
 	TSharedPtr<FJsonObject> ParseRequestBody(const struct FHttpServerRequest& Request);
@@ -26,6 +28,7 @@ private:
 
 	// Health
 	bool HandleHealth(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
+	bool HandleProjectInfo(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 
 	// Scene handlers
 	bool HandleSceneList(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
@@ -75,7 +78,8 @@ private:
 
 	TSharedPtr<IHttpRouter> HttpRouter;
 	TArray<FHttpRouteHandle> RouteHandles;
-	static constexpr uint32 HttpPort = 30010;
+	uint32 HttpPort = 30010;
+	int32 ApiRouteCount = 0;
 
 	// Offscreen capture state
 	TWeakObjectPtr<ASceneCapture2D> CaptureActor;
