@@ -27,6 +27,7 @@ This script visibly performs:
 - staged lighting for a polished reveal
 - cinematic camera cuts + final orbit
 - animated assembly: each object drops and scales into place (piece-by-piece)
+- assembly is intentionally slower now so viewers can clearly see each part being placed
 
 It keeps the scene at the end so your recording can linger on the final shot.
 

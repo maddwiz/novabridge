@@ -54,9 +54,9 @@ def spawn_mesh_actor(
     location: dict[str, float],
     scale: dict[str, float],
     rotation: dict[str, float] | None = None,
-    build_steps: int = 7,
-    build_step_delay: float = 0.05,
-    rise_height: float = 260.0,
+    build_steps: int = 10,
+    build_step_delay: float = 0.10,
+    rise_height: float = 520.0,
 ) -> str:
     final_location = {
         "x": location.get("x", 0.0),
@@ -66,9 +66,9 @@ def spawn_mesh_actor(
     start_location = {"x": final_location["x"], "y": final_location["y"], "z": final_location["z"] + rise_height}
     final_scale = {"x": scale.get("x", 1.0), "y": scale.get("y", 1.0), "z": scale.get("z", 1.0)}
     start_scale = {
-        "x": max(0.03, final_scale["x"] * 0.06),
-        "y": max(0.03, final_scale["y"] * 0.06),
-        "z": max(0.03, final_scale["z"] * 0.06),
+        "x": max(0.01, final_scale["x"] * 0.015),
+        "y": max(0.01, final_scale["y"] * 0.015),
+        "z": max(0.01, final_scale["z"] * 0.015),
     }
 
     actor = retry_call(
@@ -85,6 +85,7 @@ def spawn_mesh_actor(
     spawned_actors.append(actor["label"])
     retry_call(ue.set_property, actor["label"], "StaticMeshComponent0.StaticMesh", mesh_path)
     retry_call(ue.transform, actor["label"], location=start_location, scale=start_scale)
+    pause(max(0.06, build_step_delay))
 
     for step in range(1, max(2, build_steps) + 1):
         t = step / float(max(2, build_steps))
