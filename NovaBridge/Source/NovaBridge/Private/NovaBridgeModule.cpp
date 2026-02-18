@@ -2016,30 +2016,68 @@ bool FNovaBridgeModule::HandleMaterialCreateInstance(const FHttpServerRequest& R
 
 void FNovaBridgeModule::EnsureCaptureSetup()
 {
-	// Already valid?
-	if (CaptureActor.IsValid() && RenderTarget.IsValid())
-		return;
-
 	UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
 	if (!World)
 		return;
 
-	// Create render target
-	UTextureRenderTarget2D* RT = NewObject<UTextureRenderTarget2D>(GetTransientPackage(), NAME_None, RF_Transient);
-	RT->InitAutoFormat(CaptureWidth, CaptureHeight);
-	RT->UpdateResourceImmediate(true);
-	RenderTarget = RT;
+	// Already valid for this world?
+	if (CaptureActor.IsValid() && CaptureActor->GetWorld() == World && RenderTarget.IsValid())
+	{
+		return;
+	}
+
+	// If world changed, force rebind.
+	if (CaptureActor.IsValid() && CaptureActor->GetWorld() != World)
+	{
+		CaptureActor.Reset();
+	}
+
+	// Reattach to an existing capture actor if one already exists in this level.
+	if (!CaptureActor.IsValid())
+	{
+		for (TActorIterator<ASceneCapture2D> It(World); It; ++It)
+		{
+			ASceneCapture2D* Existing = *It;
+			if (!Existing)
+			{
+				continue;
+			}
+			if (Existing->GetActorLabel() == TEXT("NovaBridge_SceneCapture") || Existing->GetName().Contains(TEXT("NovaBridge_SceneCapture")))
+			{
+				CaptureActor = Existing;
+				break;
+			}
+		}
+	}
+
+	if (!RenderTarget.IsValid())
+	{
+		UTextureRenderTarget2D* RT = NewObject<UTextureRenderTarget2D>(GetTransientPackage(), NAME_None, RF_Transient);
+		RT->InitAutoFormat(CaptureWidth, CaptureHeight);
+		RT->UpdateResourceImmediate(true);
+		RenderTarget = RT;
+	}
 
 	// Spawn scene capture actor
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.Name = FName(TEXT("NovaBridge_SceneCapture"));
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	ASceneCapture2D* Capture = World->SpawnActor<ASceneCapture2D>(FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
-	if (Capture)
+	if (!CaptureActor.IsValid())
 	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		ASceneCapture2D* Capture = World->SpawnActor<ASceneCapture2D>(FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+		if (!Capture)
+		{
+			return;
+		}
+
 		Capture->SetActorLabel(TEXT("NovaBridge_SceneCapture"));
 		Capture->SetActorHiddenInGame(true);
+		CaptureActor = Capture;
+	}
 
+	ASceneCapture2D* Capture = CaptureActor.Get();
+	UTextureRenderTarget2D* RT = RenderTarget.Get();
+	if (Capture && RT)
+	{
 		USceneCaptureComponent2D* CaptureComp = Capture->GetCaptureComponent2D();
 		CaptureComp->TextureTarget = RT;
 		CaptureComp->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
@@ -2051,8 +2089,7 @@ void FNovaBridgeModule::EnsureCaptureSetup()
 		Capture->SetActorLocation(CameraLocation);
 		Capture->SetActorRotation(CameraRotation);
 
-		CaptureActor = Capture;
-		UE_LOG(LogNovaBridge, Log, TEXT("Scene capture created: %dx%d"), CaptureWidth, CaptureHeight);
+		UE_LOG(LogNovaBridge, Log, TEXT("Scene capture ready: %dx%d"), CaptureWidth, CaptureHeight);
 	}
 }
 
