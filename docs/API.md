@@ -10,12 +10,16 @@ Base URL: `http://localhost:30010/nova`
   - `{"status":"error","error":"<message>","code":<http_code>}`
 - CORS headers are included on all responses.
 - Spawn safety limit: `/scene/spawn` enforces max 100 spawns/minute.
+- Optional auth: set `NOVABRIDGE_API_KEY` (or `-NovaBridgeApiKey=<key>`) and send:
+  - `X-API-Key: <key>` or
+  - `Authorization: Bearer <key>`
 
 ## Endpoints
 
 ### System
 
 - `GET /health`
+  - Includes `version` and `api_key_required`
 - `GET /project/info`
 
 ### Scene

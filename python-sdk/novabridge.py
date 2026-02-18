@@ -23,6 +23,7 @@ class NovaBridge:
     host: str = "localhost"
     port: int = 30010
     timeout: int = 60
+    api_key: Optional[str] = None
 
     @property
     def base_url(self) -> str:
@@ -35,6 +36,8 @@ class NovaBridge:
             body = json.dumps(data).encode("utf-8")
             headers["Content-Type"] = "application/json"
             headers["Content-Length"] = str(len(body))
+        if self.api_key:
+            headers["X-API-Key"] = self.api_key
 
         req = urllib.request.Request(
             f"{self.base_url}{route}",

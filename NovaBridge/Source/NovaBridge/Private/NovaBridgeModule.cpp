@@ -81,6 +81,7 @@
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Misc/App.h"
+#include "HAL/PlatformMisc.h"
 
 // Image
 #include "IImageWrapperModule.h"
@@ -91,6 +92,7 @@
 #define LOCTEXT_NAMESPACE "FNovaBridgeModule"
 
 DEFINE_LOG_CATEGORY_STATIC(LogNovaBridge, Log, All);
+static const TCHAR* NovaBridgeVersion = TEXT("0.9.0");
 
 static FString NormalizeComponentKey(FString Value)
 {
@@ -196,6 +198,7 @@ void FNovaBridgeModule::ShutdownModule()
 void FNovaBridgeModule::StartHttpServer()
 {
 	ApiRouteCount = 0;
+	RequiredApiKey.Reset();
 	int32 ParsedPort = 0;
 	if (FParse::Value(FCommandLine::Get(), TEXT("NovaBridgePort="), ParsedPort))
 	{
@@ -206,6 +209,25 @@ void FNovaBridgeModule::StartHttpServer()
 		else
 		{
 			UE_LOG(LogNovaBridge, Warning, TEXT("Invalid -NovaBridgePort=%d, falling back to default %d"), ParsedPort, HttpPort);
+		}
+	}
+	FString ParsedApiKey;
+	if (FParse::Value(FCommandLine::Get(), TEXT("NovaBridgeApiKey="), ParsedApiKey))
+	{
+		ParsedApiKey.TrimStartAndEndInline();
+		if (!ParsedApiKey.IsEmpty())
+		{
+			RequiredApiKey = ParsedApiKey;
+		}
+	}
+	if (RequiredApiKey.IsEmpty())
+	{
+		const FString EnvApiKey = FPlatformMisc::GetEnvironmentVariable(TEXT("NOVABRIDGE_API_KEY"));
+		FString TrimmedEnvKey = EnvApiKey;
+		TrimmedEnvKey.TrimStartAndEndInline();
+		if (!TrimmedEnvKey.IsEmpty())
+		{
+			RequiredApiKey = TrimmedEnvKey;
 		}
 	}
 
@@ -221,21 +243,25 @@ void FNovaBridgeModule::StartHttpServer()
 		ApiRouteCount++;
 		RouteHandles.Add(HttpRouter->BindRoute(
 			FHttpPath(Path), Verbs,
-			FHttpRequestHandler::CreateLambda([this, Handler](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) -> bool
+			[this, Handler](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) -> bool
+			{
+				if (!IsApiKeyAuthorized(Request, OnComplete))
 				{
-					UE_LOG(LogNovaBridge, Verbose, TEXT("[%s] %s %s"),
-						*FDateTime::Now().ToString(),
-						HttpVerbToString(Request.Verb),
-						*Request.RelativePath.GetPath());
-					return (this->*Handler)(Request, OnComplete);
-				})
+					return true;
+				}
+				UE_LOG(LogNovaBridge, Verbose, TEXT("[%s] %s %s"),
+					*FDateTime::Now().ToString(),
+					HttpVerbToString(Request.Verb),
+					*Request.RelativePath.GetPath());
+				return (this->*Handler)(Request, OnComplete);
+			}
 		));
 		RouteHandles.Add(HttpRouter->BindRoute(
 			FHttpPath(Path), EHttpServerRequestVerbs::VERB_OPTIONS,
-			FHttpRequestHandler::CreateLambda([this](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) -> bool
-				{
-					return HandleCorsPreflight(Request, OnComplete);
-				})
+			[this](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) -> bool
+			{
+				return HandleCorsPreflight(Request, OnComplete);
+			}
 		));
 	};
 
@@ -287,6 +313,10 @@ void FNovaBridgeModule::StartHttpServer()
 
 	FHttpServerModule::Get().StartAllListeners();
 	UE_LOG(LogNovaBridge, Log, TEXT("NovaBridge HTTP server started on port %d with %d API routes"), HttpPort, ApiRouteCount);
+	if (!RequiredApiKey.IsEmpty())
+	{
+		UE_LOG(LogNovaBridge, Log, TEXT("NovaBridge API key auth is enabled"));
+	}
 }
 
 void FNovaBridgeModule::StopHttpServer()
@@ -329,8 +359,49 @@ void FNovaBridgeModule::AddCorsHeaders(TUniquePtr<FHttpServerResponse>& Response
 
 	Response->Headers.FindOrAdd(TEXT("Access-Control-Allow-Origin")).Add(TEXT("*"));
 	Response->Headers.FindOrAdd(TEXT("Access-Control-Allow-Methods")).Add(TEXT("GET, POST, OPTIONS"));
-	Response->Headers.FindOrAdd(TEXT("Access-Control-Allow-Headers")).Add(TEXT("Content-Type, Authorization"));
+	Response->Headers.FindOrAdd(TEXT("Access-Control-Allow-Headers")).Add(TEXT("Content-Type, Authorization, X-API-Key"));
 	Response->Headers.FindOrAdd(TEXT("Access-Control-Max-Age")).Add(TEXT("86400"));
+}
+
+bool FNovaBridgeModule::IsApiKeyAuthorized(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	if (Request.Verb == EHttpServerRequestVerbs::VERB_OPTIONS || RequiredApiKey.IsEmpty())
+	{
+		return true;
+	}
+
+	FString PresentedKey;
+	for (const TPair<FString, TArray<FString>>& Header : Request.Headers)
+	{
+		if (Header.Value.Num() == 0)
+		{
+			continue;
+		}
+		if (Header.Key.Equals(TEXT("X-API-Key"), ESearchCase::IgnoreCase))
+		{
+			PresentedKey = Header.Value[0];
+			break;
+		}
+		if (Header.Key.Equals(TEXT("Authorization"), ESearchCase::IgnoreCase))
+		{
+			const FString& RawAuth = Header.Value[0];
+			static const FString BearerPrefix = TEXT("Bearer ");
+			if (RawAuth.StartsWith(BearerPrefix, ESearchCase::IgnoreCase))
+			{
+				PresentedKey = RawAuth.Mid(BearerPrefix.Len());
+				break;
+			}
+		}
+	}
+
+	PresentedKey.TrimStartAndEndInline();
+	if (!PresentedKey.IsEmpty() && PresentedKey == RequiredApiKey)
+	{
+		return true;
+	}
+
+	SendErrorResponse(OnComplete, TEXT("Unauthorized. Provide X-API-Key or Authorization: Bearer <key>."), 401);
+	return false;
 }
 
 bool FNovaBridgeModule::HandleCorsPreflight(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
@@ -375,9 +446,11 @@ bool FNovaBridgeModule::HandleHealth(const FHttpServerRequest& Request, const FH
 {
 	TSharedPtr<FJsonObject> JsonObj = MakeShareable(new FJsonObject);
 	JsonObj->SetStringField(TEXT("status"), TEXT("ok"));
+	JsonObj->SetStringField(TEXT("version"), NovaBridgeVersion);
 	JsonObj->SetStringField(TEXT("engine"), TEXT("UnrealEngine"));
 	JsonObj->SetNumberField(TEXT("port"), HttpPort);
 	JsonObj->SetNumberField(TEXT("routes"), ApiRouteCount);
+	JsonObj->SetBoolField(TEXT("api_key_required"), !RequiredApiKey.IsEmpty());
 	SendJsonResponse(OnComplete, JsonObj);
 	return true;
 }

@@ -36,6 +36,14 @@ curl http://localhost:30010/nova/health
 curl http://localhost:30010/nova/project/info
 ```
 
+## Optional API Key
+
+```powershell
+$env:NOVABRIDGE_API_KEY="replace-with-secret"
+UnrealEditor.exe "C:\Projects\YourProject\YourProject.uproject" -NovaBridgeApiKey=replace-with-secret
+curl -H "X-API-Key: replace-with-secret" http://localhost:30010/nova/health
+```
+
 ## Blender Path
 
 Set `NOVABRIDGE_BLENDER_PATH` if Blender is not in the default location:

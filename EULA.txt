@@ -1,0 +1,26 @@
+NovaBridge End User License Agreement (EULA)
+
+1. License Grant
+The Licensor grants you a non-exclusive, non-transferable license to use NovaBridge for your internal and commercial projects.
+
+2. Restrictions
+You may not resell, sublicense, or redistribute NovaBridge source or package files except as part of your compiled project outputs.
+
+3. Ownership
+NovaBridge and related materials remain property of the Licensor.
+
+4. Early Access
+This release may contain defects and is provided as an Early Access product.
+
+5. Disclaimer
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+
+6. Limitation of Liability
+The Licensor is not liable for indirect, incidental, special, or consequential damages.
+
+7. Termination
+Violation of this agreement terminates the license.
+
+8. Governing Terms
+By using NovaBridge, you agree to these terms.
+

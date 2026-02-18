@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 1,
-	"VersionName": "1.0",
+	"Version": 90,
+	"VersionName": "0.9.0",
 	"FriendlyName": "NovaBridge - AI Scene Control",
 	"Description": "Give AI agents full programmatic control over UE5 via HTTP API. Scene manipulation, asset import, material editing, viewport capture, and blueprint tooling.",
 	"Category": "Editor",
@@ -11,7 +11,7 @@
 	"MarketplaceURL": "",
 	"SupportURL": "https://github.com/maddwiz/novabridge/issues",
 	"CanContainContent": true,
-	"IsBetaVersion": false,
+	"IsBetaVersion": true,
 	"Installed": false,
 	"EnabledByDefault": true,
 	"Modules": [

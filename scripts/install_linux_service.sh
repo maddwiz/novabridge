@@ -2,11 +2,17 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-UE_EDITOR_BIN="${UE_EDITOR_BIN:-/home/nova/UnrealEngine/Engine/Binaries/LinuxArm64/UnrealEditor}"
+UE_EDITOR_BIN="${UE_EDITOR_BIN:-$(command -v UnrealEditor || true)}"
 PROJECT_FILE="${PROJECT_FILE:-${ROOT_DIR}/NovaBridgeDefault/NovaBridgeDefault.uproject}"
 SERVICE_NAME="${SERVICE_NAME:-nova-ue5-editor.service}"
 SERVICE_PATH="${HOME}/.config/systemd/user/${SERVICE_NAME}"
 PORT="${NOVABRIDGE_PORT:-30010}"
+
+if [[ -z "${UE_EDITOR_BIN}" || ! -x "${UE_EDITOR_BIN}" ]]; then
+  echo "Could not locate UnrealEditor binary."
+  echo "Set UE_EDITOR_BIN to your UE editor executable path."
+  exit 1
+fi
 
 mkdir -p "${HOME}/.config/systemd/user"
 

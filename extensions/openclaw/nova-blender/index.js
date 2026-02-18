@@ -17,13 +17,13 @@ const SCRIPT_DIR_CANDIDATES = [
   process.env.NOVABRIDGE_SCRIPTS_DIR,
   path.resolve(__dirname, 'scripts'),
   path.resolve(__dirname, '../../../blender/scripts'),
-  '/home/nova/.openclaw/workspace/embodiment/avatar/blender/scripts',
 ].filter(Boolean);
 const SCRIPTS_DIR = SCRIPT_DIR_CANDIDATES.find((dir) => fs.existsSync(dir)) || SCRIPT_DIR_CANDIDATES[0];
 const OUTPUT_DIR = process.env.NOVABRIDGE_OUTPUT_DIR || path.join(EXPORT_DIR, 'output');
 const UE5_PORT_RAW = Number.parseInt(process.env.NOVABRIDGE_PORT || '30010', 10);
 const UE5_PORT = Number.isFinite(UE5_PORT_RAW) && UE5_PORT_RAW > 0 ? UE5_PORT_RAW : 30010;
 const UE5_HOST = process.env.NOVABRIDGE_HOST || 'localhost';
+const UE5_API_KEY = process.env.NOVABRIDGE_API_KEY || '';
 const UE5_IMPORT_SCALE_RAW = Number.parseFloat(process.env.NOVABRIDGE_IMPORT_SCALE || '100');
 const UE5_IMPORT_SCALE = Number.isFinite(UE5_IMPORT_SCALE_RAW) && UE5_IMPORT_SCALE_RAW > 0 ? UE5_IMPORT_SCALE_RAW : 100;
 
@@ -39,6 +39,7 @@ function ue5Request(method, urlPath, body) {
       headers: { 'Content-Type': 'application/json' },
       timeout: 120000,
     };
+    if (UE5_API_KEY) options.headers['X-API-Key'] = UE5_API_KEY;
     if (bodyStr) options.headers['Content-Length'] = Buffer.byteLength(bodyStr);
     const req = http.request(options, (res) => {
       let data = '';

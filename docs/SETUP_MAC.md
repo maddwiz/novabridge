@@ -36,6 +36,19 @@ curl http://localhost:30010/nova/health
 curl http://localhost:30010/nova/project/info
 ```
 
+## Optional API Key
+
+```bash
+export NOVABRIDGE_API_KEY=replace-with-secret
+UnrealEditor /path/to/YourProject.uproject -NovaBridgeApiKey=replace-with-secret
+curl -H "X-API-Key: replace-with-secret" http://localhost:30010/nova/health
+```
+
+## Validation Status
+
+- macOS build support exists but must be validated on a real Mac.
+- Run `docs/MACOS_SMOKE_TEST.md` before marking macOS as supported in production release notes.
+
 ## Blender Path
 
 Default expected binary:

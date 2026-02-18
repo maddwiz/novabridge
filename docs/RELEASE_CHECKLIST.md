@@ -2,12 +2,16 @@
 
 ## Core Validation
 
+- [x] Golden path demo flow passes (`examples/curl/golden_path.sh`)
 - [x] `GET /nova/health` returns `status: ok`
+- [x] `GET /nova/health` includes `version`
 - [x] `GET /nova/project/info` returns non-empty project fields
 - [x] `GET /nova/viewport/screenshot?format=raw` returns `image/png`
 - [x] `OPTIONS` preflight returns CORS headers
 - [x] `POST /nova/asset/import` with OBJ + `scale` succeeds
 - [x] `POST /nova/scene/set-property` alias path works for common components
+- [ ] Optional API key mode validated (`401` without key, `200` with key)
+- [x] Optional API key mode validated (`401` without key, `200` with key)
 
 ## Platform Validation
 
@@ -15,6 +19,7 @@
 - [ ] Linux x86_64 build smoke tested
 - [ ] Windows Win64 compile smoke tested
 - [ ] macOS compile smoke tested
+- [ ] macOS full smoke checklist complete (`docs/MACOS_SMOKE_TEST.md`)
 
 Reference command outcomes: `docs/BUILD_STATUS.md`.
 
@@ -32,7 +37,9 @@ Reference command outcomes: `docs/BUILD_STATUS.md`.
 
 ## Docs and Demo Assets
 
-- [ ] `docs/API.md` up to date with current routes
-- [ ] `docs/SETUP_*.md` reflect environment variables and project launch rules
+- [x] `docs/API.md` up to date with current routes
+- [x] `docs/SETUP_*.md` reflect environment variables and project launch rules
+- [x] `docs/SMOKE_TEST_CHECKLIST.md` present
+- [x] Customer docs included (`INSTALL.md`, `BuyerGuide.md`, `CHANGELOG.md`, `EULA.txt`)
 - [ ] `demo/VIDEO_SCRIPT.md` available for launch video production
 - [ ] `site/index.html` available as starter landing page

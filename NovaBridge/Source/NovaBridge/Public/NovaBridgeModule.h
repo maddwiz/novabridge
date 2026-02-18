@@ -19,6 +19,7 @@ private:
 	void StopHttpServer();
 	bool HandleCorsPreflight(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 	void AddCorsHeaders(TUniquePtr<struct FHttpServerResponse>& Response) const;
+	bool IsApiKeyAuthorized(const struct FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 
 	// JSON helpers
 	TSharedPtr<FJsonObject> ParseRequestBody(const struct FHttpServerRequest& Request);
@@ -80,6 +81,7 @@ private:
 	TArray<FHttpRouteHandle> RouteHandles;
 	uint32 HttpPort = 30010;
 	int32 ApiRouteCount = 0;
+	FString RequiredApiKey;
 
 	// Offscreen capture state
 	TWeakObjectPtr<ASceneCapture2D> CaptureActor;

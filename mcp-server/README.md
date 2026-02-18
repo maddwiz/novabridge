@@ -18,6 +18,7 @@ Environment variables:
 
 - `NOVABRIDGE_HOST` (default `localhost`)
 - `NOVABRIDGE_PORT` (default `30010`)
+- `NOVABRIDGE_API_KEY` (optional)
 
 ## Claude Desktop Example
 

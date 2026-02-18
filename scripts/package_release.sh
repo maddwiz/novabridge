@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${1:-v1.0.0}"
+VERSION="${1:-v0.9.0}"
 DIST_DIR="${ROOT_DIR}/dist"
 PKG_NAME="NovaBridge-${VERSION}"
 PKG_DIR="${DIST_DIR}/${PKG_NAME}"
@@ -37,14 +37,25 @@ copy_tree "${ROOT_DIR}/mcp-server" "${PKG_DIR}/"
 copy_tree "${ROOT_DIR}/blender" "${PKG_DIR}/"
 copy_tree "${ROOT_DIR}/extensions" "${PKG_DIR}/"
 copy_tree "${ROOT_DIR}/examples" "${PKG_DIR}/"
-copy_tree "${ROOT_DIR}/docs" "${PKG_DIR}/"
 copy_tree "${ROOT_DIR}/scripts" "${PKG_DIR}/"
 copy_tree "${ROOT_DIR}/demo" "${PKG_DIR}/"
 copy_tree "${ROOT_DIR}/site" "${PKG_DIR}/"
 
+mkdir -p "${PKG_DIR}/docs"
+for doc in API.md SETUP_LINUX.md SETUP_MAC.md SETUP_WINDOWS.md SMOKE_TEST_CHECKLIST.md MACOS_SMOKE_TEST.md; do
+  if [[ -f "${ROOT_DIR}/docs/${doc}" ]]; then
+    cp "${ROOT_DIR}/docs/${doc}" "${PKG_DIR}/docs/${doc}"
+  fi
+done
+
 cp "${ROOT_DIR}/README.md" "${PKG_DIR}/README.md"
 cp "${ROOT_DIR}/QUICK_START.md" "${PKG_DIR}/QUICK_START.md"
 cp "${ROOT_DIR}/.gitignore" "${PKG_DIR}/.gitignore.example"
+for root_doc in INSTALL.md BuyerGuide.md CHANGELOG.md SUPPORT.md EULA.txt; do
+  if [[ -f "${ROOT_DIR}/${root_doc}" ]]; then
+    cp "${ROOT_DIR}/${root_doc}" "${PKG_DIR}/${root_doc}"
+  fi
+done
 if [[ -f "${ROOT_DIR}/LICENSE" ]]; then
   cp "${ROOT_DIR}/LICENSE" "${PKG_DIR}/LICENSE"
 fi

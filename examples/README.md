@@ -17,3 +17,4 @@
 - `curl/health.sh`
 - `curl/project_info.sh`
 - `curl/screenshot_raw.sh`
+- `curl/golden_path.sh`

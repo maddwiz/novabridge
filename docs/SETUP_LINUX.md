@@ -43,6 +43,14 @@ curl http://localhost:30010/nova/health
 curl http://localhost:30010/nova/project/info
 ```
 
+## Optional API Key
+
+```bash
+export NOVABRIDGE_API_KEY=replace-with-secret
+UnrealEditor /path/to/YourProject.uproject -NovaBridgeApiKey=replace-with-secret
+curl -H "X-API-Key: replace-with-secret" http://localhost:30010/nova/health
+```
+
 ## Blender Bridge Environment
 
 ```bash
@@ -50,4 +58,5 @@ export NOVABRIDGE_BLENDER_PATH=/usr/bin/blender
 export NOVABRIDGE_PORT=30010
 export NOVABRIDGE_HOST=localhost
 export NOVABRIDGE_EXPORT_DIR=/tmp/novabridge-exports
+export NOVABRIDGE_API_KEY=replace-with-secret
 ```

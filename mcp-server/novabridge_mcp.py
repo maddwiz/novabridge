@@ -31,9 +31,10 @@ except Exception as exc:  # pragma: no cover - runtime dependency check
 
 HOST = os.environ.get("NOVABRIDGE_HOST", "localhost")
 PORT = int(os.environ.get("NOVABRIDGE_PORT", "30010"))
+API_KEY = os.environ.get("NOVABRIDGE_API_KEY")
 
 mcp = FastMCP("novabridge")
-client = NovaBridge(host=HOST, port=PORT)
+client = NovaBridge(host=HOST, port=PORT, api_key=API_KEY)
 
 
 def _wrap(callable_):

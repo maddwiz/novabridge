@@ -26,9 +26,14 @@ AI Agent → Blender (Python/MB-Lab) → OBJ export → NovaBridge import → UE
 
 For headless startup without an existing project, use `NovaBridgeDefault/NovaBridgeDefault.uproject`.
 
+## Release Status
+
+- Current release: `v0.9.0` (Early Access)
+- Validated now: Linux ARM64
+- In validation: macOS and Windows
+
 ## API Endpoints
 
-See [docs/NOVABRIDGE_HANDOFF.md](docs/NOVABRIDGE_HANDOFF.md) for full API reference.
 Primary API reference lives at [docs/API.md](docs/API.md).
 
 ## Recent Fixes
@@ -48,6 +53,7 @@ The `extensions/openclaw/nova-blender` bridge now supports environment-based con
 - `NOVABRIDGE_HOST` (default `localhost`)
 - `NOVABRIDGE_PORT` (default `30010`)
 - `NOVABRIDGE_IMPORT_SCALE` (default `100`)
+- `NOVABRIDGE_API_KEY` (optional shared secret for API access)
 
 ## New Integrations
 
@@ -75,17 +81,17 @@ The `extensions/openclaw/nova-blender` bridge now supports environment-based con
 Create a distribution zip:
 
 ```bash
-./scripts/package_release.sh v1.0.0
+./scripts/package_release.sh v0.9.0
 ```
 
-Output is written to `dist/NovaBridge-v1.0.0.zip`.
+Output is written to `dist/NovaBridge-v0.9.0.zip`.
 
-## Platforms
+## Platform Status
 
-- Windows (Win64)
-- macOS (Mac)
-- Linux (x86_64)
-- Linux (ARM64)
+- Linux (ARM64): validated
+- Linux (x86_64): pending native validation
+- Windows (Win64): pending native validation
+- macOS (Mac): pending native validation
 
 ## License
 

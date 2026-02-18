@@ -1,12 +1,14 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { Type } = require('@sinclair/typebox');
 
 const UE5_PORT_RAW = Number.parseInt(process.env.NOVABRIDGE_PORT || '30010', 10);
 const UE5_PORT = Number.isFinite(UE5_PORT_RAW) && UE5_PORT_RAW > 0 ? UE5_PORT_RAW : 30010;
 const UE5_HOST = process.env.NOVABRIDGE_HOST || 'localhost';
-const SCREENSHOT_DIR = process.env.NOVABRIDGE_SCREENSHOT_DIR || '/home/nova/.openclaw/workspace/screenshots';
+const UE5_API_KEY = process.env.NOVABRIDGE_API_KEY || '';
+const SCREENSHOT_DIR = process.env.NOVABRIDGE_SCREENSHOT_DIR || path.join(os.tmpdir(), 'novabridge-screenshots');
 
 function ue5Request(method, urlPath, body) {
   return new Promise((resolve, reject) => {
@@ -19,6 +21,9 @@ function ue5Request(method, urlPath, body) {
       headers: { 'Content-Type': 'application/json' },
       timeout: 30000,
     };
+    if (UE5_API_KEY) {
+      options.headers['X-API-Key'] = UE5_API_KEY;
+    }
     if (bodyStr) {
       options.headers['Content-Length'] = Buffer.byteLength(bodyStr);
     }
