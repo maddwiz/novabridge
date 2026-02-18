@@ -17,15 +17,15 @@ Use this when you want a video that shows Unreal Editor being actively built in 
 From repo root:
 
 ```bash
-python3 examples/demo-scene/live_operator_demo.py --host 127.0.0.1 --port 30010 --pause 1.6 --camera-frames 64
+python3 examples/demo-scene/live_operator_demo.py --host 127.0.0.1 --port 30010 --pause 1.0 --camera-frames 96
 ```
 
 This script visibly performs:
 
 - primitive creation (plane/cube/sphere)
-- actor spawning and transforms
-- lighting setup
-- cinematic camera orbit
+- a familiar scene build: floor/walls, desk, monitor, chair, keyboard, mouse, mug, plant
+- staged lighting for a polished reveal
+- cinematic camera cuts + final orbit
 
 It keeps the scene at the end so your recording can linger on the final shot.
 
@@ -38,3 +38,8 @@ python3 examples/demo-scene/live_operator_demo.py --cleanup
 ## 4) Stop recording
 
 Recommended export: `1920x1080`, `30fps`.
+
+## Notes for Better Engagement
+
+- Keep total runtime near 60-90 seconds by lowering `--pause` (for example `0.8`).
+- Use the final still at `examples/demo-scene/live_operator_demo_end.png` as your thumbnail frame.

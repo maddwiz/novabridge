@@ -41,12 +41,39 @@ def pause(seconds: float) -> None:
     time.sleep(seconds)
 
 
+def spawn_mesh_actor(
+    ue: NovaBridge,
+    spawned_actors: list[str],
+    *,
+    label: str,
+    mesh_path: str,
+    location: dict[str, float],
+    scale: dict[str, float],
+    rotation: dict[str, float] | None = None,
+) -> str:
+    actor = retry_call(
+        ue.spawn,
+        "StaticMeshActor",
+        label=label,
+        x=location.get("x", 0.0),
+        y=location.get("y", 0.0),
+        z=location.get("z", 0.0),
+        pitch=(rotation or {}).get("pitch", 0.0),
+        yaw=(rotation or {}).get("yaw", 0.0),
+        roll=(rotation or {}).get("roll", 0.0),
+    )
+    spawned_actors.append(actor["label"])
+    retry_call(ue.set_property, actor["label"], "StaticMeshComponent0.StaticMesh", mesh_path)
+    retry_call(ue.transform, actor["label"], scale=scale)
+    return actor["label"]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build a recordable UE5 demo scene via NovaBridge.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=30010)
-    parser.add_argument("--pause", type=float, default=1.4, help="Seconds between visible build steps.")
-    parser.add_argument("--camera-frames", type=int, default=48, help="Frames for final orbit.")
+    parser.add_argument("--pause", type=float, default=1.0, help="Seconds between visible build steps.")
+    parser.add_argument("--camera-frames", type=int, default=96, help="Frames for final orbit.")
     parser.add_argument(
         "--cleanup",
         action="store_true",
@@ -64,7 +91,7 @@ def main() -> None:
     print("health:", health)
 
     banner("Create Primitive Assets")
-    primitive_specs = [("plane", 2200), ("cube", 160), ("sphere", 230)]
+    primitive_specs = [("plane", 2400), ("cube", 120), ("sphere", 120)]
     primitive_paths: dict[str, str] = {}
     for shape_name, size in primitive_specs:
         print(f"choose shape: {shape_name} (size={size})")
@@ -79,69 +106,231 @@ def main() -> None:
         print("created asset:", created["path"])
         pause(args.pause)
 
-    banner("Set Stage Camera")
+    banner("Set Stage Camera (Wide)")
     retry_call(
         ue.set_camera,
-        location={"x": 980, "y": -880, "z": 520},
-        rotation={"pitch": -18, "yaw": 42, "roll": 0},
-        fov=65,
+        location={"x": 980, "y": -980, "z": 580},
+        rotation={"pitch": -17, "yaw": 42, "roll": 0},
+        fov=62,
         show_flags={"Grid": False, "BSP": False, "Selection": False},
     )
     pause(args.pause)
 
-    banner("Build Scene")
-    ground = retry_call(ue.spawn, "StaticMeshActor", label=f"{prefix}_Ground", x=0, y=0, z=-50)
-    spawned_actors.append(ground["label"])
-    retry_call(ue.set_property, ground["label"], "StaticMeshComponent0.StaticMesh", primitive_paths["plane"])
-    print("spawned ground:", ground["label"])
+    banner("Build Familiar Scene: Cozy Desk Setup")
+    floor = spawn_mesh_actor(
+        ue,
+        spawned_actors,
+        label=f"{prefix}_Floor",
+        mesh_path=primitive_paths["plane"],
+        location={"x": 0, "y": 0, "z": -55},
+        scale={"x": 1.2, "y": 1.2, "z": 1.0},
+    )
+    print("spawned floor:", floor)
+
+    back_wall = spawn_mesh_actor(
+        ue,
+        spawned_actors,
+        label=f"{prefix}_BackWall",
+        mesh_path=primitive_paths["cube"],
+        location={"x": 0, "y": 760, "z": 220},
+        scale={"x": 16.0, "y": 0.25, "z": 5.0},
+    )
+    print("spawned back wall:", back_wall)
+
+    left_wall = spawn_mesh_actor(
+        ue,
+        spawned_actors,
+        label=f"{prefix}_LeftWall",
+        mesh_path=primitive_paths["cube"],
+        location={"x": -960, "y": 0, "z": 220},
+        scale={"x": 0.25, "y": 12.5, "z": 5.0},
+    )
+    print("spawned side wall:", left_wall)
     pause(args.pause)
 
-    core = retry_call(ue.spawn, "StaticMeshActor", label=f"{prefix}_Core", x=0, y=0, z=120)
-    spawned_actors.append(core["label"])
-    retry_call(ue.set_property, core["label"], "StaticMeshComponent0.StaticMesh", primitive_paths["sphere"])
-    retry_call(ue.transform, core["label"], scale={"x": 1.25, "y": 1.25, "z": 1.25})
-    print("spawned core:", core["label"])
+    banner("Build Desk")
+    desk_top = spawn_mesh_actor(
+        ue,
+        spawned_actors,
+        label=f"{prefix}_DeskTop",
+        mesh_path=primitive_paths["cube"],
+        location={"x": 0, "y": 220, "z": 94},
+        scale={"x": 5.2, "y": 1.9, "z": 0.22},
+    )
+    print("spawned desk top:", desk_top)
+
+    leg_offsets = [(-230, 140), (230, 140), (-230, 300), (230, 300)]
+    for idx, (lx, ly) in enumerate(leg_offsets):
+        leg = spawn_mesh_actor(
+            ue,
+            spawned_actors,
+            label=f"{prefix}_DeskLeg_{idx}",
+            mesh_path=primitive_paths["cube"],
+            location={"x": lx, "y": ly, "z": 12},
+            scale={"x": 0.2, "y": 0.2, "z": 1.35},
+        )
+        print("spawned desk leg:", leg)
+        pause(args.pause * 0.35)
+
+    banner("Build Monitor + Accessories")
+    monitor_base = spawn_mesh_actor(
+        ue,
+        spawned_actors,
+        label=f"{prefix}_MonitorBase",
+        mesh_path=primitive_paths["cube"],
+        location={"x": 0, "y": 300, "z": 108},
+        scale={"x": 1.1, "y": 0.45, "z": 0.08},
+    )
+    print("spawned monitor base:", monitor_base)
+
+    monitor_stand = spawn_mesh_actor(
+        ue,
+        spawned_actors,
+        label=f"{prefix}_MonitorStand",
+        mesh_path=primitive_paths["cube"],
+        location={"x": 0, "y": 310, "z": 154},
+        scale={"x": 0.16, "y": 0.16, "z": 0.82},
+    )
+    print("spawned monitor stand:", monitor_stand)
+
+    monitor_screen = spawn_mesh_actor(
+        ue,
+        spawned_actors,
+        label=f"{prefix}_MonitorScreen",
+        mesh_path=primitive_paths["cube"],
+        location={"x": 0, "y": 344, "z": 205},
+        scale={"x": 2.2, "y": 0.08, "z": 1.25},
+    )
+    print("spawned monitor:", monitor_screen)
+
+    keyboard = spawn_mesh_actor(
+        ue,
+        spawned_actors,
+        label=f"{prefix}_Keyboard",
+        mesh_path=primitive_paths["cube"],
+        location={"x": -20, "y": 165, "z": 102},
+        scale={"x": 1.6, "y": 0.5, "z": 0.06},
+    )
+    print("spawned keyboard:", keyboard)
+
+    mouse = spawn_mesh_actor(
+        ue,
+        spawned_actors,
+        label=f"{prefix}_Mouse",
+        mesh_path=primitive_paths["sphere"],
+        location={"x": 170, "y": 160, "z": 103},
+        scale={"x": 0.22, "y": 0.30, "z": 0.10},
+    )
+    print("spawned mouse:", mouse)
     pause(args.pause)
 
-    for idx in range(8):
-        angle = (2 * math.pi * idx) / 8
-        x = 430 * math.cos(angle)
-        y = 430 * math.sin(angle)
-        z = 65 + 30 * math.sin(angle * 2)
-        name = f"{prefix}_Cube_{idx}"
-        actor = retry_call(ue.spawn, "StaticMeshActor", label=name, x=x, y=y, z=z, yaw=math.degrees(angle))
-        spawned_actors.append(actor["label"])
-        retry_call(ue.set_property, actor["label"], "StaticMeshComponent0.StaticMesh", primitive_paths["cube"])
-        retry_call(ue.transform, actor["label"], scale={"x": 0.95, "y": 0.95, "z": 1.3})
-        print("spawned shape:", actor["label"])
-        pause(args.pause * 0.6)
+    banner("Build Chair + Small Props")
+    chair_seat = spawn_mesh_actor(
+        ue,
+        spawned_actors,
+        label=f"{prefix}_ChairSeat",
+        mesh_path=primitive_paths["cube"],
+        location={"x": 0, "y": -60, "z": 48},
+        scale={"x": 1.7, "y": 1.5, "z": 0.2},
+    )
+    print("spawned chair seat:", chair_seat)
 
-    key_light = retry_call(ue.spawn, "PointLight", label=f"{prefix}_KeyLight", x=380, y=-260, z=380)
-    fill_light = retry_call(ue.spawn, "PointLight", label=f"{prefix}_FillLight", x=-380, y=320, z=260)
-    rim_light = retry_call(ue.spawn, "PointLight", label=f"{prefix}_RimLight", x=0, y=0, z=560)
-    spawned_actors.extend([key_light["label"], fill_light["label"], rim_light["label"]])
-    retry_call(ue.set_property, key_light["label"], "PointLightComponent0.Intensity", 22000)
-    retry_call(ue.set_property, fill_light["label"], "PointLightComponent0.Intensity", 13000)
-    retry_call(ue.set_property, rim_light["label"], "PointLightComponent0.Intensity", 9000)
+    chair_back = spawn_mesh_actor(
+        ue,
+        spawned_actors,
+        label=f"{prefix}_ChairBack",
+        mesh_path=primitive_paths["cube"],
+        location={"x": 0, "y": -140, "z": 120},
+        scale={"x": 1.7, "y": 0.2, "z": 1.2},
+    )
+    print("spawned chair back:", chair_back)
+
+    chair_center = spawn_mesh_actor(
+        ue,
+        spawned_actors,
+        label=f"{prefix}_ChairCenter",
+        mesh_path=primitive_paths["cube"],
+        location={"x": 0, "y": -60, "z": 12},
+        scale={"x": 0.25, "y": 0.25, "z": 0.9},
+    )
+    print("spawned chair center:", chair_center)
+
+    mug = spawn_mesh_actor(
+        ue,
+        spawned_actors,
+        label=f"{prefix}_Mug",
+        mesh_path=primitive_paths["sphere"],
+        location={"x": -180, "y": 170, "z": 107},
+        scale={"x": 0.24, "y": 0.24, "z": 0.34},
+    )
+    print("spawned mug:", mug)
+
+    plant_pot = spawn_mesh_actor(
+        ue,
+        spawned_actors,
+        label=f"{prefix}_PlantPot",
+        mesh_path=primitive_paths["cube"],
+        location={"x": 280, "y": 320, "z": 112},
+        scale={"x": 0.35, "y": 0.35, "z": 0.3},
+    )
+    print("spawned plant pot:", plant_pot)
+
+    plant_top = spawn_mesh_actor(
+        ue,
+        spawned_actors,
+        label=f"{prefix}_PlantTop",
+        mesh_path=primitive_paths["sphere"],
+        location={"x": 280, "y": 320, "z": 152},
+        scale={"x": 0.55, "y": 0.55, "z": 0.55},
+    )
+    print("spawned plant top:", plant_top)
+    pause(args.pause)
+
+    banner("Lighting")
+    key_light = retry_call(ue.spawn, "PointLight", label=f"{prefix}_KeyLight", x=420, y=-180, z=360)
+    fill_light = retry_call(ue.spawn, "PointLight", label=f"{prefix}_FillLight", x=-420, y=210, z=260)
+    desk_light = retry_call(ue.spawn, "PointLight", label=f"{prefix}_DeskLight", x=40, y=280, z=210)
+    rim_light = retry_call(ue.spawn, "PointLight", label=f"{prefix}_RimLight", x=0, y=640, z=420)
+    spawned_actors.extend([key_light["label"], fill_light["label"], desk_light["label"], rim_light["label"]])
+    retry_call(ue.set_property, key_light["label"], "PointLightComponent0.Intensity", 26000)
+    retry_call(ue.set_property, fill_light["label"], "PointLightComponent0.Intensity", 12000)
+    retry_call(ue.set_property, desk_light["label"], "PointLightComponent0.Intensity", 9000)
+    retry_call(ue.set_property, rim_light["label"], "PointLightComponent0.Intensity", 7000)
     print("placed lights")
     pause(args.pause)
+
+    banner("Reveal Shots")
+    reveal_cameras = [
+        ({"x": 620, "y": -480, "z": 330}, {"pitch": -14, "yaw": 34, "roll": 0}, 58),
+        ({"x": -520, "y": -180, "z": 270}, {"pitch": -10, "yaw": 18, "roll": 0}, 53),
+        ({"x": 0, "y": -720, "z": 260}, {"pitch": -9, "yaw": 0, "roll": 0}, 52),
+    ]
+    for cam_loc, cam_rot, cam_fov in reveal_cameras:
+        retry_call(
+            ue.set_camera,
+            location=cam_loc,
+            rotation=cam_rot,
+            fov=cam_fov,
+            show_flags={"Grid": False, "BSP": False, "Selection": False},
+        )
+        pause(args.pause * 1.25)
 
     banner("Final Orbit")
     frames = max(8, args.camera_frames)
     for i in range(frames):
         t = i / frames
         angle = 2 * math.pi * t
-        radius = 1030
+        radius = 890
         x = radius * math.cos(angle)
         y = radius * math.sin(angle)
-        z = 320 + 45 * math.sin(angle * 1.5)
-        yaw = math.degrees(math.atan2(-y, -x))
-        pitch = -13 + 2 * math.sin(angle)
+        z = 260 + 36 * math.sin(angle * 1.4)
+        yaw = math.degrees(math.atan2(220 - y, -x))
+        pitch = -10 + 2.2 * math.sin(angle)
         retry_call(
             ue.set_camera,
             location={"x": x, "y": y, "z": z},
             rotation={"pitch": pitch, "yaw": yaw, "roll": 0},
-            fov=60,
+            fov=56,
             show_flags={"Grid": False, "BSP": False, "Selection": False},
             _retries=2,
             _delay=0.4,
