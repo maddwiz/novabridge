@@ -41,6 +41,10 @@ def pause(seconds: float) -> None:
     time.sleep(seconds)
 
 
+def lerp(a: float, b: float, t: float) -> float:
+    return a + (b - a) * t
+
+
 def spawn_mesh_actor(
     ue: NovaBridge,
     spawned_actors: list[str],
@@ -50,21 +54,52 @@ def spawn_mesh_actor(
     location: dict[str, float],
     scale: dict[str, float],
     rotation: dict[str, float] | None = None,
+    build_steps: int = 7,
+    build_step_delay: float = 0.05,
+    rise_height: float = 260.0,
 ) -> str:
+    final_location = {
+        "x": location.get("x", 0.0),
+        "y": location.get("y", 0.0),
+        "z": location.get("z", 0.0),
+    }
+    start_location = {"x": final_location["x"], "y": final_location["y"], "z": final_location["z"] + rise_height}
+    final_scale = {"x": scale.get("x", 1.0), "y": scale.get("y", 1.0), "z": scale.get("z", 1.0)}
+    start_scale = {
+        "x": max(0.03, final_scale["x"] * 0.06),
+        "y": max(0.03, final_scale["y"] * 0.06),
+        "z": max(0.03, final_scale["z"] * 0.06),
+    }
+
     actor = retry_call(
         ue.spawn,
         "StaticMeshActor",
         label=label,
-        x=location.get("x", 0.0),
-        y=location.get("y", 0.0),
-        z=location.get("z", 0.0),
+        x=start_location["x"],
+        y=start_location["y"],
+        z=start_location["z"],
         pitch=(rotation or {}).get("pitch", 0.0),
         yaw=(rotation or {}).get("yaw", 0.0),
         roll=(rotation or {}).get("roll", 0.0),
     )
     spawned_actors.append(actor["label"])
     retry_call(ue.set_property, actor["label"], "StaticMeshComponent0.StaticMesh", mesh_path)
-    retry_call(ue.transform, actor["label"], scale=scale)
+    retry_call(ue.transform, actor["label"], location=start_location, scale=start_scale)
+
+    for step in range(1, max(2, build_steps) + 1):
+        t = step / float(max(2, build_steps))
+        loc = {
+            "x": lerp(start_location["x"], final_location["x"], t),
+            "y": lerp(start_location["y"], final_location["y"], t),
+            "z": lerp(start_location["z"], final_location["z"], t),
+        }
+        scl = {
+            "x": lerp(start_scale["x"], final_scale["x"], t),
+            "y": lerp(start_scale["y"], final_scale["y"], t),
+            "z": lerp(start_scale["z"], final_scale["z"], t),
+        }
+        retry_call(ue.transform, actor["label"], location=loc, scale=scl, _retries=2, _delay=0.25)
+        pause(build_step_delay)
     return actor["label"]
 
 
@@ -86,7 +121,8 @@ def main() -> None:
     spawned_actors: list[str] = []
 
     banner("Health")
-    health = retry_call(ue.health)
+    print("waiting for NovaBridge health...")
+    health = retry_call(ue.health, _retries=120, _delay=2.0)
     print("health:", health)
 
     banner("Create Primitive Assets")

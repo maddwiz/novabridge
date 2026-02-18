@@ -26,6 +26,7 @@ This script visibly performs:
 - a familiar scene build: floor/walls, desk, monitor, chair, keyboard, mouse, mug, plant
 - staged lighting for a polished reveal
 - cinematic camera cuts + final orbit
+- animated assembly: each object drops and scales into place (piece-by-piece)
 
 It keeps the scene at the end so your recording can linger on the final shot.
 
