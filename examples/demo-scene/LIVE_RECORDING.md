@@ -35,6 +35,20 @@ Optional cleanup run:
 python3 examples/demo-scene/live_operator_demo.py --cleanup
 ```
 
+## Alternative: Gaming Battlestation (More Viral-Friendly)
+
+This variant builds a familiar streamer/gaming setup (dual monitors, tower, chair, speakers, neon wall bars):
+
+```bash
+python3 examples/demo-scene/live_operator_demo_gaming.py --host 127.0.0.1 --port 30010 --pause 0.8 --camera-frames 120
+```
+
+Optional cleanup run:
+
+```bash
+python3 examples/demo-scene/live_operator_demo_gaming.py --cleanup
+```
+
 ## 4) Stop recording
 
 Recommended export: `1920x1080`, `30fps`.
