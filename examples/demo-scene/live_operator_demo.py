@@ -104,6 +104,44 @@ def spawn_mesh_actor(
     return actor["label"]
 
 
+def collect_actor_names(scene_payload: Any) -> list[str]:
+    names: list[str] = []
+    if not isinstance(scene_payload, dict):
+        return names
+    actors = scene_payload.get("actors")
+    if not isinstance(actors, list):
+        return names
+    for actor in actors:
+        if isinstance(actor, str):
+            names.append(actor)
+            continue
+        if not isinstance(actor, dict):
+            continue
+        label = actor.get("label")
+        name = actor.get("name")
+        if isinstance(label, str):
+            names.append(label)
+        elif isinstance(name, str):
+            names.append(name)
+    return names
+
+
+def cleanup_previous_demo_actors(ue: NovaBridge) -> int:
+    prefixes = ("LiveDemo_", "GamingDemo_")
+    scene_payload = retry_call(ue.scene_list, _retries=6, _delay=1.0)
+    actor_names = collect_actor_names(scene_payload)
+    removed = 0
+    for actor_name in actor_names:
+        if not actor_name.startswith(prefixes):
+            continue
+        try:
+            retry_call(ue.delete_actor, actor_name, _retries=2, _delay=0.25)
+            removed += 1
+        except Exception:
+            continue
+    return removed
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build a recordable UE5 demo scene via NovaBridge.")
     parser.add_argument("--host", default="127.0.0.1")
@@ -126,6 +164,10 @@ def main() -> None:
     print("waiting for NovaBridge health...")
     health = retry_call(ue.health, _retries=120, _delay=2.0)
     print("health:", health)
+    banner("Reset Previous Demo Actors")
+    removed = cleanup_previous_demo_actors(ue)
+    print("removed stale demo actors:", removed)
+    pause(min(0.8, args.pause))
 
     banner("Create Primitive Assets")
     primitive_specs = [("plane", 2400), ("cube", 120), ("sphere", 120)]
