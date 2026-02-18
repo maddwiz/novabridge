@@ -54,6 +54,7 @@ def spawn_mesh_actor(
     location: dict[str, float],
     scale: dict[str, float],
     rotation: dict[str, float] | None = None,
+    material_path: str | None = None,
     build_steps: int = 20,
     build_step_delay: float = 0.16,
     rise_height: float = 900.0,
@@ -84,6 +85,15 @@ def spawn_mesh_actor(
     )
     spawned_actors.append(actor["label"])
     retry_call(ue.set_property, actor["label"], "StaticMeshComponent0.StaticMesh", mesh_path)
+    if material_path:
+        retry_call(
+            ue.set_property,
+            actor["label"],
+            "StaticMeshComponent0.Material[0]",
+            material_path,
+            _retries=8,
+            _delay=0.25,
+        )
     retry_call(ue.transform, actor["label"], location=start_location, scale=start_scale)
     pause(max(0.18, build_step_delay))
 
@@ -142,12 +152,53 @@ def cleanup_previous_demo_actors(ue: NovaBridge) -> int:
     return removed
 
 
+def ensure_material(
+    ue: NovaBridge,
+    *,
+    name: str,
+    color: dict[str, float],
+    path: str = "/Game/NovaBridgeDemoMats",
+) -> str:
+    try:
+        result = retry_call(ue.create_material, name, path=path, color=color, _retries=2, _delay=0.4)
+        created_path = result.get("path")
+        if isinstance(created_path, str) and created_path:
+            return created_path
+    except NovaBridgeError as exc:
+        if "exists" not in str(exc).lower():
+            raise
+    material_path = f"{path}/{name}.{name}"
+    try:
+        retry_call(ue._post, "/material/get", {"path": material_path}, _retries=2, _delay=0.4)  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    return material_path
+
+
+def build_color_palette(ue: NovaBridge) -> dict[str, str]:
+    colors = {
+        "floor_wood": {"r": 0.50, "g": 0.34, "b": 0.20},
+        "wall_cream": {"r": 0.95, "g": 0.93, "b": 0.86},
+        "desk_walnut": {"r": 0.27, "g": 0.17, "b": 0.10},
+        "metal_dark": {"r": 0.10, "g": 0.12, "b": 0.16},
+        "screen_cyan": {"r": 0.11, "g": 0.72, "b": 0.96},
+        "chair_blue": {"r": 0.12, "g": 0.33, "b": 0.84},
+        "mug_orange": {"r": 0.95, "g": 0.46, "b": 0.14},
+        "pot_terracotta": {"r": 0.69, "g": 0.36, "b": 0.22},
+        "plant_green": {"r": 0.22, "g": 0.74, "b": 0.35},
+    }
+    return {
+        key: ensure_material(ue, name=f"NBLive_{key.title().replace('_', '')}", color=value)
+        for key, value in colors.items()
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build a recordable UE5 demo scene via NovaBridge.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=30010)
-    parser.add_argument("--pause", type=float, default=1.0, help="Seconds between visible build steps.")
-    parser.add_argument("--camera-frames", type=int, default=96, help="Frames for final orbit.")
+    parser.add_argument("--pause", type=float, default=1.6, help="Seconds between visible build steps.")
+    parser.add_argument("--camera-frames", type=int, default=128, help="Frames for final orbit.")
     parser.add_argument(
         "--cleanup",
         action="store_true",
@@ -185,6 +236,11 @@ def main() -> None:
         print("created asset:", created["path"])
         pause(args.pause)
 
+    banner("Prepare Color Palette")
+    palette = build_color_palette(ue)
+    print("palette materials:", len(palette))
+    pause(args.pause * 0.6)
+
     banner("Set Stage Camera (Wide)")
     retry_call(
         ue.set_camera,
@@ -201,6 +257,7 @@ def main() -> None:
         spawned_actors,
         label=f"{prefix}_Floor",
         mesh_path=primitive_paths["plane"],
+        material_path=palette["floor_wood"],
         location={"x": 0, "y": 0, "z": -55},
         scale={"x": 1.2, "y": 1.2, "z": 1.0},
     )
@@ -211,6 +268,7 @@ def main() -> None:
         spawned_actors,
         label=f"{prefix}_BackWall",
         mesh_path=primitive_paths["cube"],
+        material_path=palette["wall_cream"],
         location={"x": 0, "y": 760, "z": 220},
         scale={"x": 16.0, "y": 0.25, "z": 5.0},
     )
@@ -221,6 +279,7 @@ def main() -> None:
         spawned_actors,
         label=f"{prefix}_LeftWall",
         mesh_path=primitive_paths["cube"],
+        material_path=palette["wall_cream"],
         location={"x": -960, "y": 0, "z": 220},
         scale={"x": 0.25, "y": 12.5, "z": 5.0},
     )
@@ -233,6 +292,7 @@ def main() -> None:
         spawned_actors,
         label=f"{prefix}_DeskTop",
         mesh_path=primitive_paths["cube"],
+        material_path=palette["desk_walnut"],
         location={"x": 0, "y": 220, "z": 94},
         scale={"x": 5.2, "y": 1.9, "z": 0.22},
     )
@@ -245,6 +305,7 @@ def main() -> None:
             spawned_actors,
             label=f"{prefix}_DeskLeg_{idx}",
             mesh_path=primitive_paths["cube"],
+            material_path=palette["metal_dark"],
             location={"x": lx, "y": ly, "z": 12},
             scale={"x": 0.2, "y": 0.2, "z": 1.35},
         )
@@ -257,6 +318,7 @@ def main() -> None:
         spawned_actors,
         label=f"{prefix}_MonitorBase",
         mesh_path=primitive_paths["cube"],
+        material_path=palette["metal_dark"],
         location={"x": 0, "y": 300, "z": 108},
         scale={"x": 1.1, "y": 0.45, "z": 0.08},
     )
@@ -267,6 +329,7 @@ def main() -> None:
         spawned_actors,
         label=f"{prefix}_MonitorStand",
         mesh_path=primitive_paths["cube"],
+        material_path=palette["metal_dark"],
         location={"x": 0, "y": 310, "z": 154},
         scale={"x": 0.16, "y": 0.16, "z": 0.82},
     )
@@ -277,6 +340,7 @@ def main() -> None:
         spawned_actors,
         label=f"{prefix}_MonitorScreen",
         mesh_path=primitive_paths["cube"],
+        material_path=palette["screen_cyan"],
         location={"x": 0, "y": 344, "z": 205},
         scale={"x": 2.2, "y": 0.08, "z": 1.25},
     )
@@ -287,6 +351,7 @@ def main() -> None:
         spawned_actors,
         label=f"{prefix}_Keyboard",
         mesh_path=primitive_paths["cube"],
+        material_path=palette["metal_dark"],
         location={"x": -20, "y": 165, "z": 102},
         scale={"x": 1.6, "y": 0.5, "z": 0.06},
     )
@@ -297,6 +362,7 @@ def main() -> None:
         spawned_actors,
         label=f"{prefix}_Mouse",
         mesh_path=primitive_paths["sphere"],
+        material_path=palette["metal_dark"],
         location={"x": 170, "y": 160, "z": 103},
         scale={"x": 0.22, "y": 0.30, "z": 0.10},
     )
@@ -309,6 +375,7 @@ def main() -> None:
         spawned_actors,
         label=f"{prefix}_ChairSeat",
         mesh_path=primitive_paths["cube"],
+        material_path=palette["chair_blue"],
         location={"x": 0, "y": -60, "z": 48},
         scale={"x": 1.7, "y": 1.5, "z": 0.2},
     )
@@ -319,6 +386,7 @@ def main() -> None:
         spawned_actors,
         label=f"{prefix}_ChairBack",
         mesh_path=primitive_paths["cube"],
+        material_path=palette["chair_blue"],
         location={"x": 0, "y": -140, "z": 120},
         scale={"x": 1.7, "y": 0.2, "z": 1.2},
     )
@@ -329,6 +397,7 @@ def main() -> None:
         spawned_actors,
         label=f"{prefix}_ChairCenter",
         mesh_path=primitive_paths["cube"],
+        material_path=palette["metal_dark"],
         location={"x": 0, "y": -60, "z": 12},
         scale={"x": 0.25, "y": 0.25, "z": 0.9},
     )
@@ -339,6 +408,7 @@ def main() -> None:
         spawned_actors,
         label=f"{prefix}_Mug",
         mesh_path=primitive_paths["sphere"],
+        material_path=palette["mug_orange"],
         location={"x": -180, "y": 170, "z": 107},
         scale={"x": 0.24, "y": 0.24, "z": 0.34},
     )
@@ -349,6 +419,7 @@ def main() -> None:
         spawned_actors,
         label=f"{prefix}_PlantPot",
         mesh_path=primitive_paths["cube"],
+        material_path=palette["pot_terracotta"],
         location={"x": 280, "y": 320, "z": 112},
         scale={"x": 0.35, "y": 0.35, "z": 0.3},
     )
@@ -359,6 +430,7 @@ def main() -> None:
         spawned_actors,
         label=f"{prefix}_PlantTop",
         mesh_path=primitive_paths["sphere"],
+        material_path=palette["plant_green"],
         location={"x": 280, "y": 320, "z": 152},
         scale={"x": 0.55, "y": 0.55, "z": 0.55},
     )
@@ -371,10 +443,10 @@ def main() -> None:
     desk_light = retry_call(ue.spawn, "PointLight", label=f"{prefix}_DeskLight", x=40, y=280, z=210)
     rim_light = retry_call(ue.spawn, "PointLight", label=f"{prefix}_RimLight", x=0, y=640, z=420)
     spawned_actors.extend([key_light["label"], fill_light["label"], desk_light["label"], rim_light["label"]])
-    retry_call(ue.set_property, key_light["label"], "PointLightComponent0.Intensity", 26000)
-    retry_call(ue.set_property, fill_light["label"], "PointLightComponent0.Intensity", 12000)
-    retry_call(ue.set_property, desk_light["label"], "PointLightComponent0.Intensity", 9000)
-    retry_call(ue.set_property, rim_light["label"], "PointLightComponent0.Intensity", 7000)
+    retry_call(ue.set_property, key_light["label"], "PointLightComponent0.Intensity", 2500)
+    retry_call(ue.set_property, fill_light["label"], "PointLightComponent0.Intensity", 4500)
+    retry_call(ue.set_property, desk_light["label"], "PointLightComponent0.Intensity", 2500)
+    retry_call(ue.set_property, rim_light["label"], "PointLightComponent0.Intensity", 3000)
     print("placed lights")
     pause(args.pause)
 
@@ -414,7 +486,7 @@ def main() -> None:
             _retries=2,
             _delay=0.4,
         )
-        pause(0.08)
+        pause(0.11)
 
     out_path = ROOT / "examples" / "demo-scene" / "live_operator_demo_end.png"
     screenshot = retry_call(ue.viewport_screenshot, width=1920, height=1080, raw=True, save_path=str(out_path))
