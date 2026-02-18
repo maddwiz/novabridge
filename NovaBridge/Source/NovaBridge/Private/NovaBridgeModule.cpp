@@ -238,32 +238,32 @@ void FNovaBridgeModule::StartHttpServer()
 		return;
 	}
 
-	auto Bind = [this](const TCHAR* Path, EHttpServerRequestVerbs Verbs, bool (FNovaBridgeModule::*Handler)(const FHttpServerRequest&, const FHttpResultCallback&))
-	{
-		ApiRouteCount++;
-		RouteHandles.Add(HttpRouter->BindRoute(
-			FHttpPath(Path), Verbs,
-			[this, Handler](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) -> bool
-			{
-				if (!IsApiKeyAuthorized(Request, OnComplete))
-				{
-					return true;
-				}
-				UE_LOG(LogNovaBridge, Verbose, TEXT("[%s] %s %s"),
-					*FDateTime::Now().ToString(),
-					HttpVerbToString(Request.Verb),
-					*Request.RelativePath.GetPath());
-				return (this->*Handler)(Request, OnComplete);
-			}
-		));
-		RouteHandles.Add(HttpRouter->BindRoute(
-			FHttpPath(Path), EHttpServerRequestVerbs::VERB_OPTIONS,
-			[this](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) -> bool
-			{
-				return HandleCorsPreflight(Request, OnComplete);
-			}
-		));
-	};
+		auto Bind = [this](const TCHAR* Path, EHttpServerRequestVerbs Verbs, bool (FNovaBridgeModule::*Handler)(const FHttpServerRequest&, const FHttpResultCallback&))
+		{
+			ApiRouteCount++;
+			RouteHandles.Add(HttpRouter->BindRoute(
+				FHttpPath(Path), Verbs,
+				FHttpRequestHandler::CreateLambda([this, Handler](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) -> bool
+					{
+						if (!IsApiKeyAuthorized(Request, OnComplete))
+						{
+							return true;
+						}
+						UE_LOG(LogNovaBridge, Verbose, TEXT("[%s] %s %s"),
+							*FDateTime::Now().ToString(),
+							HttpVerbToString(Request.Verb),
+							*Request.RelativePath.GetPath());
+						return (this->*Handler)(Request, OnComplete);
+					})
+			));
+			RouteHandles.Add(HttpRouter->BindRoute(
+				FHttpPath(Path), EHttpServerRequestVerbs::VERB_OPTIONS,
+				FHttpRequestHandler::CreateLambda([this](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) -> bool
+					{
+						return HandleCorsPreflight(Request, OnComplete);
+					})
+			));
+		};
 
 	// Health check
 	Bind(TEXT("/nova/health"), EHttpServerRequestVerbs::VERB_GET, &FNovaBridgeModule::HandleHealth);

@@ -10,7 +10,6 @@
 - [x] `OPTIONS` preflight returns CORS headers
 - [x] `POST /nova/asset/import` with OBJ + `scale` succeeds
 - [x] `POST /nova/scene/set-property` alias path works for common components
-- [ ] Optional API key mode validated (`401` without key, `200` with key)
 - [x] Optional API key mode validated (`401` without key, `200` with key)
 
 ## Platform Validation
@@ -18,8 +17,8 @@
 - [x] Linux ARM64 build and runtime smoke tested
 - [ ] Linux x86_64 build smoke tested
 - [ ] Windows Win64 compile smoke tested
-- [ ] macOS compile smoke tested
-- [ ] macOS full smoke checklist complete (`docs/MACOS_SMOKE_TEST.md`)
+- [x] macOS compile smoke tested
+- [x] macOS full smoke checklist complete (`docs/MACOS_SMOKE_TEST.md`)
 
 Reference command outcomes: `docs/BUILD_STATUS.md`.
 
