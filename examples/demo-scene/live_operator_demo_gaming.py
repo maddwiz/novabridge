@@ -17,6 +17,10 @@ if str(SDK_DIR) not in sys.path:
 
 from novabridge import NovaBridge, NovaBridgeError  # noqa: E402
 
+BUILD_STEPS = 120
+BUILD_STEP_DELAY = 0.133
+RISE_HEIGHT = 1500.0
+
 
 def retry_call(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     retries = kwargs.pop("_retries", 5)
@@ -55,16 +59,20 @@ def spawn_mesh_actor(
     scale: dict[str, float],
     rotation: dict[str, float] | None = None,
     material_path: str | None = None,
-    build_steps: int = 20,
-    build_step_delay: float = 0.16,
-    rise_height: float = 900.0,
+    build_steps: int | None = None,
+    build_step_delay: float | None = None,
+    rise_height: float | None = None,
 ) -> str:
+    steps = max(2, build_steps if build_steps is not None else BUILD_STEPS)
+    step_delay = max(0.02, build_step_delay if build_step_delay is not None else BUILD_STEP_DELAY)
+    rise = max(120.0, rise_height if rise_height is not None else RISE_HEIGHT)
+
     final_location = {
         "x": location.get("x", 0.0),
         "y": location.get("y", 0.0),
         "z": location.get("z", 0.0),
     }
-    start_location = {"x": final_location["x"], "y": final_location["y"], "z": final_location["z"] + rise_height}
+    start_location = {"x": final_location["x"], "y": final_location["y"], "z": final_location["z"] + rise}
     final_scale = {"x": scale.get("x", 1.0), "y": scale.get("y", 1.0), "z": scale.get("z", 1.0)}
     start_scale = {
         "x": max(0.01, final_scale["x"] * 0.015),
@@ -95,10 +103,10 @@ def spawn_mesh_actor(
             _delay=0.25,
         )
     retry_call(ue.transform, actor["label"], location=start_location, scale=start_scale)
-    pause(max(0.18, build_step_delay))
+    pause(max(0.18, step_delay * 1.5))
 
-    for step in range(1, max(2, build_steps) + 1):
-        t = step / float(max(2, build_steps))
+    for step in range(1, steps + 1):
+        t = step / float(steps)
         loc = {
             "x": lerp(start_location["x"], final_location["x"], t),
             "y": lerp(start_location["y"], final_location["y"], t),
@@ -110,7 +118,8 @@ def spawn_mesh_actor(
             "z": lerp(start_scale["z"], final_scale["z"], t),
         }
         retry_call(ue.transform, actor["label"], location=loc, scale=scl, _retries=2, _delay=0.25)
-        pause(build_step_delay)
+        pause(step_delay)
+    pause(max(0.20, step_delay))
     return actor["label"]
 
 
@@ -199,14 +208,21 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build a gaming battlestation scene via NovaBridge.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=30010)
-    parser.add_argument("--pause", type=float, default=1.6, help="Seconds between visible build steps.")
+    parser.add_argument("--pause", type=float, default=0.7, help="Seconds between section transitions.")
     parser.add_argument("--camera-frames", type=int, default=144, help="Frames for final orbit.")
+    parser.add_argument("--drop-steps", type=int, default=120, help="Transform updates per spawned actor descent.")
+    parser.add_argument("--drop-seconds", type=float, default=16.0, help="Seconds each spawned actor takes to descend.")
+    parser.add_argument("--drop-height", type=float, default=1500.0, help="Starting Z offset before descent.")
     parser.add_argument(
         "--cleanup",
         action="store_true",
         help="Delete demo actors when finished (default: keep scene in editor).",
     )
     args = parser.parse_args()
+    global BUILD_STEPS, BUILD_STEP_DELAY, RISE_HEIGHT
+    BUILD_STEPS = max(8, args.drop_steps)
+    BUILD_STEP_DELAY = max(0.03, args.drop_seconds / float(BUILD_STEPS))
+    RISE_HEIGHT = max(120.0, args.drop_height)
 
     ue = NovaBridge(host=args.host, port=args.port, timeout=120)
     prefix = f"GamingDemo_{time.strftime('%Y%m%d_%H%M%S')}"
@@ -214,6 +230,10 @@ def main() -> None:
 
     banner("Health")
     print("waiting for NovaBridge health...")
+    print(
+        f"build profile: steps={BUILD_STEPS}, step_delay={BUILD_STEP_DELAY:.3f}s, "
+        f"descent_seconds={BUILD_STEPS * BUILD_STEP_DELAY:.1f}, rise_height={RISE_HEIGHT:.0f}"
+    )
     health = retry_call(ue.health, _retries=120, _delay=2.0)
     print("health:", health)
     banner("Reset Previous Demo Actors")
