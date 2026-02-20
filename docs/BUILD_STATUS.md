@@ -2,10 +2,11 @@
 
 ## Last Updated
 
-- Date: 2026-02-18
+- Date: 2026-02-20
 - Environments:
   - Linux ARM64 host (`aarch64`) validation previously completed.
   - macOS native validation completed on `MacBookPro17,1` (Apple M1, 8 GB RAM), macOS `15.6.1` (`24G90`), Xcode `26.2` (`17C52`), Unreal Engine `5.6.1-44394996`.
+  - Windows Win64 native validation completed on `DESKTOP-QNVIB5M`, Unreal Engine `5.7.3` (`C:\Program Files\Epic Games\UE_5.7`), Visual Studio Build Tools 2022 (`17.14.27`), MSVC `14.44.35207`, Windows SDK `10.0.26100.0`.
 
 ## macOS Validation (Completed)
 
@@ -114,4 +115,80 @@ Evidence:
 ## Outstanding
 
 - Linux x86_64 native smoke remains blocked on ARM host dependency (`TextureFormatOodle ... liboo2texlinux64.2.9.6.so`).
-- Windows Win64 native smoke remains pending native Windows validation host.
+
+## Windows Win64 Validation (Completed)
+
+### Toolchain discovery and setup
+
+- UE editor binary:
+  - `C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe`
+- Visual Studio Build Tools 2022:
+  - `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe`
+- .NET Framework Developer Pack:
+  - `Microsoft.DotNet.Framework.DeveloperPack_4` (4.8.1)
+
+### Source plugin smoke (project copy + `Plugins/NovaBridge`)
+
+- Run directory:
+  - `artifacts-win/run-20260219-200626`
+- Source test project:
+  - `artifacts-win/run-20260219-200626/NovaBridgeDefault.uproject`
+- Build command:
+  - `Build.bat UnrealEditor Win64 Development -Project="<...>\\NovaBridgeDefault.uproject" -WaitMutex -NoHotReloadFromIDE`
+- Runtime launch command:
+  - `UnrealEditor.exe "<...>\\NovaBridgeDefault.uproject" -dx12 -RenderOffScreen -nosplash -nosound -unattended -nopause -NovaBridgePort=30010`
+
+Passed runtime checks on port `30010`:
+- `GET /nova/health` => `status=ok`
+- `POST /nova/scene/spawn` => created `GoldenPathLight`
+- `POST /nova/mesh/primitive` => created `WinSmokeCube`
+- `POST /nova/asset/import` with OBJ + `scale=100` => `status=ok`
+- `GET /nova/viewport/screenshot?format=raw` => PNG bytes (`89 50 4E 47 ...`)
+- `POST /nova/scene/delete` cleanup => `status=ok`
+
+Evidence:
+- `artifacts-win/run-20260219-200626/health.json`
+- `artifacts-win/run-20260219-200626/spawn.json`
+- `artifacts-win/run-20260219-200626/primitive.json`
+- `artifacts-win/run-20260219-200626/import.json`
+- `artifacts-win/run-20260219-200626/delete.json`
+- `artifacts-win/run-20260219-200626/screenshot-source.png`
+- `artifacts-win/run-20260219-200626/screenshot-magic.txt`
+- `artifacts-win/run-20260219-200626/unreal-source.log`
+
+### Packaging and packaged-plugin retest (Completed)
+
+- Packaging command:
+  - `pwsh scripts/package_release_win.ps1 -Version v0.9.0`
+- Package output:
+  - `dist/NovaBridge-v0.9.0.zip`
+
+Packaged-plugin second project validation:
+- Second clean project:
+  - `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/WinSmokePackaged/NovaBridgeDefault.uproject`
+- Packaged plugin installed from:
+  - `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/unzipped/Plugins/NovaBridge`
+- Build command:
+  - `Build.bat UnrealEditor Win64 Development -Project="<...>\\WinSmokePackaged\\NovaBridgeDefault.uproject" -WaitMutex -NoHotReloadFromIDE`
+- Runtime launch command:
+  - `UnrealEditor.exe "<...>\\WinSmokePackaged\\NovaBridgeDefault.uproject" -dx12 -RenderOffScreen -nosplash -nosound -unattended -nopause -NovaBridgePort=30011`
+
+Passed runtime checks on port `30011`:
+- `GET /nova/health` => `status=ok`
+- `POST /nova/scene/spawn` => created `PackagedLight`
+- `POST /nova/asset/import` with OBJ + `scale=100` => `status=ok`
+- `GET /nova/viewport/screenshot?format=raw` => PNG bytes (`89 50 4E 47 ...`)
+- `POST /nova/scene/delete` cleanup => `status=ok`
+
+Package hygiene:
+- Zip content scanned and verified no `Intermediate/`, `Saved/`, `.log`, or `DerivedDataCache`.
+
+Evidence:
+- `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/build-packaged.log`
+- `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/health-packaged.json`
+- `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/spawn-packaged.json`
+- `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/import-packaged.json`
+- `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/delete-packaged.json`
+- `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/screenshot-packaged.png`
+- `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/screenshot-packaged-magic.txt`
+- `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/unreal-packaged.log`

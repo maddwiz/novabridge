@@ -16,7 +16,7 @@
 
 - [x] Linux ARM64 build and runtime smoke tested
 - [ ] Linux x86_64 build smoke tested
-- [ ] Windows Win64 compile smoke tested
+- [x] Windows Win64 compile smoke tested
 - [x] macOS compile smoke tested
 - [x] macOS full smoke checklist complete (`docs/MACOS_SMOKE_TEST.md`)
 
@@ -40,5 +40,5 @@ Reference command outcomes: `docs/BUILD_STATUS.md`.
 - [x] `docs/SETUP_*.md` reflect environment variables and project launch rules
 - [x] `docs/SMOKE_TEST_CHECKLIST.md` present
 - [x] Customer docs included (`INSTALL.md`, `BuyerGuide.md`, `CHANGELOG.md`, `EULA.txt`)
-- [ ] `demo/VIDEO_SCRIPT.md` available for launch video production
-- [ ] `site/index.html` available as starter landing page
+- [x] `demo/VIDEO_SCRIPT.md` available for launch video production
+- [x] `site/index.html` available as starter landing page
