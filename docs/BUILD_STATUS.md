@@ -145,6 +145,7 @@ Passed runtime checks on port `30010`:
 - `POST /nova/asset/import` with OBJ + `scale=100` => `status=ok`
 - `GET /nova/viewport/screenshot?format=raw` => PNG bytes (`89 50 4E 47 ...`)
 - `POST /nova/scene/delete` cleanup => `status=ok`
+- OpenClaw extensions load cleanly and can call health/spawn/delete via Node harness
 
 Evidence:
 - `artifacts-win/run-20260219-200626/health.json`
@@ -155,6 +156,7 @@ Evidence:
 - `artifacts-win/run-20260219-200626/screenshot-source.png`
 - `artifacts-win/run-20260219-200626/screenshot-magic.txt`
 - `artifacts-win/run-20260219-200626/unreal-source.log`
+- `artifacts-win/run-20260219-200626/openclaw-smoke.json`
 
 ### Packaging and packaged-plugin retest (Completed)
 

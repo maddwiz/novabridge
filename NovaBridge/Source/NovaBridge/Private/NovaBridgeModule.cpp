@@ -97,6 +97,7 @@
 #include "ShowFlags.h"
 #include "Math/UnrealMathUtility.h"
 #include "Runtime/Launch/Resources/Version.h"
+#include "UObject/SoftObjectPath.h"
 
 // Sequencer
 #include "LevelSequence.h"
@@ -126,6 +127,29 @@ static void NovaBridgeSetPlaybackTime(ULevelSequencePlayer* Player, float TimeSe
 	{
 		Player->JumpToSeconds(TimeSeconds);
 	}
+#endif
+}
+
+static FGuid NovaBridgeFindBinding(ULevelSequence* Sequence, AActor* Actor, UWorld* World)
+{
+#if ENGINE_MAJOR_VERSION > 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 7)
+	FMovieSceneSequencePlaybackSettings Settings;
+	ALevelSequenceActor* SequenceActor = nullptr;
+	ULevelSequencePlayer* Player = ULevelSequencePlayer::CreateLevelSequencePlayer(World, Sequence, Settings, SequenceActor);
+	if (!Player)
+	{
+		return FGuid();
+	}
+
+	FGuid Binding = Sequence->FindBindingFromObject(Actor, Player->GetSharedPlaybackState());
+	Player->Stop();
+	if (SequenceActor)
+	{
+		SequenceActor->Destroy();
+	}
+	return Binding;
+#else
+	return Sequence->FindBindingFromObject(Actor, World);
 #endif
 }
 }
@@ -163,7 +187,7 @@ static FString NormalizeComponentKey(FString Value)
 	// Ignore trailing numeric suffixes often used in component names (e.g. LightComponent0).
 	while (Out.Len() > 0 && FChar::IsDigit(Out[Out.Len() - 1]))
 	{
-		Out.LeftChopInline(1, false);
+		Out.LeftChopInline(1, EAllowShrinking::No);
 	}
 
 	return Out;
@@ -1146,7 +1170,7 @@ bool FNovaBridgeModule::HandleSceneSetProperty(const FHttpServerRequest& Request
 						// Class names usually start with U (e.g. UPointLightComponent); allow matching without it.
 						if (ClassName.StartsWith(TEXT("U")))
 						{
-							ClassName.RightChopInline(1, false);
+							ClassName.RightChopInline(1, EAllowShrinking::No);
 						}
 						const FString ClassNameNoPrefixKey = NormalizeComponentKey(ClassName);
 
@@ -1459,7 +1483,8 @@ bool FNovaBridgeModule::HandleAssetInfo(const FHttpServerRequest& Request, const
 	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, AssetPath]()
 	{
 		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-		FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FName(*AssetPath));
+		const FSoftObjectPath ObjectPath(AssetPath);
+		FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(ObjectPath);
 
 		if (!AssetData.IsValid())
 		{
@@ -3392,7 +3417,7 @@ bool FNovaBridgeModule::HandleSequencerAddTrack(const FHttpServerRequest& Reques
 		}
 
 		UMovieScene* MovieScene = Sequence->GetMovieScene();
-		FGuid Binding = Sequence->FindBindingFromObject(Actor, World);
+		FGuid Binding = NovaBridgeFindBinding(Sequence, Actor, World);
 		if (!Binding.IsValid())
 		{
 			Binding = MovieScene->AddPossessable(Actor->GetActorLabel(), Actor->GetClass());
@@ -3478,7 +3503,7 @@ bool FNovaBridgeModule::HandleSequencerSetKeyframe(const FHttpServerRequest& Req
 		}
 
 		UMovieScene* MovieScene = Sequence->GetMovieScene();
-		FGuid Binding = Sequence->FindBindingFromObject(Actor, World);
+		FGuid Binding = NovaBridgeFindBinding(Sequence, Actor, World);
 		if (!Binding.IsValid())
 		{
 			Binding = MovieScene->AddPossessable(Actor->GetActorLabel(), Actor->GetClass());

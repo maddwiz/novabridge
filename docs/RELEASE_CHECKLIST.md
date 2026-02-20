@@ -30,7 +30,7 @@ Reference command outcomes: `docs/BUILD_STATUS.md`.
 
 ## Integrations
 
-- [ ] OpenClaw extensions load cleanly
+- [x] OpenClaw extensions load cleanly
 - [x] Python SDK imports and executes `health()`
 - [x] MCP server starts and lists tools
 
