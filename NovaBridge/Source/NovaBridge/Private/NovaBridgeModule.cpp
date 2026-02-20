@@ -96,6 +96,7 @@
 #include "Misc/Base64.h"
 #include "ShowFlags.h"
 #include "Math/UnrealMathUtility.h"
+#include "Runtime/Launch/Resources/Version.h"
 
 // Sequencer
 #include "LevelSequence.h"
@@ -105,6 +106,29 @@
 #include "Tracks/MovieScene3DTransformTrack.h"
 #include "Sections/MovieScene3DTransformSection.h"
 #include "Channels/MovieSceneDoubleChannel.h"
+
+namespace
+{
+static void NovaBridgeSetPlaybackTime(ULevelSequencePlayer* Player, float TimeSeconds, bool bScrub)
+{
+#if ENGINE_MAJOR_VERSION > 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 7)
+	FMovieSceneSequencePlaybackParams Params;
+	Params.PositionType = EMovieScenePositionType::Time;
+	Params.Time = TimeSeconds;
+	Params.UpdateMethod = bScrub ? EUpdatePositionMethod::Scrub : EUpdatePositionMethod::Jump;
+	Player->SetPlaybackPosition(Params);
+#else
+	if (bScrub)
+	{
+		NovaBridgeSetPlaybackTime(Player, TimeSeconds, true);
+	}
+	else
+	{
+		Player->JumpToSeconds(TimeSeconds);
+	}
+#endif
+}
+}
 
 #if NOVABRIDGE_WITH_WEBSOCKET_NETWORKING
 #include "IWebSocketNetworkingModule.h"
@@ -474,7 +498,14 @@ void FNovaBridgeModule::StartWebSocketServer()
 		UE_LOG(LogNovaBridge, Log, TEXT("NovaBridge stream client connected (%d total)"), WsClients.Num());
 	});
 
-	WsServer = FModuleManager::LoadModuleChecked<IWebSocketNetworkingModule>(TEXT("WebSocketNetworking")).CreateServer();
+	IWebSocketNetworkingModule* WsModule = FModuleManager::Get().LoadModulePtr<IWebSocketNetworkingModule>(TEXT("WebSocketNetworking"));
+	if (!WsModule)
+	{
+		UE_LOG(LogNovaBridge, Warning, TEXT("WebSocketNetworking module not available; stream WebSocket server disabled"));
+		return;
+	}
+
+	WsServer = WsModule->CreateServer();
 	if (!WsServer.IsValid() || !WsServer->Init(WsPort, ConnectedCallback))
 	{
 		UE_LOG(LogNovaBridge, Warning, TEXT("NovaBridge WebSocket server failed to initialize on port %d"), WsPort);
@@ -1333,7 +1364,12 @@ bool FNovaBridgeModule::HandleAssetDuplicate(const FHttpServerRequest& Request, 
 
 	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, Source, Destination]()
 	{
+#if ENGINE_MAJOR_VERSION > 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 7)
+		UObject* DuplicatedAsset = UEditorAssetLibrary::DuplicateAsset(Source, Destination);
+		bool Success = (DuplicatedAsset != nullptr);
+#else
 		bool Success = UEditorAssetLibrary::DuplicateAsset(Source, Destination);
+#endif
 		if (!Success)
 		{
 			SendErrorResponse(OnComplete, TEXT("Failed to duplicate asset"), 500);
@@ -3580,7 +3616,7 @@ bool FNovaBridgeModule::HandleSequencerPlay(const FHttpServerRequest& Request, c
 
 		if (StartTime > 0.f)
 		{
-			Player->JumpToSeconds(StartTime);
+			NovaBridgeSetPlaybackTime(Player, StartTime, false);
 		}
 		Player->Play();
 
@@ -3688,7 +3724,7 @@ bool FNovaBridgeModule::HandleSequencerScrub(const FHttpServerRequest& Request, 
 			}
 		}
 
-		Player->ScrubToSeconds(TimeSeconds);
+		NovaBridgeSetPlaybackTime(Player, TimeSeconds, true);
 		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
 		Result->SetStringField(TEXT("status"), TEXT("ok"));
 		Result->SetStringField(TEXT("sequence"), SequencePath);
@@ -3753,7 +3789,7 @@ bool FNovaBridgeModule::HandleSequencerRender(const FHttpServerRequest& Request,
 		for (int32 FrameIdx = 0; FrameIdx < FrameCount; ++FrameIdx)
 		{
 			const float TimeSeconds = static_cast<float>(FrameIdx) / static_cast<float>(Fps);
-			Player->JumpToSeconds(TimeSeconds);
+			NovaBridgeSetPlaybackTime(Player, TimeSeconds, false);
 
 			USceneCaptureComponent2D* CaptureComp = CaptureActor->GetCaptureComponent2D();
 			CaptureActor->SetActorLocation(CameraLocation);

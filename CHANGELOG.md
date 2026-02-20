@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Added UE 5.7 compatibility for sequencer playback positioning and asset duplication.
+- Avoided hard crash when `WebSocketNetworking` is unavailable by disabling the stream server gracefully.
+- Added Windows packaging and packaged-smoke helper scripts.
+
 ## v0.9.0 - 2026-02-18
 
 - Added `/nova/health` `version` field and `api_key_required` indicator.
