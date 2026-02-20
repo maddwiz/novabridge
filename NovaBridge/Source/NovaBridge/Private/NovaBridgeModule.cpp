@@ -10,6 +10,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Async/Async.h"
+#include "Containers/Ticker.h"
 
 // Editor
 #include "Editor.h"
@@ -34,6 +35,11 @@
 #include "Components/PointLightComponent.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/SkyLightComponent.h"
+#include "Components/BrushComponent.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "PhysicsEngine/AggregateGeom.h"
+#include "Engine/Texture.h"
+#include "Engine/Texture2D.h"
 
 // Assets
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -81,6 +87,7 @@
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Misc/App.h"
+#include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
 
 // Image
@@ -88,6 +95,29 @@
 #include "IImageWrapper.h"
 #include "Misc/Base64.h"
 #include "ShowFlags.h"
+#include "Math/UnrealMathUtility.h"
+
+// Sequencer
+#include "LevelSequence.h"
+#include "LevelSequenceActor.h"
+#include "LevelSequencePlayer.h"
+#include "MovieScene.h"
+#include "Tracks/MovieScene3DTransformTrack.h"
+#include "Sections/MovieScene3DTransformSection.h"
+#include "Channels/MovieSceneDoubleChannel.h"
+
+#if NOVABRIDGE_WITH_WEBSOCKET_NETWORKING
+#include "IWebSocketNetworkingModule.h"
+#include "IWebSocketServer.h"
+#include "INetworkingWebSocket.h"
+#include "WebSocketNetworkingDelegates.h"
+#endif
+
+#if NOVABRIDGE_WITH_PCG
+#include "PCGGraph.h"
+#include "PCGComponent.h"
+#include "PCGVolume.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "FNovaBridgeModule"
 
@@ -186,11 +216,14 @@ void FNovaBridgeModule::StartupModule()
 {
 	UE_LOG(LogNovaBridge, Log, TEXT("NovaBridge starting up..."));
 	StartHttpServer();
+	StartWebSocketServer();
 }
 
 void FNovaBridgeModule::ShutdownModule()
 {
 	UE_LOG(LogNovaBridge, Log, TEXT("NovaBridge shutting down..."));
+	StopWebSocketServer();
+	CleanupStreamCapture();
 	CleanupCapture();
 	StopHttpServer();
 }
@@ -307,9 +340,40 @@ void FNovaBridgeModule::StartHttpServer()
 	Bind(TEXT("/nova/blueprint/add-component"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleBlueprintAddComponent);
 	Bind(TEXT("/nova/blueprint/compile"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleBlueprintCompile);
 
-	// Build
-	Bind(TEXT("/nova/build/lighting"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleBuildLighting);
-	Bind(TEXT("/nova/exec/command"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleExecCommand);
+		// Build
+		Bind(TEXT("/nova/build/lighting"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleBuildLighting);
+		Bind(TEXT("/nova/exec/command"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleExecCommand);
+
+		// Stream
+		Bind(TEXT("/nova/stream/start"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleStreamStart);
+		Bind(TEXT("/nova/stream/stop"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleStreamStop);
+		Bind(TEXT("/nova/stream/config"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleStreamConfig);
+		Bind(TEXT("/nova/stream/status"), EHttpServerRequestVerbs::VERB_GET, &FNovaBridgeModule::HandleStreamStatus);
+
+		// PCG
+		Bind(TEXT("/nova/pcg/list-graphs"), EHttpServerRequestVerbs::VERB_GET, &FNovaBridgeModule::HandlePcgListGraphs);
+		Bind(TEXT("/nova/pcg/create-volume"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandlePcgCreateVolume);
+		Bind(TEXT("/nova/pcg/generate"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandlePcgGenerate);
+		Bind(TEXT("/nova/pcg/set-param"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandlePcgSetParam);
+		Bind(TEXT("/nova/pcg/cleanup"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandlePcgCleanup);
+
+		// Sequencer
+		Bind(TEXT("/nova/sequencer/create"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleSequencerCreate);
+		Bind(TEXT("/nova/sequencer/add-track"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleSequencerAddTrack);
+		Bind(TEXT("/nova/sequencer/set-keyframe"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleSequencerSetKeyframe);
+		Bind(TEXT("/nova/sequencer/play"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleSequencerPlay);
+		Bind(TEXT("/nova/sequencer/stop"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleSequencerStop);
+		Bind(TEXT("/nova/sequencer/scrub"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleSequencerScrub);
+		Bind(TEXT("/nova/sequencer/render"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleSequencerRender);
+		Bind(TEXT("/nova/sequencer/info"), EHttpServerRequestVerbs::VERB_GET, &FNovaBridgeModule::HandleSequencerInfo);
+
+		// Optimize
+		Bind(TEXT("/nova/optimize/nanite"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleOptimizeNanite);
+		Bind(TEXT("/nova/optimize/lod"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleOptimizeLod);
+		Bind(TEXT("/nova/optimize/lumen"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleOptimizeLumen);
+		Bind(TEXT("/nova/optimize/stats"), EHttpServerRequestVerbs::VERB_GET, &FNovaBridgeModule::HandleOptimizeStats);
+		Bind(TEXT("/nova/optimize/textures"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleOptimizeTextures);
+		Bind(TEXT("/nova/optimize/collision"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleOptimizeCollision);
 
 	FHttpServerModule::Get().StartAllListeners();
 	UE_LOG(LogNovaBridge, Log, TEXT("NovaBridge HTTP server started on port %d with %d API routes"), HttpPort, ApiRouteCount);
@@ -331,6 +395,228 @@ void FNovaBridgeModule::StopHttpServer()
 	}
 	ApiRouteCount = 0;
 	FHttpServerModule::Get().StopAllListeners();
+}
+
+// ============================================================
+// WebSocket Stream Server
+// ============================================================
+
+void FNovaBridgeModule::StartWebSocketServer()
+{
+#if NOVABRIDGE_WITH_WEBSOCKET_NETWORKING
+	if (WsServer.IsValid())
+	{
+		return;
+	}
+
+	int32 ParsedWsPort = 0;
+	if (FParse::Value(FCommandLine::Get(), TEXT("NovaBridgeWsPort="), ParsedWsPort))
+	{
+		if (ParsedWsPort > 0 && ParsedWsPort <= 65535)
+		{
+			WsPort = static_cast<uint32>(ParsedWsPort);
+		}
+	}
+
+	FWebSocketClientConnectedCallBack ConnectedCallback;
+	ConnectedCallback.BindLambda([this](INetworkingWebSocket* Socket)
+	{
+		if (!Socket)
+		{
+			return;
+		}
+
+		FWsClient Client;
+		Client.Socket = Socket;
+		Client.Id = FGuid::NewGuid();
+		WsClients.Add(MoveTemp(Client));
+
+		FWebSocketPacketReceivedCallBack ReceiveCallback;
+		ReceiveCallback.BindLambda([](void* Data, int32 Size)
+		{
+			(void)Data;
+			(void)Size;
+		});
+		Socket->SetReceiveCallBack(ReceiveCallback);
+
+		FWebSocketInfoCallBack CloseCallback;
+		CloseCallback.BindLambda([this, Socket]()
+		{
+			const int32 Index = WsClients.IndexOfByPredicate([Socket](const FWsClient& Client)
+			{
+				return Client.Socket == Socket;
+			});
+			if (Index != INDEX_NONE)
+			{
+				if (WsClients[Index].Socket)
+				{
+					delete WsClients[Index].Socket;
+					WsClients[Index].Socket = nullptr;
+				}
+				WsClients.RemoveAtSwap(Index);
+			}
+
+			if (WsClients.Num() == 0)
+			{
+				bStreamActive = false;
+				StopStreamTicker();
+			}
+		});
+		Socket->SetSocketClosedCallBack(CloseCallback);
+
+		// Auto-start stream when first client connects.
+		if (!bStreamActive)
+		{
+			bStreamActive = true;
+		}
+		StartStreamTicker();
+
+		UE_LOG(LogNovaBridge, Log, TEXT("NovaBridge stream client connected (%d total)"), WsClients.Num());
+	});
+
+	WsServer = FModuleManager::LoadModuleChecked<IWebSocketNetworkingModule>(TEXT("WebSocketNetworking")).CreateServer();
+	if (!WsServer.IsValid() || !WsServer->Init(WsPort, ConnectedCallback))
+	{
+		UE_LOG(LogNovaBridge, Warning, TEXT("NovaBridge WebSocket server failed to initialize on port %d"), WsPort);
+		WsServer.Reset();
+		return;
+	}
+
+	WsServerTickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([this](float DeltaTime) -> bool
+	{
+		(void)DeltaTime;
+		if (WsServer.IsValid())
+		{
+			WsServer->Tick();
+		}
+		return true;
+	}));
+
+	UE_LOG(LogNovaBridge, Log, TEXT("NovaBridge WebSocket stream server started on port %d"), WsPort);
+#else
+	UE_LOG(LogNovaBridge, Warning, TEXT("WebSocketNetworking module not available; stream WebSocket server disabled"));
+#endif
+}
+
+void FNovaBridgeModule::StopWebSocketServer()
+{
+#if NOVABRIDGE_WITH_WEBSOCKET_NETWORKING
+	StopStreamTicker();
+	bStreamActive = false;
+
+	if (WsServerTickHandle.IsValid())
+	{
+		FTSTicker::GetCoreTicker().RemoveTicker(WsServerTickHandle);
+		WsServerTickHandle.Reset();
+	}
+
+	for (FWsClient& Client : WsClients)
+	{
+		if (Client.Socket)
+		{
+			delete Client.Socket;
+			Client.Socket = nullptr;
+		}
+	}
+	WsClients.Empty();
+	WsServer.Reset();
+#endif
+}
+
+void FNovaBridgeModule::StartStreamTicker()
+{
+	if (!bStreamActive || WsClients.Num() == 0 || StreamTickHandle.IsValid())
+	{
+		return;
+	}
+
+	LastStreamFrameTime = 0.0;
+	StreamTickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([this](float DeltaTime) -> bool
+	{
+		(void)DeltaTime;
+		StreamTick();
+		return true;
+	}), 0.0f);
+}
+
+void FNovaBridgeModule::StopStreamTicker()
+{
+	if (StreamTickHandle.IsValid())
+	{
+		FTSTicker::GetCoreTicker().RemoveTicker(StreamTickHandle);
+		StreamTickHandle.Reset();
+	}
+}
+
+void FNovaBridgeModule::StreamTick()
+{
+#if NOVABRIDGE_WITH_WEBSOCKET_NETWORKING
+	if (!bStreamActive || WsClients.Num() == 0)
+	{
+		return;
+	}
+
+	const double Now = FPlatformTime::Seconds();
+	const int32 SafeFps = FMath::Max(1, StreamFps);
+	if (Now - LastStreamFrameTime < (1.0 / static_cast<double>(SafeFps)))
+	{
+		return;
+	}
+	LastStreamFrameTime = Now;
+
+	AsyncTask(ENamedThreads::GameThread, [this]()
+	{
+		if (!bStreamActive || WsClients.Num() == 0)
+		{
+			return;
+		}
+
+		EnsureStreamCaptureSetup();
+		if (!StreamCaptureActor.IsValid() || !StreamRenderTarget.IsValid())
+		{
+			return;
+		}
+
+		USceneCaptureComponent2D* CaptureComp = StreamCaptureActor->GetCaptureComponent2D();
+		StreamCaptureActor->SetActorLocation(CameraLocation);
+		StreamCaptureActor->SetActorRotation(CameraRotation);
+		CaptureComp->FOVAngle = CameraFOV;
+		CaptureComp->CaptureScene();
+
+		FTextureRenderTargetResource* RTResource = StreamRenderTarget->GameThread_GetRenderTargetResource();
+		if (!RTResource)
+		{
+			return;
+		}
+
+		TArray<FColor> Bitmap;
+		if (!RTResource->ReadPixels(Bitmap) || Bitmap.Num() == 0)
+		{
+			return;
+		}
+
+		IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
+		TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::JPEG);
+		ImageWrapper->SetRaw(Bitmap.GetData(), Bitmap.Num() * sizeof(FColor), StreamWidth, StreamHeight, ERGBFormat::BGRA, 8);
+		TArray64<uint8> Encoded = ImageWrapper->GetCompressed(FMath::Clamp(StreamQuality, 1, 100));
+		if (Encoded.Num() == 0)
+		{
+			return;
+		}
+
+		TArray<uint8> Payload;
+		Payload.Append(Encoded.GetData(), static_cast<int32>(Encoded.Num()));
+		for (int32 Idx = WsClients.Num() - 1; Idx >= 0; --Idx)
+		{
+			if (!WsClients[Idx].Socket)
+			{
+				WsClients.RemoveAtSwap(Idx);
+				continue;
+			}
+			WsClients[Idx].Socket->Send(Payload.GetData(), Payload.Num(), false);
+		}
+	});
+#endif
 }
 
 // ============================================================
@@ -2103,6 +2389,54 @@ void FNovaBridgeModule::CleanupCapture()
 	RenderTarget.Reset();
 }
 
+void FNovaBridgeModule::EnsureStreamCaptureSetup()
+{
+	if (StreamCaptureActor.IsValid() && StreamRenderTarget.IsValid())
+	{
+		return;
+	}
+
+	UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+	if (!World)
+	{
+		return;
+	}
+
+	UTextureRenderTarget2D* RT = NewObject<UTextureRenderTarget2D>(GetTransientPackage(), NAME_None, RF_Transient);
+	RT->InitAutoFormat(StreamWidth, StreamHeight);
+	RT->UpdateResourceImmediate(true);
+	StreamRenderTarget = RT;
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Name = FName(TEXT("NovaBridge_StreamCapture"));
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	ASceneCapture2D* Capture = World->SpawnActor<ASceneCapture2D>(FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+	if (Capture)
+	{
+		Capture->SetActorLabel(TEXT("NovaBridge_StreamCapture"));
+		Capture->SetActorHiddenInGame(true);
+		USceneCaptureComponent2D* CaptureComp = Capture->GetCaptureComponent2D();
+		CaptureComp->TextureTarget = RT;
+		CaptureComp->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+		CaptureComp->bCaptureEveryFrame = false;
+		CaptureComp->bCaptureOnMovement = false;
+		CaptureComp->FOVAngle = CameraFOV;
+		Capture->SetActorLocation(CameraLocation);
+		Capture->SetActorRotation(CameraRotation);
+		StreamCaptureActor = Capture;
+	}
+}
+
+void FNovaBridgeModule::CleanupStreamCapture()
+{
+	if (StreamCaptureActor.IsValid())
+	{
+		StreamCaptureActor->Destroy();
+		StreamCaptureActor.Reset();
+	}
+	StreamRenderTarget.Reset();
+}
+
 bool FNovaBridgeModule::HandleViewportScreenshot(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
 {
 	// Parse optional width/height from query params
@@ -2520,6 +2854,1364 @@ bool FNovaBridgeModule::HandleExecCommand(const FHttpServerRequest& Request, con
 		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
 		Result->SetStringField(TEXT("status"), TEXT("ok"));
 		Result->SetStringField(TEXT("command"), Command);
+		SendJsonResponse(OnComplete, Result);
+	});
+	return true;
+}
+
+// ============================================================
+// Stream Handlers
+// ============================================================
+
+bool FNovaBridgeModule::HandleStreamStart(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	(void)Request;
+	bStreamActive = true;
+	StartStreamTicker();
+
+	TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+	Result->SetStringField(TEXT("status"), TEXT("ok"));
+	Result->SetBoolField(TEXT("active"), bStreamActive && StreamTickHandle.IsValid());
+	Result->SetNumberField(TEXT("clients"), WsClients.Num());
+	Result->SetNumberField(TEXT("fps"), StreamFps);
+	Result->SetNumberField(TEXT("width"), StreamWidth);
+	Result->SetNumberField(TEXT("height"), StreamHeight);
+	Result->SetNumberField(TEXT("quality"), StreamQuality);
+	Result->SetNumberField(TEXT("ws_port"), WsPort);
+	Result->SetStringField(TEXT("ws_url"), FString::Printf(TEXT("ws://localhost:%d"), WsPort));
+#if !NOVABRIDGE_WITH_WEBSOCKET_NETWORKING
+	Result->SetStringField(TEXT("warning"), TEXT("WebSocketNetworking module unavailable in this UE build."));
+#endif
+	SendJsonResponse(OnComplete, Result);
+	return true;
+}
+
+bool FNovaBridgeModule::HandleStreamStop(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	(void)Request;
+	bStreamActive = false;
+	StopStreamTicker();
+
+	TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+	Result->SetStringField(TEXT("status"), TEXT("ok"));
+	Result->SetBoolField(TEXT("active"), false);
+	Result->SetNumberField(TEXT("clients"), WsClients.Num());
+	SendJsonResponse(OnComplete, Result);
+	return true;
+}
+
+bool FNovaBridgeModule::HandleStreamConfig(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	if (!Body)
+	{
+		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
+		return true;
+	}
+
+	double Value = 0.0;
+	bool bResized = false;
+
+	if (Body->TryGetNumberField(TEXT("fps"), Value))
+	{
+		StreamFps = FMath::Clamp(static_cast<int32>(Value), 1, 30);
+	}
+	if (Body->TryGetNumberField(TEXT("width"), Value))
+	{
+		const int32 NewWidth = FMath::Clamp(static_cast<int32>(Value), 64, 1920);
+		bResized = bResized || (NewWidth != StreamWidth);
+		StreamWidth = NewWidth;
+	}
+	if (Body->TryGetNumberField(TEXT("height"), Value))
+	{
+		const int32 NewHeight = FMath::Clamp(static_cast<int32>(Value), 64, 1080);
+		bResized = bResized || (NewHeight != StreamHeight);
+		StreamHeight = NewHeight;
+	}
+	if (Body->TryGetNumberField(TEXT("quality"), Value))
+	{
+		StreamQuality = FMath::Clamp(static_cast<int32>(Value), 1, 100);
+	}
+
+	if (bResized)
+	{
+		AsyncTask(ENamedThreads::GameThread, [this]()
+		{
+			CleanupStreamCapture();
+		});
+	}
+
+	if (bStreamActive)
+	{
+		StopStreamTicker();
+		StartStreamTicker();
+	}
+
+	TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+	Result->SetStringField(TEXT("status"), TEXT("ok"));
+	Result->SetBoolField(TEXT("active"), bStreamActive && StreamTickHandle.IsValid());
+	Result->SetNumberField(TEXT("clients"), WsClients.Num());
+	Result->SetNumberField(TEXT("fps"), StreamFps);
+	Result->SetNumberField(TEXT("width"), StreamWidth);
+	Result->SetNumberField(TEXT("height"), StreamHeight);
+	Result->SetNumberField(TEXT("quality"), StreamQuality);
+	Result->SetNumberField(TEXT("ws_port"), WsPort);
+	Result->SetStringField(TEXT("ws_url"), FString::Printf(TEXT("ws://localhost:%d"), WsPort));
+	SendJsonResponse(OnComplete, Result);
+	return true;
+}
+
+bool FNovaBridgeModule::HandleStreamStatus(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	(void)Request;
+	TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+	Result->SetBoolField(TEXT("active"), bStreamActive && StreamTickHandle.IsValid());
+	Result->SetNumberField(TEXT("clients"), WsClients.Num());
+	Result->SetNumberField(TEXT("fps"), StreamFps);
+	Result->SetNumberField(TEXT("width"), StreamWidth);
+	Result->SetNumberField(TEXT("height"), StreamHeight);
+	Result->SetNumberField(TEXT("quality"), StreamQuality);
+	Result->SetNumberField(TEXT("ws_port"), WsPort);
+	Result->SetStringField(TEXT("ws_url"), FString::Printf(TEXT("ws://localhost:%d"), WsPort));
+	SendJsonResponse(OnComplete, Result);
+	return true;
+}
+
+// ============================================================
+// PCG Handlers
+// ============================================================
+
+bool FNovaBridgeModule::HandlePcgListGraphs(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	(void)Request;
+#if NOVABRIDGE_WITH_PCG
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete]()
+	{
+		FAssetRegistryModule& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+		TArray<FAssetData> Assets;
+		AssetRegistry.Get().GetAssetsByClass(UPCGGraph::StaticClass()->GetClassPathName(), Assets, true);
+
+		TArray<TSharedPtr<FJsonValue>> Graphs;
+		for (const FAssetData& Asset : Assets)
+		{
+			TSharedPtr<FJsonObject> Obj = MakeShareable(new FJsonObject);
+			Obj->SetStringField(TEXT("name"), Asset.AssetName.ToString());
+			Obj->SetStringField(TEXT("path"), Asset.GetObjectPathString());
+			Graphs.Add(MakeShareable(new FJsonValueObject(Obj)));
+		}
+
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetArrayField(TEXT("graphs"), Graphs);
+		Result->SetNumberField(TEXT("count"), Graphs.Num());
+		SendJsonResponse(OnComplete, Result);
+	});
+#else
+	SendErrorResponse(OnComplete, TEXT("PCG module is not available in this build"), 501);
+#endif
+	return true;
+}
+
+bool FNovaBridgeModule::HandlePcgCreateVolume(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	if (!Body)
+	{
+		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
+		return true;
+	}
+
+#if NOVABRIDGE_WITH_PCG
+	const FString GraphPath = Body->GetStringField(TEXT("graph_path"));
+	const FString Label = Body->HasField(TEXT("label")) ? Body->GetStringField(TEXT("label")) : TEXT("NovaBridge_PCGVolume");
+	const double X = Body->HasField(TEXT("x")) ? Body->GetNumberField(TEXT("x")) : 0.0;
+	const double Y = Body->HasField(TEXT("y")) ? Body->GetNumberField(TEXT("y")) : 0.0;
+	const double Z = Body->HasField(TEXT("z")) ? Body->GetNumberField(TEXT("z")) : 0.0;
+	const double SizeX = Body->HasField(TEXT("size_x")) ? Body->GetNumberField(TEXT("size_x")) : 5000.0;
+	const double SizeY = Body->HasField(TEXT("size_y")) ? Body->GetNumberField(TEXT("size_y")) : 5000.0;
+	const double SizeZ = Body->HasField(TEXT("size_z")) ? Body->GetNumberField(TEXT("size_z")) : 1000.0;
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, GraphPath, Label, X, Y, Z, SizeX, SizeY, SizeZ]()
+	{
+		UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		if (!World)
+		{
+			SendErrorResponse(OnComplete, TEXT("No world"), 500);
+			return;
+		}
+
+		APCGVolume* Volume = World->SpawnActor<APCGVolume>(FVector(X, Y, Z), FRotator::ZeroRotator);
+		if (!Volume)
+		{
+			SendErrorResponse(OnComplete, TEXT("Failed to spawn PCG volume"), 500);
+			return;
+		}
+
+		Volume->SetActorLabel(Label);
+		Volume->SetActorScale3D(FVector(SizeX / 200.0, SizeY / 200.0, SizeZ / 200.0));
+
+		UPCGGraph* Graph = LoadObject<UPCGGraph>(nullptr, *GraphPath);
+		if (!Graph)
+		{
+			Volume->Destroy();
+			SendErrorResponse(OnComplete, FString::Printf(TEXT("PCG graph not found: %s"), *GraphPath), 404);
+			return;
+		}
+
+		UPCGComponent* Component = Volume->PCGComponent ? Volume->PCGComponent : Volume->FindComponentByClass<UPCGComponent>();
+		if (!Component)
+		{
+			Volume->Destroy();
+			SendErrorResponse(OnComplete, TEXT("Spawned volume has no PCGComponent"), 500);
+			return;
+		}
+
+		Component->SetGraph(Graph);
+		Component->bActivated = true;
+		Component->Generate(false);
+
+		TSharedPtr<FJsonObject> Result = ActorToJson(Volume);
+		Result->SetStringField(TEXT("graph_path"), Graph->GetPathName());
+		Result->SetBoolField(TEXT("generation_triggered"), true);
+		SendJsonResponse(OnComplete, Result);
+	});
+#else
+	SendErrorResponse(OnComplete, TEXT("PCG module is not available in this build"), 501);
+#endif
+	return true;
+}
+
+bool FNovaBridgeModule::HandlePcgGenerate(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	if (!Body)
+	{
+		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
+		return true;
+	}
+
+#if NOVABRIDGE_WITH_PCG
+	const FString ActorName = Body->GetStringField(TEXT("actor_name"));
+	const bool bForce = !Body->HasField(TEXT("force_regenerate")) || Body->GetBoolField(TEXT("force_regenerate"));
+	const int32 Seed = Body->HasField(TEXT("seed")) ? static_cast<int32>(Body->GetNumberField(TEXT("seed"))) : INT32_MIN;
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, ActorName, bForce, Seed]()
+	{
+		AActor* Actor = FindActorByName(ActorName);
+		if (!Actor)
+		{
+			SendErrorResponse(OnComplete, FString::Printf(TEXT("Actor not found: %s"), *ActorName), 404);
+			return;
+		}
+
+		UPCGComponent* Component = Actor->FindComponentByClass<UPCGComponent>();
+		if (!Component)
+		{
+			if (APCGVolume* Volume = Cast<APCGVolume>(Actor))
+			{
+				Component = Volume->PCGComponent;
+			}
+		}
+		if (!Component)
+		{
+			SendErrorResponse(OnComplete, TEXT("No PCG component on actor"), 404);
+			return;
+		}
+
+		if (Seed != INT32_MIN)
+		{
+			Component->Seed = Seed;
+		}
+		Component->Generate(bForce);
+
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetStringField(TEXT("actor"), ActorName);
+		Result->SetBoolField(TEXT("generation_triggered"), true);
+		Result->SetBoolField(TEXT("force_regenerate"), bForce);
+		Result->SetNumberField(TEXT("seed"), Component->Seed);
+		SendJsonResponse(OnComplete, Result);
+	});
+#else
+	SendErrorResponse(OnComplete, TEXT("PCG module is not available in this build"), 501);
+#endif
+	return true;
+}
+
+bool FNovaBridgeModule::HandlePcgSetParam(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	if (!Body)
+	{
+		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
+		return true;
+	}
+
+#if NOVABRIDGE_WITH_PCG
+	const FString ActorName = Body->GetStringField(TEXT("actor_name"));
+	const FString ParamName = Body->GetStringField(TEXT("param_name"));
+	const FString ParamType = Body->HasField(TEXT("param_type")) ? Body->GetStringField(TEXT("param_type")).ToLower() : TEXT("");
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, ActorName, ParamName, ParamType, Body]()
+	{
+		AActor* Actor = FindActorByName(ActorName);
+		if (!Actor)
+		{
+			SendErrorResponse(OnComplete, FString::Printf(TEXT("Actor not found: %s"), *ActorName), 404);
+			return;
+		}
+
+		UPCGComponent* Component = Actor->FindComponentByClass<UPCGComponent>();
+		if (!Component)
+		{
+			if (APCGVolume* Volume = Cast<APCGVolume>(Actor))
+			{
+				Component = Volume->PCGComponent;
+			}
+		}
+		if (!Component)
+		{
+			SendErrorResponse(OnComplete, TEXT("No PCG component on actor"), 404);
+			return;
+		}
+
+		if (ParamName.Equals(TEXT("seed"), ESearchCase::IgnoreCase))
+		{
+			const int32 Seed = Body->HasField(TEXT("value")) ? static_cast<int32>(Body->GetNumberField(TEXT("value"))) : 42;
+			Component->Seed = Seed;
+		}
+		else if (ParamName.Equals(TEXT("activated"), ESearchCase::IgnoreCase) || ParamName.Equals(TEXT("enabled"), ESearchCase::IgnoreCase))
+		{
+			const bool bActivated = Body->HasField(TEXT("value")) ? Body->GetBoolField(TEXT("value")) : true;
+			Component->bActivated = bActivated;
+		}
+		else
+		{
+			SendErrorResponse(OnComplete, FString::Printf(TEXT("Unsupported param '%s' in v1. Supported: seed, activated"), *ParamName), 400);
+			return;
+		}
+
+		Component->MarkPackageDirty();
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetStringField(TEXT("actor"), ActorName);
+		Result->SetStringField(TEXT("param_name"), ParamName);
+		Result->SetStringField(TEXT("param_type"), ParamType);
+		SendJsonResponse(OnComplete, Result);
+	});
+#else
+	SendErrorResponse(OnComplete, TEXT("PCG module is not available in this build"), 501);
+#endif
+	return true;
+}
+
+bool FNovaBridgeModule::HandlePcgCleanup(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	if (!Body)
+	{
+		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
+		return true;
+	}
+
+#if NOVABRIDGE_WITH_PCG
+	const FString ActorName = Body->GetStringField(TEXT("actor_name"));
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, ActorName]()
+	{
+		AActor* Actor = FindActorByName(ActorName);
+		if (!Actor)
+		{
+			SendErrorResponse(OnComplete, FString::Printf(TEXT("Actor not found: %s"), *ActorName), 404);
+			return;
+		}
+
+		UPCGComponent* Component = Actor->FindComponentByClass<UPCGComponent>();
+		if (!Component)
+		{
+			if (APCGVolume* Volume = Cast<APCGVolume>(Actor))
+			{
+				Component = Volume->PCGComponent;
+			}
+		}
+		if (!Component)
+		{
+			SendErrorResponse(OnComplete, TEXT("No PCG component on actor"), 404);
+			return;
+		}
+
+		Component->Cleanup(true, false);
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetStringField(TEXT("actor"), ActorName);
+		Result->SetBoolField(TEXT("cleaned"), true);
+		SendJsonResponse(OnComplete, Result);
+	});
+#else
+	SendErrorResponse(OnComplete, TEXT("PCG module is not available in this build"), 501);
+#endif
+	return true;
+}
+
+// ============================================================
+// Sequencer Handlers
+// ============================================================
+
+bool FNovaBridgeModule::HandleSequencerCreate(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	if (!Body)
+	{
+		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
+		return true;
+	}
+
+	const FString Name = Body->GetStringField(TEXT("name"));
+	const FString Path = Body->HasField(TEXT("path")) ? Body->GetStringField(TEXT("path")) : TEXT("/Game");
+	const float DurationSeconds = Body->HasField(TEXT("duration_seconds")) ? static_cast<float>(Body->GetNumberField(TEXT("duration_seconds"))) : 10.0f;
+	const int32 Fps = Body->HasField(TEXT("fps")) ? FMath::Clamp(static_cast<int32>(Body->GetNumberField(TEXT("fps"))), 1, 120) : 30;
+
+	if (Name.IsEmpty())
+	{
+		SendErrorResponse(OnComplete, TEXT("Missing 'name'"));
+		return true;
+	}
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, Name, Path, DurationSeconds, Fps]()
+	{
+		const FString PackagePath = Path / Name;
+		UPackage* Package = CreatePackage(*PackagePath);
+		if (!Package)
+		{
+			SendErrorResponse(OnComplete, TEXT("Failed to create sequence package"), 500);
+			return;
+		}
+
+		ULevelSequence* Sequence = NewObject<ULevelSequence>(Package, FName(*Name), RF_Public | RF_Standalone);
+		if (!Sequence)
+		{
+			SendErrorResponse(OnComplete, TEXT("Failed to create sequence asset"), 500);
+			return;
+		}
+
+		Sequence->Initialize();
+		UMovieScene* MovieScene = Sequence->GetMovieScene();
+		if (!MovieScene)
+		{
+			SendErrorResponse(OnComplete, TEXT("Failed to initialize movie scene"), 500);
+			return;
+		}
+
+		const FFrameRate DisplayRate(Fps, 1);
+		MovieScene->SetDisplayRate(DisplayRate);
+		MovieScene->SetTickResolutionDirectly(DisplayRate);
+		const FFrameNumber DurationFrames = DisplayRate.AsFrameNumber(FMath::Max(0.1f, DurationSeconds));
+		MovieScene->SetPlaybackRange(0, DurationFrames.Value);
+
+		FAssetRegistryModule::AssetCreated(Sequence);
+		Sequence->MarkPackageDirty();
+
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetStringField(TEXT("sequence"), Sequence->GetPathName());
+		Result->SetNumberField(TEXT("duration_seconds"), DurationSeconds);
+		Result->SetNumberField(TEXT("fps"), Fps);
+		SendJsonResponse(OnComplete, Result);
+	});
+	return true;
+}
+
+bool FNovaBridgeModule::HandleSequencerAddTrack(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	if (!Body)
+	{
+		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
+		return true;
+	}
+
+	const FString SequencePath = Body->GetStringField(TEXT("sequence"));
+	const FString ActorName = Body->GetStringField(TEXT("actor_name"));
+	const FString TrackType = Body->HasField(TEXT("track_type")) ? Body->GetStringField(TEXT("track_type")).ToLower() : TEXT("transform");
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, SequencePath, ActorName, TrackType]()
+	{
+		UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		if (!World)
+		{
+			SendErrorResponse(OnComplete, TEXT("No world"), 500);
+			return;
+		}
+
+		ULevelSequence* Sequence = LoadObject<ULevelSequence>(nullptr, *SequencePath);
+		if (!Sequence)
+		{
+			SendErrorResponse(OnComplete, FString::Printf(TEXT("Sequence not found: %s"), *SequencePath), 404);
+			return;
+		}
+
+		AActor* Actor = FindActorByName(ActorName);
+		if (!Actor)
+		{
+			SendErrorResponse(OnComplete, FString::Printf(TEXT("Actor not found: %s"), *ActorName), 404);
+			return;
+		}
+
+		UMovieScene* MovieScene = Sequence->GetMovieScene();
+		FGuid Binding = Sequence->FindBindingFromObject(Actor, World);
+		if (!Binding.IsValid())
+		{
+			Binding = MovieScene->AddPossessable(Actor->GetActorLabel(), Actor->GetClass());
+			Sequence->BindPossessableObject(Binding, *Actor, World);
+		}
+
+		if (TrackType != TEXT("transform"))
+		{
+			SendErrorResponse(OnComplete, TEXT("Only track_type='transform' is supported in v1"), 400);
+			return;
+		}
+
+		UMovieScene3DTransformTrack* Track = MovieScene->FindTrack<UMovieScene3DTransformTrack>(Binding);
+		if (!Track)
+		{
+			Track = MovieScene->AddTrack<UMovieScene3DTransformTrack>(Binding);
+		}
+		if (!Track)
+		{
+			SendErrorResponse(OnComplete, TEXT("Failed to create transform track"), 500);
+			return;
+		}
+
+		if (Track->GetAllSections().Num() == 0)
+		{
+			UMovieSceneSection* NewSection = Track->CreateNewSection();
+			Track->AddSection(*NewSection);
+		}
+
+		Sequence->MarkPackageDirty();
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetStringField(TEXT("sequence"), SequencePath);
+		Result->SetStringField(TEXT("actor_name"), ActorName);
+		Result->SetStringField(TEXT("track_type"), TrackType);
+		Result->SetStringField(TEXT("binding"), Binding.ToString());
+		SendJsonResponse(OnComplete, Result);
+	});
+	return true;
+}
+
+bool FNovaBridgeModule::HandleSequencerSetKeyframe(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	if (!Body)
+	{
+		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
+		return true;
+	}
+
+	const FString SequencePath = Body->GetStringField(TEXT("sequence"));
+	const FString ActorName = Body->GetStringField(TEXT("actor_name"));
+	const float TimeSeconds = Body->HasField(TEXT("time")) ? static_cast<float>(Body->GetNumberField(TEXT("time"))) : 0.0f;
+	const FString TrackType = Body->HasField(TEXT("track_type")) ? Body->GetStringField(TEXT("track_type")).ToLower() : TEXT("transform");
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, SequencePath, ActorName, TimeSeconds, TrackType, Body]()
+	{
+		UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		if (!World)
+		{
+			SendErrorResponse(OnComplete, TEXT("No world"), 500);
+			return;
+		}
+
+		if (TrackType != TEXT("transform"))
+		{
+			SendErrorResponse(OnComplete, TEXT("Only track_type='transform' is supported in v1"), 400);
+			return;
+		}
+
+		ULevelSequence* Sequence = LoadObject<ULevelSequence>(nullptr, *SequencePath);
+		if (!Sequence)
+		{
+			SendErrorResponse(OnComplete, FString::Printf(TEXT("Sequence not found: %s"), *SequencePath), 404);
+			return;
+		}
+
+		AActor* Actor = FindActorByName(ActorName);
+		if (!Actor)
+		{
+			SendErrorResponse(OnComplete, FString::Printf(TEXT("Actor not found: %s"), *ActorName), 404);
+			return;
+		}
+
+		UMovieScene* MovieScene = Sequence->GetMovieScene();
+		FGuid Binding = Sequence->FindBindingFromObject(Actor, World);
+		if (!Binding.IsValid())
+		{
+			Binding = MovieScene->AddPossessable(Actor->GetActorLabel(), Actor->GetClass());
+			Sequence->BindPossessableObject(Binding, *Actor, World);
+		}
+
+		UMovieScene3DTransformTrack* Track = MovieScene->FindTrack<UMovieScene3DTransformTrack>(Binding);
+		if (!Track)
+		{
+			Track = MovieScene->AddTrack<UMovieScene3DTransformTrack>(Binding);
+		}
+		if (!Track)
+		{
+			SendErrorResponse(OnComplete, TEXT("Failed to create transform track"), 500);
+			return;
+		}
+
+		UMovieScene3DTransformSection* Section = nullptr;
+		if (Track->GetAllSections().Num() == 0)
+		{
+			UMovieSceneSection* NewSection = Track->CreateNewSection();
+			if (!NewSection)
+			{
+				SendErrorResponse(OnComplete, TEXT("Failed to create transform section"), 500);
+				return;
+			}
+			Track->AddSection(*NewSection);
+			Section = Cast<UMovieScene3DTransformSection>(NewSection);
+		}
+		else
+		{
+			Section = Cast<UMovieScene3DTransformSection>(Track->GetAllSections()[0]);
+		}
+		if (!Section)
+		{
+			SendErrorResponse(OnComplete, TEXT("Failed to create transform section"), 500);
+			return;
+		}
+
+		FVector Location = Actor->GetActorLocation();
+		FRotator Rotation = Actor->GetActorRotation();
+		FVector Scale = Actor->GetActorScale3D();
+
+		if (Body->HasTypedField<EJson::Object>(TEXT("location")))
+		{
+			const TSharedPtr<FJsonObject> Loc = Body->GetObjectField(TEXT("location"));
+			Location.X = Loc->HasField(TEXT("x")) ? Loc->GetNumberField(TEXT("x")) : Location.X;
+			Location.Y = Loc->HasField(TEXT("y")) ? Loc->GetNumberField(TEXT("y")) : Location.Y;
+			Location.Z = Loc->HasField(TEXT("z")) ? Loc->GetNumberField(TEXT("z")) : Location.Z;
+		}
+		if (Body->HasTypedField<EJson::Object>(TEXT("rotation")))
+		{
+			const TSharedPtr<FJsonObject> Rot = Body->GetObjectField(TEXT("rotation"));
+			Rotation.Pitch = Rot->HasField(TEXT("pitch")) ? Rot->GetNumberField(TEXT("pitch")) : Rotation.Pitch;
+			Rotation.Yaw = Rot->HasField(TEXT("yaw")) ? Rot->GetNumberField(TEXT("yaw")) : Rotation.Yaw;
+			Rotation.Roll = Rot->HasField(TEXT("roll")) ? Rot->GetNumberField(TEXT("roll")) : Rotation.Roll;
+		}
+		if (Body->HasTypedField<EJson::Object>(TEXT("scale")))
+		{
+			const TSharedPtr<FJsonObject> ScaleObj = Body->GetObjectField(TEXT("scale"));
+			Scale.X = ScaleObj->HasField(TEXT("x")) ? ScaleObj->GetNumberField(TEXT("x")) : Scale.X;
+			Scale.Y = ScaleObj->HasField(TEXT("y")) ? ScaleObj->GetNumberField(TEXT("y")) : Scale.Y;
+			Scale.Z = ScaleObj->HasField(TEXT("z")) ? ScaleObj->GetNumberField(TEXT("z")) : Scale.Z;
+		}
+
+		const FFrameNumber KeyFrame = MovieScene->GetTickResolution().AsFrameNumber(TimeSeconds);
+		TArrayView<FMovieSceneDoubleChannel*> Channels = Section->GetChannelProxy().GetChannels<FMovieSceneDoubleChannel>();
+		if (Channels.Num() >= 9)
+		{
+			Channels[0]->AddCubicKey(KeyFrame, Location.X);
+			Channels[1]->AddCubicKey(KeyFrame, Location.Y);
+			Channels[2]->AddCubicKey(KeyFrame, Location.Z);
+			Channels[3]->AddCubicKey(KeyFrame, Rotation.Roll);
+			Channels[4]->AddCubicKey(KeyFrame, Rotation.Pitch);
+			Channels[5]->AddCubicKey(KeyFrame, Rotation.Yaw);
+			Channels[6]->AddCubicKey(KeyFrame, Scale.X);
+			Channels[7]->AddCubicKey(KeyFrame, Scale.Y);
+			Channels[8]->AddCubicKey(KeyFrame, Scale.Z);
+		}
+
+		Section->SetRange(TRange<FFrameNumber>::All());
+		Sequence->MarkPackageDirty();
+
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetStringField(TEXT("sequence"), SequencePath);
+		Result->SetStringField(TEXT("actor_name"), ActorName);
+		Result->SetNumberField(TEXT("time"), TimeSeconds);
+		Result->SetNumberField(TEXT("frame"), KeyFrame.Value);
+		SendJsonResponse(OnComplete, Result);
+	});
+	return true;
+}
+
+bool FNovaBridgeModule::HandleSequencerPlay(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	if (!Body)
+	{
+		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
+		return true;
+	}
+
+	const FString SequencePath = Body->GetStringField(TEXT("sequence"));
+	const bool bLoop = Body->HasField(TEXT("loop")) && Body->GetBoolField(TEXT("loop"));
+	const float StartTime = Body->HasField(TEXT("start_time")) ? static_cast<float>(Body->GetNumberField(TEXT("start_time"))) : 0.0f;
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, SequencePath, bLoop, StartTime]()
+	{
+		UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		if (!World)
+		{
+			SendErrorResponse(OnComplete, TEXT("No world"), 500);
+			return;
+		}
+
+		ULevelSequence* Sequence = LoadObject<ULevelSequence>(nullptr, *SequencePath);
+		if (!Sequence)
+		{
+			SendErrorResponse(OnComplete, FString::Printf(TEXT("Sequence not found: %s"), *SequencePath), 404);
+			return;
+		}
+
+		FMovieSceneSequencePlaybackSettings Settings;
+		Settings.bAutoPlay = false;
+		Settings.LoopCount.Value = bLoop ? -1 : 0;
+
+		ALevelSequenceActor* SequenceActor = nullptr;
+		ULevelSequencePlayer* Player = ULevelSequencePlayer::CreateLevelSequencePlayer(World, Sequence, Settings, SequenceActor);
+		if (!Player)
+		{
+			SendErrorResponse(OnComplete, TEXT("Failed to create sequence player"), 500);
+			return;
+		}
+
+		if (StartTime > 0.f)
+		{
+			Player->JumpToSeconds(StartTime);
+		}
+		Player->Play();
+
+		SequencePlayers.Add(SequencePath, Player);
+		if (SequenceActor)
+		{
+			SequenceActors.Add(SequencePath, SequenceActor);
+		}
+
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetStringField(TEXT("sequence"), SequencePath);
+		Result->SetBoolField(TEXT("playing"), true);
+		Result->SetBoolField(TEXT("loop"), bLoop);
+		SendJsonResponse(OnComplete, Result);
+	});
+	return true;
+}
+
+bool FNovaBridgeModule::HandleSequencerStop(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	const FString SequencePath = (Body && Body->HasField(TEXT("sequence"))) ? Body->GetStringField(TEXT("sequence")) : FString();
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, SequencePath]()
+	{
+		int32 Stopped = 0;
+		if (!SequencePath.IsEmpty())
+		{
+			if (TWeakObjectPtr<ULevelSequencePlayer>* PlayerPtr = SequencePlayers.Find(SequencePath))
+			{
+				if (PlayerPtr->IsValid())
+				{
+					(*PlayerPtr)->Stop();
+					Stopped++;
+				}
+			}
+		}
+		else
+		{
+			for (TPair<FString, TWeakObjectPtr<ULevelSequencePlayer>>& Pair : SequencePlayers)
+			{
+				if (Pair.Value.IsValid())
+				{
+					Pair.Value->Stop();
+					Stopped++;
+				}
+			}
+		}
+
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetNumberField(TEXT("stopped_players"), Stopped);
+		SendJsonResponse(OnComplete, Result);
+	});
+	return true;
+}
+
+bool FNovaBridgeModule::HandleSequencerScrub(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	if (!Body)
+	{
+		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
+		return true;
+	}
+
+	const FString SequencePath = Body->GetStringField(TEXT("sequence"));
+	const float TimeSeconds = Body->HasField(TEXT("time")) ? static_cast<float>(Body->GetNumberField(TEXT("time"))) : 0.0f;
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, SequencePath, TimeSeconds]()
+	{
+		UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		if (!World)
+		{
+			SendErrorResponse(OnComplete, TEXT("No world"), 500);
+			return;
+		}
+
+		ULevelSequencePlayer* Player = nullptr;
+		if (TWeakObjectPtr<ULevelSequencePlayer>* Existing = SequencePlayers.Find(SequencePath))
+		{
+			Player = Existing->Get();
+		}
+		if (!Player)
+		{
+			ULevelSequence* Sequence = LoadObject<ULevelSequence>(nullptr, *SequencePath);
+			if (!Sequence)
+			{
+				SendErrorResponse(OnComplete, FString::Printf(TEXT("Sequence not found: %s"), *SequencePath), 404);
+				return;
+			}
+			FMovieSceneSequencePlaybackSettings Settings;
+			ALevelSequenceActor* SequenceActor = nullptr;
+			Player = ULevelSequencePlayer::CreateLevelSequencePlayer(World, Sequence, Settings, SequenceActor);
+			if (!Player)
+			{
+				SendErrorResponse(OnComplete, TEXT("Failed to create sequence player"), 500);
+				return;
+			}
+			SequencePlayers.Add(SequencePath, Player);
+			if (SequenceActor)
+			{
+				SequenceActors.Add(SequencePath, SequenceActor);
+			}
+		}
+
+		Player->ScrubToSeconds(TimeSeconds);
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetStringField(TEXT("sequence"), SequencePath);
+		Result->SetNumberField(TEXT("time"), TimeSeconds);
+		SendJsonResponse(OnComplete, Result);
+	});
+	return true;
+}
+
+bool FNovaBridgeModule::HandleSequencerRender(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	if (!Body)
+	{
+		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
+		return true;
+	}
+
+	const FString SequencePath = Body->GetStringField(TEXT("sequence"));
+	const FString OutputPath = Body->HasField(TEXT("output_path"))
+		? Body->GetStringField(TEXT("output_path"))
+		: (FPaths::ProjectSavedDir() / TEXT("NovaBridgeRenders") / FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S")));
+	const int32 Fps = Body->HasField(TEXT("fps")) ? FMath::Clamp(static_cast<int32>(Body->GetNumberField(TEXT("fps"))), 1, 60) : 24;
+	const float Duration = Body->HasField(TEXT("duration_seconds")) ? static_cast<float>(Body->GetNumberField(TEXT("duration_seconds"))) : 5.0f;
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, SequencePath, OutputPath, Fps, Duration]()
+	{
+		UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		if (!World)
+		{
+			SendErrorResponse(OnComplete, TEXT("No world"), 500);
+			return;
+		}
+
+		ULevelSequence* Sequence = LoadObject<ULevelSequence>(nullptr, *SequencePath);
+		if (!Sequence)
+		{
+			SendErrorResponse(OnComplete, FString::Printf(TEXT("Sequence not found: %s"), *SequencePath), 404);
+			return;
+		}
+
+		IFileManager::Get().MakeDirectory(*OutputPath, true);
+
+		FMovieSceneSequencePlaybackSettings Settings;
+		ALevelSequenceActor* SequenceActor = nullptr;
+		ULevelSequencePlayer* Player = ULevelSequencePlayer::CreateLevelSequencePlayer(World, Sequence, Settings, SequenceActor);
+		if (!Player)
+		{
+			SendErrorResponse(OnComplete, TEXT("Failed to create sequence player"), 500);
+			return;
+		}
+
+		const int32 FrameCount = FMath::Clamp(FMath::CeilToInt(Duration * Fps), 1, 900);
+		EnsureCaptureSetup();
+		if (!CaptureActor.IsValid() || !RenderTarget.IsValid())
+		{
+			SendErrorResponse(OnComplete, TEXT("Failed to initialize capture for render"), 500);
+			return;
+		}
+
+		TArray<TSharedPtr<FJsonValue>> Frames;
+		for (int32 FrameIdx = 0; FrameIdx < FrameCount; ++FrameIdx)
+		{
+			const float TimeSeconds = static_cast<float>(FrameIdx) / static_cast<float>(Fps);
+			Player->JumpToSeconds(TimeSeconds);
+
+			USceneCaptureComponent2D* CaptureComp = CaptureActor->GetCaptureComponent2D();
+			CaptureActor->SetActorLocation(CameraLocation);
+			CaptureActor->SetActorRotation(CameraRotation);
+			CaptureComp->FOVAngle = CameraFOV;
+			CaptureComp->CaptureScene();
+
+			FTextureRenderTargetResource* RTResource = RenderTarget->GameThread_GetRenderTargetResource();
+			if (!RTResource)
+			{
+				continue;
+			}
+
+			TArray<FColor> Bitmap;
+			if (!RTResource->ReadPixels(Bitmap) || Bitmap.Num() == 0)
+			{
+				continue;
+			}
+
+			IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
+			TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::PNG);
+			ImageWrapper->SetRaw(Bitmap.GetData(), Bitmap.Num() * sizeof(FColor), CaptureWidth, CaptureHeight, ERGBFormat::BGRA, 8);
+			TArray64<uint8> PngData = ImageWrapper->GetCompressed(0);
+
+			const FString FramePath = OutputPath / FString::Printf(TEXT("frame_%05d.png"), FrameIdx);
+			TArray<uint8> PngData32;
+			PngData32.Append(PngData.GetData(), static_cast<int32>(PngData.Num()));
+			if (FFileHelper::SaveArrayToFile(PngData32, *FramePath))
+			{
+				Frames.Add(MakeShareable(new FJsonValueString(FramePath)));
+			}
+		}
+
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetStringField(TEXT("sequence"), SequencePath);
+		Result->SetStringField(TEXT("output_path"), OutputPath);
+		Result->SetStringField(TEXT("format"), TEXT("png-sequence"));
+		Result->SetNumberField(TEXT("fps"), Fps);
+		Result->SetNumberField(TEXT("frame_count"), Frames.Num());
+		Result->SetArrayField(TEXT("frames"), Frames);
+		Result->SetStringField(TEXT("note"), TEXT("Rendered as PNG sequence. Use ffmpeg externally for MP4 encoding."));
+		SendJsonResponse(OnComplete, Result);
+	});
+	return true;
+}
+
+bool FNovaBridgeModule::HandleSequencerInfo(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	(void)Request;
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete]()
+	{
+		TArray<TSharedPtr<FJsonValue>> Active;
+		for (const TPair<FString, TWeakObjectPtr<ULevelSequencePlayer>>& Pair : SequencePlayers)
+		{
+			if (!Pair.Value.IsValid())
+			{
+				continue;
+			}
+			TSharedPtr<FJsonObject> Obj = MakeShareable(new FJsonObject);
+			Obj->SetStringField(TEXT("sequence"), Pair.Key);
+			Obj->SetBoolField(TEXT("playing"), Pair.Value->IsPlaying());
+			Obj->SetNumberField(TEXT("time_seconds"), Pair.Value->GetCurrentTime().AsSeconds());
+			Active.Add(MakeShareable(new FJsonValueObject(Obj)));
+		}
+
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetArrayField(TEXT("players"), Active);
+		Result->SetNumberField(TEXT("count"), Active.Num());
+		SendJsonResponse(OnComplete, Result);
+	});
+	return true;
+}
+
+// ============================================================
+// Optimize Handlers
+// ============================================================
+
+bool FNovaBridgeModule::HandleOptimizeNanite(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	if (!Body)
+	{
+		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
+		return true;
+	}
+
+	const FString MeshPath = Body->HasField(TEXT("mesh_path")) ? Body->GetStringField(TEXT("mesh_path")) : FString();
+	const FString ActorName = Body->HasField(TEXT("actor_name")) ? Body->GetStringField(TEXT("actor_name")) : FString();
+	const bool bEnable = !Body->HasField(TEXT("enable")) || Body->GetBoolField(TEXT("enable"));
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, MeshPath, ActorName, bEnable]()
+	{
+		UStaticMesh* Mesh = nullptr;
+		FString ResolvedPath = MeshPath;
+		if (!MeshPath.IsEmpty())
+		{
+			Mesh = LoadObject<UStaticMesh>(nullptr, *MeshPath);
+		}
+		if (!Mesh && !ActorName.IsEmpty())
+		{
+			if (AActor* Actor = FindActorByName(ActorName))
+			{
+				if (UStaticMeshComponent* MeshComp = Actor->FindComponentByClass<UStaticMeshComponent>())
+				{
+					Mesh = MeshComp->GetStaticMesh();
+					if (Mesh)
+					{
+						ResolvedPath = Mesh->GetPathName();
+					}
+				}
+			}
+		}
+
+		if (!Mesh)
+		{
+			SendErrorResponse(OnComplete, TEXT("Mesh not found. Provide mesh_path or actor_name with StaticMeshComponent"), 404);
+			return;
+		}
+
+		Mesh->Modify();
+		Mesh->NaniteSettings.bEnabled = bEnable;
+		Mesh->PostEditChange();
+		Mesh->MarkPackageDirty();
+
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetStringField(TEXT("mesh"), ResolvedPath);
+		Result->SetBoolField(TEXT("nanite_enabled"), bEnable);
+		SendJsonResponse(OnComplete, Result);
+	});
+	return true;
+}
+
+bool FNovaBridgeModule::HandleOptimizeLod(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	if (!Body)
+	{
+		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
+		return true;
+	}
+
+	const FString MeshPath = Body->HasField(TEXT("mesh_path")) ? Body->GetStringField(TEXT("mesh_path")) : FString();
+	const int32 NumLods = Body->HasField(TEXT("num_lods")) ? FMath::Clamp(static_cast<int32>(Body->GetNumberField(TEXT("num_lods"))), 2, 8) : 4;
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, MeshPath, NumLods]()
+	{
+		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *MeshPath);
+		if (!Mesh)
+		{
+			SendErrorResponse(OnComplete, TEXT("Mesh not found"), 404);
+			return;
+		}
+
+		Mesh->Modify();
+		Mesh->SetNumSourceModels(NumLods);
+		Mesh->GenerateLodsInPackage();
+		Mesh->PostEditChange();
+		Mesh->MarkPackageDirty();
+
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetStringField(TEXT("mesh"), MeshPath);
+		Result->SetNumberField(TEXT("num_lods"), NumLods);
+		SendJsonResponse(OnComplete, Result);
+	});
+	return true;
+}
+
+bool FNovaBridgeModule::HandleOptimizeLumen(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	if (!Body)
+	{
+		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
+		return true;
+	}
+
+	const bool bEnabled = !Body->HasField(TEXT("enabled")) || Body->GetBoolField(TEXT("enabled"));
+	const FString Quality = Body->HasField(TEXT("quality")) ? Body->GetStringField(TEXT("quality")).ToLower() : TEXT("high");
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, bEnabled, Quality]()
+	{
+		UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		if (!GEditor || !World)
+		{
+			SendErrorResponse(OnComplete, TEXT("No editor/world"), 500);
+			return;
+		}
+
+		TArray<FString> Commands;
+		Commands.Add(FString::Printf(TEXT("r.DynamicGlobalIlluminationMethod %d"), bEnabled ? 1 : 0));
+		Commands.Add(FString::Printf(TEXT("r.ReflectionMethod %d"), bEnabled ? 1 : 0));
+
+		int32 ProbeQuality = 3;
+		if (Quality == TEXT("low")) ProbeQuality = 1;
+		else if (Quality == TEXT("medium")) ProbeQuality = 2;
+		else if (Quality == TEXT("epic")) ProbeQuality = 4;
+
+		Commands.Add(FString::Printf(TEXT("r.Lumen.ScreenProbeGather.Quality %d"), ProbeQuality));
+		Commands.Add(FString::Printf(TEXT("r.Lumen.Reflections.Quality %d"), ProbeQuality));
+
+		for (const FString& Cmd : Commands)
+		{
+			GEditor->Exec(World, *Cmd);
+		}
+
+		TArray<TSharedPtr<FJsonValue>> Applied;
+		for (const FString& Cmd : Commands)
+		{
+			Applied.Add(MakeShareable(new FJsonValueString(Cmd)));
+		}
+
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetBoolField(TEXT("enabled"), bEnabled);
+		Result->SetStringField(TEXT("quality"), Quality);
+		Result->SetArrayField(TEXT("commands"), Applied);
+		SendJsonResponse(OnComplete, Result);
+	});
+	return true;
+}
+
+bool FNovaBridgeModule::HandleOptimizeStats(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	(void)Request;
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete]()
+	{
+		UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		if (!World)
+		{
+			SendErrorResponse(OnComplete, TEXT("No world"), 500);
+			return;
+		}
+
+		int32 ActorCount = 0;
+		int32 StaticMeshComponentCount = 0;
+		int64 TriangleCount = 0;
+		int32 NaniteMeshCount = 0;
+		int32 PointLights = 0;
+		int32 DirectionalLights = 0;
+		int32 SpotLights = 0;
+		int64 ApproxTextureBytes = 0;
+
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			++ActorCount;
+
+			TArray<UStaticMeshComponent*> MeshComponents;
+			It->GetComponents<UStaticMeshComponent>(MeshComponents);
+			for (UStaticMeshComponent* Comp : MeshComponents)
+			{
+				if (!Comp || !Comp->GetStaticMesh())
+				{
+					continue;
+				}
+				++StaticMeshComponentCount;
+				TriangleCount += Comp->GetStaticMesh()->GetNumTriangles(0);
+				if (Comp->GetStaticMesh()->NaniteSettings.bEnabled)
+				{
+					++NaniteMeshCount;
+				}
+			}
+
+			PointLights += It->FindComponentByClass<UPointLightComponent>() ? 1 : 0;
+			DirectionalLights += It->FindComponentByClass<UDirectionalLightComponent>() ? 1 : 0;
+			SpotLights += It->GetClass()->GetName().Contains(TEXT("SpotLight")) ? 1 : 0;
+		}
+
+		for (TObjectIterator<UTexture2D> It; It; ++It)
+		{
+			if (!It->GetPathName().StartsWith(TEXT("/Game")))
+			{
+				continue;
+			}
+			ApproxTextureBytes += It->CalcTextureMemorySizeEnum(TMC_AllMipsBiased);
+		}
+
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetNumberField(TEXT("actor_count"), ActorCount);
+		Result->SetNumberField(TEXT("static_mesh_components"), StaticMeshComponentCount);
+		Result->SetNumberField(TEXT("triangle_count_lod0"), static_cast<double>(TriangleCount));
+		Result->SetNumberField(TEXT("nanite_mesh_components"), NaniteMeshCount);
+		Result->SetNumberField(TEXT("point_lights"), PointLights);
+		Result->SetNumberField(TEXT("directional_lights"), DirectionalLights);
+		Result->SetNumberField(TEXT("spot_lights"), SpotLights);
+		Result->SetNumberField(TEXT("texture_memory_bytes_estimate"), static_cast<double>(ApproxTextureBytes));
+		Result->SetNumberField(TEXT("draw_calls_estimate"), StaticMeshComponentCount);
+		SendJsonResponse(OnComplete, Result);
+	});
+	return true;
+}
+
+bool FNovaBridgeModule::HandleOptimizeTextures(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	if (!Body)
+	{
+		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
+		return true;
+	}
+
+	const FString RootPath = Body->HasField(TEXT("path")) ? Body->GetStringField(TEXT("path")) : TEXT("/Game");
+	const int32 MaxSize = Body->HasField(TEXT("max_size")) ? FMath::Clamp(static_cast<int32>(Body->GetNumberField(TEXT("max_size"))), 256, 8192) : 2048;
+	const FString Compression = Body->HasField(TEXT("compression")) ? Body->GetStringField(TEXT("compression")).ToLower() : TEXT("default");
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, RootPath, MaxSize, Compression]()
+	{
+		FAssetRegistryModule& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+		TArray<FAssetData> Assets;
+		AssetRegistry.Get().GetAssetsByPath(*RootPath, Assets, true);
+
+		int32 Updated = 0;
+		for (const FAssetData& Asset : Assets)
+		{
+			if (Asset.AssetClassPath != UTexture2D::StaticClass()->GetClassPathName())
+			{
+				continue;
+			}
+
+			UTexture2D* Texture = Cast<UTexture2D>(Asset.GetAsset());
+			if (!Texture)
+			{
+				continue;
+			}
+
+			Texture->Modify();
+			Texture->MaxTextureSize = MaxSize;
+			if (Compression == TEXT("normalmap"))
+			{
+				Texture->CompressionSettings = TC_Normalmap;
+			}
+			else if (Compression == TEXT("hdr"))
+			{
+				Texture->CompressionSettings = TC_HDR;
+			}
+			else
+			{
+				Texture->CompressionSettings = TC_Default;
+			}
+			Texture->PostEditChange();
+			Texture->UpdateResource();
+			Texture->MarkPackageDirty();
+			Updated++;
+		}
+
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetStringField(TEXT("path"), RootPath);
+		Result->SetNumberField(TEXT("max_size"), MaxSize);
+		Result->SetStringField(TEXT("compression"), Compression);
+		Result->SetNumberField(TEXT("updated_textures"), Updated);
+		SendJsonResponse(OnComplete, Result);
+	});
+	return true;
+}
+
+bool FNovaBridgeModule::HandleOptimizeCollision(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
+	if (!Body)
+	{
+		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
+		return true;
+	}
+
+	const FString MeshPath = Body->HasField(TEXT("mesh_path")) ? Body->GetStringField(TEXT("mesh_path")) : FString();
+	const FString ActorName = Body->HasField(TEXT("actor_name")) ? Body->GetStringField(TEXT("actor_name")) : FString();
+	const FString Type = Body->HasField(TEXT("type")) ? Body->GetStringField(TEXT("type")).ToLower() : TEXT("complex");
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, MeshPath, ActorName, Type]()
+	{
+		UStaticMesh* Mesh = nullptr;
+		FString ResolvedPath = MeshPath;
+		if (!MeshPath.IsEmpty())
+		{
+			Mesh = LoadObject<UStaticMesh>(nullptr, *MeshPath);
+		}
+		if (!Mesh && !ActorName.IsEmpty())
+		{
+			if (AActor* Actor = FindActorByName(ActorName))
+			{
+				if (UStaticMeshComponent* MeshComp = Actor->FindComponentByClass<UStaticMeshComponent>())
+				{
+					Mesh = MeshComp->GetStaticMesh();
+					if (Mesh)
+					{
+						ResolvedPath = Mesh->GetPathName();
+					}
+				}
+			}
+		}
+
+		if (!Mesh)
+		{
+			SendErrorResponse(OnComplete, TEXT("Mesh not found. Provide mesh_path or actor_name with StaticMeshComponent"), 404);
+			return;
+		}
+
+		Mesh->Modify();
+		Mesh->CreateBodySetup();
+		UBodySetup* BodySetup = Mesh->GetBodySetup();
+		if (!BodySetup)
+		{
+			SendErrorResponse(OnComplete, TEXT("Failed to create body setup"), 500);
+			return;
+		}
+
+		BodySetup->Modify();
+		BodySetup->RemoveSimpleCollision();
+		const FBoxSphereBounds Bounds = Mesh->GetBounds();
+
+		if (Type == TEXT("complex"))
+		{
+			BodySetup->CollisionTraceFlag = CTF_UseComplexAsSimple;
+		}
+		else
+		{
+			BodySetup->CollisionTraceFlag = CTF_UseSimpleAsComplex;
+			if (Type == TEXT("box"))
+			{
+				FKBoxElem Box;
+				Box.X = Bounds.BoxExtent.X * 2.0f;
+				Box.Y = Bounds.BoxExtent.Y * 2.0f;
+				Box.Z = Bounds.BoxExtent.Z * 2.0f;
+				BodySetup->AggGeom.BoxElems.Add(Box);
+			}
+			else if (Type == TEXT("sphere"))
+			{
+				FKSphereElem Sphere;
+				Sphere.Radius = Bounds.SphereRadius;
+				BodySetup->AggGeom.SphereElems.Add(Sphere);
+			}
+			else if (Type == TEXT("capsule"))
+			{
+				FKSphylElem Capsule;
+				Capsule.Radius = FMath::Max(Bounds.BoxExtent.X, Bounds.BoxExtent.Y);
+				Capsule.Length = Bounds.BoxExtent.Z * 2.0f;
+				BodySetup->AggGeom.SphylElems.Add(Capsule);
+			}
+			else if (Type == TEXT("convex"))
+			{
+				// Placeholder behavior: simple collision trace mode without explicit hull generation.
+				BodySetup->CollisionTraceFlag = CTF_UseSimpleAndComplex;
+			}
+		}
+
+		BodySetup->InvalidatePhysicsData();
+		BodySetup->CreatePhysicsMeshes();
+		Mesh->PostEditChange();
+		Mesh->MarkPackageDirty();
+
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetStringField(TEXT("mesh"), ResolvedPath);
+		Result->SetStringField(TEXT("type"), Type);
 		SendJsonResponse(OnComplete, Result);
 	});
 	return true;

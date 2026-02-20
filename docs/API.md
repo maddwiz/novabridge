@@ -76,6 +76,44 @@ Base URL: `http://localhost:30010/nova`
 - `POST /build/lighting`
 - `POST /exec/command`
 
+### Stream
+
+- `POST /stream/start`
+- `POST /stream/stop`
+- `POST /stream/config`
+  - body: `fps` (1-30), `width` (64-1920), `height` (64-1080), `quality` (1-100)
+- `GET /stream/status`
+  - returns `ws_url` (default: `ws://localhost:30011`) and current stream settings
+
+### PCG
+
+- `GET /pcg/list-graphs`
+- `POST /pcg/create-volume`
+- `POST /pcg/generate`
+- `POST /pcg/set-param`
+- `POST /pcg/cleanup`
+
+### Sequencer
+
+- `POST /sequencer/create`
+- `POST /sequencer/add-track`
+- `POST /sequencer/set-keyframe`
+- `POST /sequencer/play`
+- `POST /sequencer/stop`
+- `POST /sequencer/scrub`
+- `POST /sequencer/render`
+  - v1 output is PNG image sequence in `output_path`
+- `GET /sequencer/info`
+
+### Optimize
+
+- `POST /optimize/nanite`
+- `POST /optimize/lod`
+- `POST /optimize/lumen`
+- `GET /optimize/stats`
+- `POST /optimize/textures`
+- `POST /optimize/collision`
+
 ## Request Samples
 
 ```bash
@@ -90,4 +128,26 @@ curl -s -X POST http://localhost:30010/nova/asset/import \
 
 ```bash
 curl -s "http://localhost:30010/nova/viewport/screenshot?format=raw&width=1920&height=1080" -o shot.png
+```
+
+```bash
+curl -s -X POST http://localhost:30010/nova/stream/config \
+  -H "Content-Type: application/json" \
+  -d '{"fps":10,"width":640,"height":360,"quality":50}'
+```
+
+```bash
+curl -s http://localhost:30010/nova/stream/status
+```
+
+```bash
+curl -s -X POST http://localhost:30010/nova/pcg/generate \
+  -H "Content-Type: application/json" \
+  -d '{"actor_name":"PCGVolume_1","seed":1234,"force_regenerate":true}'
+```
+
+```bash
+curl -s -X POST http://localhost:30010/nova/sequencer/create \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Cine01","path":"/Game","duration_seconds":8,"fps":30}'
 ```

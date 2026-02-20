@@ -101,6 +101,48 @@ function downloadFile(url, destPath) {
   });
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function httpJsonRequest(url, method = 'GET', body = null, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url);
+    const client = target.protocol === 'https:' ? https : http;
+    const bodyStr = body ? JSON.stringify(body) : null;
+    const req = client.request({
+      protocol: target.protocol,
+      hostname: target.hostname,
+      port: target.port || (target.protocol === 'https:' ? 443 : 80),
+      path: `${target.pathname}${target.search}`,
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {}),
+        ...headers,
+      },
+      timeout: 60000,
+    }, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => raw += chunk);
+      res.on('end', () => {
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          return reject(new Error(`HTTP ${res.statusCode}: ${raw.slice(0, 500)}`));
+        }
+        try {
+          resolve(JSON.parse(raw));
+        } catch (e) {
+          reject(new Error(`Invalid JSON response: ${raw.slice(0, 500)}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error(`Request timeout: ${url}`)); });
+    if (bodyStr) req.write(bodyStr);
+    req.end();
+  });
+}
+
 // OBJ export code for Blender (used by export and pipeline tools)
 function objExportCode(outPath) {
   const normalizedOutPath = outPath.replace(/\\/g, '/');
@@ -422,6 +464,121 @@ ${importLine}
           return json(result);
         } catch (err) {
           return json({ error: err.message });
+        }
+      },
+    });
+
+    // ─── Generate 3D model from prompt via provider API ───
+    api.registerTool({
+      name: 'ai_generate_3d',
+      label: 'AI Generate 3D',
+      description: 'Generate a 3D model from text prompt using Meshy/Luma/Tripo, download it, and optionally import to UE5.',
+      parameters: Type.Object({
+        prompt: Type.String({ description: 'Text description of the model to generate' }),
+        provider: Type.Optional(Type.String({ description: 'meshy | luma | tripo (default: meshy)' })),
+        asset_name: Type.Optional(Type.String({ description: 'Asset name for local file and UE5 import' })),
+        import_to_ue5: Type.Optional(Type.Boolean({ description: 'Import generated model into UE5 (default true)' })),
+        style: Type.Optional(Type.String({ description: 'Style hint (provider-specific)' })),
+      }),
+      async execute(_id, params) {
+        const provider = (params.provider || 'meshy').toLowerCase();
+        const importToUe5 = params.import_to_ue5 !== false;
+        const assetName = params.asset_name || `ai_model_${Date.now()}`;
+
+        try {
+          let modelUrl = '';
+          let meta = {};
+
+          if (provider === 'meshy') {
+            const apiKey = process.env.MESHY_API_KEY || '';
+            if (!apiKey) return json({ error: 'Set MESHY_API_KEY for provider=meshy' });
+
+            const created = await httpJsonRequest(
+              'https://api.meshy.ai/v2/text-to-3d',
+              'POST',
+              {
+                mode: 'preview',
+                prompt: params.prompt,
+                art_style: params.style || 'realistic',
+              },
+              { Authorization: `Bearer ${apiKey}` },
+            );
+
+            const taskId = created.result || created.id || created.task_id;
+            if (!taskId) return json({ error: 'Meshy did not return a task id', raw: created });
+
+            let status = 'PENDING';
+            let poll = {};
+            for (let i = 0; i < 60; i++) {
+              await sleep(5000);
+              poll = await httpJsonRequest(
+                `https://api.meshy.ai/v2/text-to-3d/${taskId}`,
+                'GET',
+                null,
+                { Authorization: `Bearer ${apiKey}` },
+              );
+              status = (poll.status || '').toUpperCase();
+              if (status === 'SUCCEEDED' || status === 'FAILED') break;
+            }
+            if (status !== 'SUCCEEDED') {
+              return json({ error: `Meshy generation failed with status=${status || 'unknown'}`, details: poll });
+            }
+            modelUrl = (poll.model_urls && (poll.model_urls.glb || poll.model_urls.obj || poll.model_urls.fbx)) || '';
+            meta = { task_id: taskId, status };
+          } else {
+            return json({ error: `Provider '${provider}' not implemented yet. Supported now: meshy` });
+          }
+
+          if (!modelUrl) {
+            return json({ error: 'No downloadable model URL returned by provider', provider, meta });
+          }
+
+          const urlExt = path.extname(new URL(modelUrl).pathname).toLowerCase() || '.glb';
+          const downloadPath = path.join(EXPORT_DIR, `${assetName}${urlExt}`);
+          await downloadFile(modelUrl, downloadPath);
+
+          const result = {
+            status: 'ok',
+            provider,
+            prompt: params.prompt,
+            file_path: downloadPath,
+            source_url: modelUrl,
+            ...meta,
+          };
+
+          if (importToUe5) {
+            let importPath = downloadPath;
+            const ext = path.extname(importPath).toLowerCase();
+            if (ext !== '.obj') {
+              const objPath = path.join(EXPORT_DIR, `${assetName}.obj`);
+              let importLine = '';
+              if (ext === '.glb' || ext === '.gltf') importLine = `bpy.ops.import_scene.gltf(filepath="${importPath.replace(/\\/g, '/')}")`;
+              else if (ext === '.fbx') importLine = `bpy.ops.import_scene.fbx(filepath="${importPath.replace(/\\/g, '/')}")`;
+              const convertScript = `
+import bpy
+bpy.ops.wm.read_factory_settings(use_empty=True)
+${importLine}
+` + objExportCode(objPath);
+              const tmpScript = path.join(EXPORT_DIR, `ai_convert_${Date.now()}.py`);
+              fs.writeFileSync(tmpScript, convertScript);
+              await runBlender(['--background', '--python', tmpScript], 240000);
+              try { fs.unlinkSync(tmpScript); } catch (e) {}
+              importPath = objPath;
+              result.converted_to = objPath;
+            }
+
+            const ue5Import = await ue5Request('POST', '/nova/asset/import', {
+              file_path: importPath,
+              asset_name: assetName,
+              destination: '/Game',
+              scale: UE5_IMPORT_SCALE,
+            });
+            result.ue5_import = ue5Import;
+          }
+
+          return json(result);
+        } catch (err) {
+          return json({ error: err.message, provider, prompt: params.prompt });
         }
       },
     });

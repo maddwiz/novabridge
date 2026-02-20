@@ -457,6 +457,325 @@ const plugin = {
       }),
       async execute(_id, params) { return run('POST', '/nova/exec/command', params); },
     });
+
+    // Stream
+    api.registerTool({
+      name: 'ue5_stream_start',
+      label: 'UE5 Stream Start',
+      description: 'Start live viewport WebSocket stream.',
+      parameters: Type.Object({}),
+      async execute(_id, _params) { return run('POST', '/nova/stream/start', {}); },
+    });
+
+    api.registerTool({
+      name: 'ue5_stream_stop',
+      label: 'UE5 Stream Stop',
+      description: 'Stop live viewport WebSocket stream.',
+      parameters: Type.Object({}),
+      async execute(_id, _params) { return run('POST', '/nova/stream/stop', {}); },
+    });
+
+    api.registerTool({
+      name: 'ue5_stream_config',
+      label: 'UE5 Stream Config',
+      description: 'Set stream fps/resolution/jpeg quality.',
+      parameters: Type.Object({
+        fps: Type.Optional(Type.Number({ description: '1-30 (default 10)' })),
+        width: Type.Optional(Type.Number({ description: '64-1920 (default 640)' })),
+        height: Type.Optional(Type.Number({ description: '64-1080 (default 360)' })),
+        quality: Type.Optional(Type.Number({ description: '1-100 JPEG quality (default 50)' })),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/stream/config', params); },
+    });
+
+    api.registerTool({
+      name: 'ue5_stream_status',
+      label: 'UE5 Stream Status',
+      description: 'Get stream status and ws:// URL.',
+      parameters: Type.Object({}),
+      async execute(_id, _params) { return run('GET', '/nova/stream/status'); },
+    });
+
+    // PCG
+    api.registerTool({
+      name: 'ue5_pcg_list_graphs',
+      label: 'UE5 PCG Graphs',
+      description: 'List available PCG graph assets.',
+      parameters: Type.Object({}),
+      async execute(_id, _params) { return run('GET', '/nova/pcg/list-graphs'); },
+    });
+
+    api.registerTool({
+      name: 'ue5_pcg_create_volume',
+      label: 'UE5 PCG Volume',
+      description: 'Create a PCG volume and bind a graph.',
+      parameters: Type.Object({
+        graph_path: Type.String({ description: 'PCG graph asset path' }),
+        x: Type.Optional(Type.Number()),
+        y: Type.Optional(Type.Number()),
+        z: Type.Optional(Type.Number()),
+        size_x: Type.Optional(Type.Number()),
+        size_y: Type.Optional(Type.Number()),
+        size_z: Type.Optional(Type.Number()),
+        label: Type.Optional(Type.String()),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/pcg/create-volume', params); },
+    });
+
+    api.registerTool({
+      name: 'ue5_pcg_generate',
+      label: 'UE5 PCG Generate',
+      description: 'Trigger PCG generation on an existing actor.',
+      parameters: Type.Object({
+        actor_name: Type.String({ description: 'PCG actor/volume name' }),
+        seed: Type.Optional(Type.Number()),
+        force_regenerate: Type.Optional(Type.Boolean()),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/pcg/generate', params); },
+    });
+
+    api.registerTool({
+      name: 'ue5_pcg_set_param',
+      label: 'UE5 PCG Set Param',
+      description: 'Set supported PCG param overrides (seed, activated).',
+      parameters: Type.Object({
+        actor_name: Type.String(),
+        param_name: Type.String(),
+        value: Type.Unknown(),
+        param_type: Type.Optional(Type.String()),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/pcg/set-param', params); },
+    });
+
+    api.registerTool({
+      name: 'ue5_pcg_cleanup',
+      label: 'UE5 PCG Cleanup',
+      description: 'Cleanup generated PCG output.',
+      parameters: Type.Object({
+        actor_name: Type.String(),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/pcg/cleanup', params); },
+    });
+
+    // Sequencer
+    api.registerTool({
+      name: 'ue5_sequencer_create',
+      label: 'UE5 Sequence Create',
+      description: 'Create a level sequence asset.',
+      parameters: Type.Object({
+        name: Type.String(),
+        path: Type.Optional(Type.String()),
+        duration_seconds: Type.Optional(Type.Number()),
+        fps: Type.Optional(Type.Number()),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/sequencer/create', params); },
+    });
+
+    api.registerTool({
+      name: 'ue5_sequencer_add_track',
+      label: 'UE5 Sequence Track',
+      description: 'Add actor track to a level sequence.',
+      parameters: Type.Object({
+        sequence: Type.String(),
+        actor_name: Type.String(),
+        track_type: Type.Optional(Type.String()),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/sequencer/add-track', params); },
+    });
+
+    api.registerTool({
+      name: 'ue5_sequencer_set_keyframe',
+      label: 'UE5 Sequence Keyframe',
+      description: 'Set sequencer keyframe for transform tracks.',
+      parameters: Type.Object({
+        sequence: Type.String(),
+        actor_name: Type.String(),
+        time: Type.Number(),
+        track_type: Type.Optional(Type.String()),
+        location: Type.Optional(Type.Object({
+          x: Type.Optional(Type.Number()),
+          y: Type.Optional(Type.Number()),
+          z: Type.Optional(Type.Number()),
+        })),
+        rotation: Type.Optional(Type.Object({
+          pitch: Type.Optional(Type.Number()),
+          yaw: Type.Optional(Type.Number()),
+          roll: Type.Optional(Type.Number()),
+        })),
+        scale: Type.Optional(Type.Object({
+          x: Type.Optional(Type.Number()),
+          y: Type.Optional(Type.Number()),
+          z: Type.Optional(Type.Number()),
+        })),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/sequencer/set-keyframe', params); },
+    });
+
+    api.registerTool({
+      name: 'ue5_sequencer_play',
+      label: 'UE5 Sequence Play',
+      description: 'Play a sequence.',
+      parameters: Type.Object({
+        sequence: Type.String(),
+        loop: Type.Optional(Type.Boolean()),
+        start_time: Type.Optional(Type.Number()),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/sequencer/play', params); },
+    });
+
+    api.registerTool({
+      name: 'ue5_sequencer_stop',
+      label: 'UE5 Sequence Stop',
+      description: 'Stop a sequence (or all if sequence omitted).',
+      parameters: Type.Object({
+        sequence: Type.Optional(Type.String()),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/sequencer/stop', params || {}); },
+    });
+
+    api.registerTool({
+      name: 'ue5_sequencer_scrub',
+      label: 'UE5 Sequence Scrub',
+      description: 'Scrub a sequence to time.',
+      parameters: Type.Object({
+        sequence: Type.String(),
+        time: Type.Number(),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/sequencer/scrub', params); },
+    });
+
+    api.registerTool({
+      name: 'ue5_sequencer_render',
+      label: 'UE5 Sequence Render',
+      description: 'Render sequence as PNG frame sequence.',
+      parameters: Type.Object({
+        sequence: Type.String(),
+        output_path: Type.Optional(Type.String()),
+        fps: Type.Optional(Type.Number()),
+        duration_seconds: Type.Optional(Type.Number()),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/sequencer/render', params); },
+    });
+
+    api.registerTool({
+      name: 'ue5_sequencer_info',
+      label: 'UE5 Sequence Info',
+      description: 'Get active sequence players.',
+      parameters: Type.Object({}),
+      async execute(_id, _params) { return run('GET', '/nova/sequencer/info'); },
+    });
+
+    // Optimize
+    api.registerTool({
+      name: 'ue5_optimize_nanite',
+      label: 'UE5 Optimize Nanite',
+      description: 'Enable or disable Nanite on mesh/actor.',
+      parameters: Type.Object({
+        mesh_path: Type.Optional(Type.String()),
+        actor_name: Type.Optional(Type.String()),
+        enable: Type.Optional(Type.Boolean()),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/optimize/nanite', params); },
+    });
+
+    api.registerTool({
+      name: 'ue5_optimize_lod',
+      label: 'UE5 Optimize LOD',
+      description: 'Generate LODs for mesh.',
+      parameters: Type.Object({
+        mesh_path: Type.String(),
+        num_lods: Type.Optional(Type.Number()),
+        reduction_per_level: Type.Optional(Type.Number()),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/optimize/lod', params); },
+    });
+
+    api.registerTool({
+      name: 'ue5_optimize_lumen',
+      label: 'UE5 Optimize Lumen',
+      description: 'Configure Lumen settings.',
+      parameters: Type.Object({
+        enabled: Type.Optional(Type.Boolean()),
+        quality: Type.Optional(Type.String()),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/optimize/lumen', params); },
+    });
+
+    api.registerTool({
+      name: 'ue5_optimize_stats',
+      label: 'UE5 Optimize Stats',
+      description: 'Collect scene optimization stats.',
+      parameters: Type.Object({}),
+      async execute(_id, _params) { return run('GET', '/nova/optimize/stats'); },
+    });
+
+    api.registerTool({
+      name: 'ue5_optimize_textures',
+      label: 'UE5 Optimize Textures',
+      description: 'Bulk optimize texture size/compression.',
+      parameters: Type.Object({
+        path: Type.Optional(Type.String()),
+        max_size: Type.Optional(Type.Number()),
+        compression: Type.Optional(Type.String()),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/optimize/textures', params); },
+    });
+
+    api.registerTool({
+      name: 'ue5_optimize_collision',
+      label: 'UE5 Optimize Collision',
+      description: 'Generate/update mesh collision settings.',
+      parameters: Type.Object({
+        mesh_path: Type.Optional(Type.String()),
+        actor_name: Type.Optional(Type.String()),
+        type: Type.Optional(Type.String()),
+      }),
+      async execute(_id, params) { return run('POST', '/nova/optimize/collision', params); },
+    });
+
+    // Voice
+    api.registerTool({
+      name: 'ue5_voice_command',
+      label: 'UE5 Voice Command',
+      description: 'Send natural-language text/audio command to NovaBridge voice server (port 30012 by default).',
+      parameters: Type.Object({
+        text: Type.Optional(Type.String({ description: 'Natural language command text' })),
+        audio_path: Type.Optional(Type.String({ description: 'Path to audio file (.wav/.mp3/.m4a)' })),
+      }),
+      async execute(_id, params) {
+        try {
+          const voicePort = Number.parseInt(process.env.NOVABRIDGE_VOICE_PORT || '30012', 10);
+          const body = {};
+          if (params.text) body.text = params.text;
+          if (params.audio_path) body.audio_path = params.audio_path;
+          const result = await new Promise((resolve, reject) => {
+            const bodyStr = JSON.stringify(body);
+            const req = http.request({
+              hostname: 'localhost',
+              port: Number.isFinite(voicePort) && voicePort > 0 ? voicePort : 30012,
+              path: '/voice/command',
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyStr) },
+              timeout: 60000,
+            }, (res) => {
+              let data = '';
+              res.on('data', (chunk) => data += chunk);
+              res.on('end', () => {
+                try { resolve(JSON.parse(data)); }
+                catch (e) { resolve({ raw: data }); }
+              });
+            });
+            req.on('error', reject);
+            req.on('timeout', () => { req.destroy(); reject(new Error('Voice server request timed out')); });
+            req.write(bodyStr);
+            req.end();
+          });
+          return json(result);
+        } catch (err) {
+          return json({ error: err.message });
+        }
+      },
+    });
   }
 };
 
