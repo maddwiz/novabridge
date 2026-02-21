@@ -29,8 +29,8 @@ For headless startup without an existing project, use `NovaBridgeDefault/NovaBri
 ## Release Status
 
 - Current release: `v0.9.0` (Early Access)
-- Validated now: Linux ARM64
-- In validation: macOS and Windows
+- Validated now: Linux ARM64, macOS, Windows Win64
+- In validation: Linux x86_64
 
 ## API Endpoints
 
@@ -90,8 +90,8 @@ Output is written to `dist/NovaBridge-v0.9.0.zip`.
 
 - Linux (ARM64): validated
 - Linux (x86_64): pending native validation
-- Windows (Win64): pending native validation
-- macOS (Mac): pending native validation
+- Windows (Win64): validated
+- macOS (Mac): validated
 
 ## License
 

@@ -14,6 +14,20 @@
 	"IsBetaVersion": true,
 	"Installed": false,
 	"EnabledByDefault": true,
+	"Plugins": [
+		{
+			"Name": "EditorScriptingUtilities",
+			"Enabled": true
+		},
+		{
+			"Name": "WebSocketNetworking",
+			"Enabled": true
+		},
+		{
+			"Name": "MovieRenderPipeline",
+			"Enabled": true
+		}
+	],
 	"Modules": [
 		{
 			"Name": "NovaBridge",

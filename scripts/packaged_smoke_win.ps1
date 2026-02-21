@@ -27,12 +27,24 @@ $pkgRoot = Join-Path $unz "NovaBridge-$Version"
 if (-not (Test-Path $pkgRoot)) {
     $pkgRoot = $unz
 }
+$pluginDst = Join-Path $proj "Plugins\NovaBridge"
+New-Item -ItemType Directory -Force (Join-Path $proj "Plugins") | Out-Null
+New-Item -ItemType Directory -Force $pluginDst | Out-Null
+
 $pluginSrc = Join-Path $pkgRoot "NovaBridge"
 if (-not (Test-Path $pluginSrc)) {
     $pluginSrc = Join-Path $pkgRoot "Plugins\\NovaBridge"
 }
-$pluginDst = Join-Path $proj "Plugins\NovaBridge"
-New-Item -ItemType Directory -Force (Join-Path $proj "Plugins") | Out-Null
-Copy-Item -Recurse -Force $pluginSrc $pluginDst
+
+$rootUplugin = Join-Path $pkgRoot "NovaBridge.uplugin"
+$rootSource = Join-Path $pkgRoot "Source"
+if ((Test-Path $rootUplugin) -and (Test-Path $rootSource)) {
+    Copy-Item -Force $rootUplugin $pluginDst
+    $dstSource = Join-Path $pluginDst "Source"
+    New-Item -ItemType Directory -Force $dstSource | Out-Null
+    Copy-Item -Recurse -Force $rootSource $dstSource
+} else {
+    Copy-Item -Recurse -Force $pluginSrc $pluginDst
+}
 
 Write-Host "Packaged project: $proj"

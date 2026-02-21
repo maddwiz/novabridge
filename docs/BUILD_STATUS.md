@@ -2,7 +2,7 @@
 
 ## Last Updated
 
-- Date: 2026-02-20
+- Date: 2026-02-21
 - Environments:
   - Linux ARM64 host (`aarch64`) validation previously completed.
   - macOS native validation completed on `MacBookPro17,1` (Apple M1, 8 GB RAM), macOS `15.6.1` (`24G90`), Xcode `26.2` (`17C52`), Unreal Engine `5.6.1-44394996`.
@@ -130,9 +130,11 @@ Evidence:
 ### Source plugin smoke (project copy + `Plugins/NovaBridge`)
 
 - Run directory:
-  - `artifacts-win/run-20260219-200626`
+  - `artifacts-win/run-20260221-145844`
 - Source test project:
-  - `artifacts-win/run-20260219-200626/NovaBridgeDefault.uproject`
+  - `artifacts-win/run-20260221-145844/NovaBridgeDefault.uproject`
+- Commit:
+  - `7c7f6ce195960eb9d4a9402bacb253883a789776`
 - Build command:
   - `Build.bat UnrealEditor Win64 Development -Project="<...>\\NovaBridgeDefault.uproject" -WaitMutex -NoHotReloadFromIDE`
 - Runtime launch command:
@@ -140,23 +142,30 @@ Evidence:
 
 Passed runtime checks on port `30010`:
 - `GET /nova/health` => `status=ok`
+- `GET /nova/stream/status` => `ws_url` + defaults present
 - `POST /nova/scene/spawn` => created `GoldenPathLight`
 - `POST /nova/mesh/primitive` => created `WinSmokeCube`
 - `POST /nova/asset/import` with OBJ + `scale=100` => `status=ok`
 - `GET /nova/viewport/screenshot?format=raw` => PNG bytes (`89 50 4E 47 ...`)
+- Sequencer (UE 5.7-sensitive): create, play (start_time > 0), scrub, stop succeeded
 - `POST /nova/scene/delete` cleanup => `status=ok`
-- OpenClaw extensions load cleanly and can call health/spawn/delete via Node harness
+- OpenClaw extensions not re-validated in this run
+- Build warnings cleared after plugin metadata update (EditorScriptingUtilities, WebSocketNetworking, MovieRenderPipeline)
 
 Evidence:
-- `artifacts-win/run-20260219-200626/health.json`
-- `artifacts-win/run-20260219-200626/spawn.json`
-- `artifacts-win/run-20260219-200626/primitive.json`
-- `artifacts-win/run-20260219-200626/import.json`
-- `artifacts-win/run-20260219-200626/delete.json`
-- `artifacts-win/run-20260219-200626/screenshot-source.png`
-- `artifacts-win/run-20260219-200626/screenshot-magic.txt`
-- `artifacts-win/run-20260219-200626/unreal-source.log`
-- `artifacts-win/run-20260219-200626/openclaw-smoke.json`
+- `artifacts-win/run-20260221-145844/source-validation-20260221-153146/health.json`
+- `artifacts-win/run-20260221-145844/source-validation-20260221-153146/stream-status.json`
+- `artifacts-win/run-20260221-145844/source-validation-20260221-153146/scene-spawn.json`
+- `artifacts-win/run-20260221-145844/source-validation-20260221-153146/mesh-primitive.json`
+- `artifacts-win/run-20260221-145844/source-validation-20260221-153146/asset-import.json`
+- `artifacts-win/run-20260221-145844/source-validation-20260221-153146/scene-delete.json`
+- `artifacts-win/run-20260221-145844/source-validation-20260221-153146/viewport-raw.png`
+- `artifacts-win/run-20260221-145844/source-validation-20260221-153146/viewport-raw-check.json`
+- `artifacts-win/run-20260221-145844/source-validation-20260221-153146/sequencer-create.json`
+- `artifacts-win/run-20260221-145844/source-validation-20260221-153146/sequencer-play.json`
+- `artifacts-win/run-20260221-145844/source-validation-20260221-153146/sequencer-scrub.json`
+- `artifacts-win/run-20260221-145844/source-validation-20260221-153146/sequencer-stop.json`
+- `artifacts-win/run-20260221-145844/source-validation-20260221-153146/NovaBridgeDefault.log`
 
 ### Packaging and packaged-plugin retest (Completed)
 
@@ -167,9 +176,9 @@ Evidence:
 
 Packaged-plugin second project validation:
 - Second clean project:
-  - `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/WinSmokePackaged/NovaBridgeDefault.uproject`
+  - `artifacts-win/run-20260221-145844/packaged-validation-20260221-151836/WinSmokePackaged/NovaBridgeDefault.uproject`
 - Packaged plugin installed from:
-  - `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/unzipped/Plugins/NovaBridge`
+  - `artifacts-win/run-20260221-145844/packaged-validation-20260221-151836/unzipped` (`NovaBridge.uplugin` + `Source`)
 - Build command:
   - `Build.bat UnrealEditor Win64 Development -Project="<...>\\WinSmokePackaged\\NovaBridgeDefault.uproject" -WaitMutex -NoHotReloadFromIDE`
 - Runtime launch command:
@@ -177,6 +186,7 @@ Packaged-plugin second project validation:
 
 Passed runtime checks on port `30011`:
 - `GET /nova/health` => `status=ok`
+- `GET /nova/stream/status` => `ws_url` + defaults present
 - `POST /nova/scene/spawn` => created `PackagedLight`
 - `POST /nova/asset/import` with OBJ + `scale=100` => `status=ok`
 - `GET /nova/viewport/screenshot?format=raw` => PNG bytes (`89 50 4E 47 ...`)
@@ -186,11 +196,11 @@ Package hygiene:
 - Zip content scanned and verified no `Intermediate/`, `Saved/`, `.log`, or `DerivedDataCache`.
 
 Evidence:
-- `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/build-packaged.log`
-- `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/health-packaged.json`
-- `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/spawn-packaged.json`
-- `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/import-packaged.json`
-- `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/delete-packaged.json`
-- `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/screenshot-packaged.png`
-- `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/screenshot-packaged-magic.txt`
-- `artifacts-win/run-20260219-200626/packaged-validation-20260219-201939/unreal-packaged.log`
+- `artifacts-win/run-20260221-145844/packaged-validation-20260221-151836/packaged-validation/health.json`
+- `artifacts-win/run-20260221-145844/packaged-validation-20260221-151836/packaged-validation/stream-status.json`
+- `artifacts-win/run-20260221-145844/packaged-validation-20260221-151836/packaged-validation/scene-spawn.json`
+- `artifacts-win/run-20260221-145844/packaged-validation-20260221-151836/packaged-validation/asset-import.json`
+- `artifacts-win/run-20260221-145844/packaged-validation-20260221-151836/packaged-validation/scene-delete.json`
+- `artifacts-win/run-20260221-145844/packaged-validation-20260221-151836/packaged-validation/viewport-raw.png`
+- `artifacts-win/run-20260221-145844/packaged-validation-20260221-151836/packaged-validation/viewport-raw-check.json`
+- `artifacts-win/run-20260221-145844/packaged-validation-20260221-151836/packaged-validation/NovaBridgeDefault.log`
