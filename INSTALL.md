@@ -3,7 +3,9 @@
 ## Supported Now
 
 - Linux ARM64 (validated)
-- macOS and Windows builds are in validation
+- Windows Win64 (validated)
+- macOS (validated)
+- Linux x86_64 (pending native validation)
 
 ## 5-Step Install
 
@@ -25,4 +27,3 @@
 - Confirm UE project is open (not project browser).
 - Confirm port `30010` is free, or launch with `-NovaBridgePort=<port>`.
 - Check UE log for `NovaBridge HTTP server started`.
-

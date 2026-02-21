@@ -17,12 +17,11 @@
 ## Current Release Tier
 
 - `v0.9.0` Early Access
-- Validated platform: Linux ARM64
-- Windows/macOS validation in progress
+- Validated platforms: Linux ARM64, Windows Win64, macOS
+- In validation: Linux x86_64
 
 ## Not Included Yet
 
-- Marketplace-ready Windows package
+- Linux x86_64 native runtime validation
 - Production SLA / enterprise support terms
 - Managed cloud hosting
-

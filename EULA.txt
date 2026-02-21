@@ -1,26 +1,55 @@
 NovaBridge End User License Agreement (EULA)
+Version date: 2026-02-21
 
-1. License Grant
-The Licensor grants you a non-exclusive, non-transferable license to use NovaBridge for your internal and commercial projects.
+1. Scope and Priority
+If NovaBridge is purchased through Fab, Fab platform terms and the Fab Standard
+License govern your purchase and use rights. This EULA is supplemental only and
+does not override conflicting platform terms.
 
-2. Restrictions
-You may not resell, sublicense, or redistribute NovaBridge source or package files except as part of your compiled project outputs.
+If NovaBridge is purchased directly from the Licensor, this EULA governs unless
+superseded by a separate signed agreement.
 
-3. Ownership
-NovaBridge and related materials remain property of the Licensor.
+2. License Grant
+Subject to payment and compliance with this EULA, the Licensor grants you a
+non-exclusive, non-transferable license to use NovaBridge in internal and
+commercial projects.
 
-4. Early Access
-This release may contain defects and is provided as an Early Access product.
+3. Permitted Distribution
+You may distribute your compiled project outputs that include NovaBridge at
+runtime, as permitted by your purchase channel terms.
 
-5. Disclaimer
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+4. Restrictions
+You may not:
+- Resell, sublicense, rent, or redistribute NovaBridge source code or package
+  files on a standalone basis.
+- Remove copyright or ownership notices.
+- Use NovaBridge in violation of applicable law or third-party license terms.
 
-6. Limitation of Liability
-The Licensor is not liable for indirect, incidental, special, or consequential damages.
+5. Ownership
+NovaBridge and all related intellectual property remain the Licensor's property.
 
-7. Termination
-Violation of this agreement terminates the license.
+6. Support and Updates
+Unless explicitly stated otherwise, support and updates are provided on a
+best-effort basis and may change by release tier (including Early Access).
 
-8. Governing Terms
-By using NovaBridge, you agree to these terms.
+7. Refunds
+For marketplace purchases, refund handling follows marketplace policy.
+For direct purchases, refund policy follows `SUPPORT.md` and any written sales
+terms.
 
+8. Termination
+If you materially breach this EULA, your license terminates automatically.
+Upon termination, you must cease use and delete unlicensed copies.
+
+9. Disclaimer
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+NON-INFRINGEMENT.
+
+10. Limitation of Liability
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSOR IS NOT LIABLE FOR ANY
+INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING FROM
+USE OF THE SOFTWARE.
+
+11. Acceptance
+By installing, accessing, or using NovaBridge, you agree to this EULA.

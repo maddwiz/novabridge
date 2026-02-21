@@ -73,6 +73,8 @@ The `extensions/openclaw/nova-blender` bridge now supports environment-based con
 - macOS: [docs/SETUP_MAC.md](docs/SETUP_MAC.md)
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Build status: [docs/BUILD_STATUS.md](docs/BUILD_STATUS.md)
+- Fab launch checklist: [docs/FAB_MARKET_LAUNCH_CHECKLIST.md](docs/FAB_MARKET_LAUNCH_CHECKLIST.md)
+- Fab listing copy draft: [docs/FAB_LISTING_COPY.md](docs/FAB_LISTING_COPY.md)
 - Self-hosted CI runbook: [docs/CI_SELF_HOSTED.md](docs/CI_SELF_HOSTED.md)
 - Runner bootstrap: [docs/RUNNER_SETUP.md](docs/RUNNER_SETUP.md)
 
