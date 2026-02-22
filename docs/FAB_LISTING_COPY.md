@@ -40,9 +40,10 @@ Release tier: Early Access (`v0.9.0`)
 
 ## Customer Notes
 
-- Runs inside UE5 Editor with a loaded `.uproject`.
+- Editor-only plugin: runs inside UE5 Editor with a loaded `.uproject`.
+- Not intended for packaged runtime game builds.
 - Local-machine workflow by default (`127.0.0.1` listener bind via UE HTTP default).
-- Default API port is `30010` (overridable).
+- Default API port is `30010` (override with `-NovaBridgePort=30010`, replacing `30010` with your chosen open port).
 - Optional API key security is supported (`NOVABRIDGE_API_KEY` / `-NovaBridgeApiKey`).
 - Early Access: validated on Windows Win64, macOS, and Linux ARM64.
 

@@ -6,6 +6,8 @@ HTTP API bridge giving AI agents full programmatic control over Unreal Engine 5.
 
 NovaBridge is a UE5 Editor plugin that exposes 30 HTTP endpoints for scene manipulation, asset management, material creation, viewport control, and more. Combined with a Blender integration pipeline, AI agents can autonomously generate 3D content and build scenes in Unreal Engine.
 
+> Editor-only scope: NovaBridge runs inside Unreal Editor with a loaded `.uproject`. It is not intended for packaged runtime game builds.
+
 ## Architecture
 
 ```
@@ -21,10 +23,29 @@ AI Agent → Blender (Python/MB-Lab) → OBJ export → NovaBridge import → UE
 
 1. Copy `NovaBridge/` to your UE5 project's `Plugins/` folder
 2. Build the project
-3. Launch UE5: `UnrealEditor YourProject.uproject -RenderOffScreen -nosplash -unattended -nopause`
+3. Launch UE5: `UnrealEditor YourProject.uproject -RenderOffScreen -nosplash -unattended -nopause -NovaBridgePort=30010`
 4. Test: `curl http://localhost:30010/nova/health`
 
+Port override: change `-NovaBridgePort=30010` to any open port, then use that same port in your API calls.
+
 For headless startup without an existing project, use `NovaBridgeDefault/NovaBridgeDefault.uproject`.
+
+## macOS Smoke Snapshot
+
+Validation screenshot from a live macOS smoke run (health/spawn/delete path):
+
+![macOS NovaBridge smoke screenshot](docs/images/mac-smoke-launchproof.png)
+
+For explicit API-driven control evidence (bind log + health + spawn + delete artifacts), see:
+- [docs/AI_CONTROL_PROOF.md](docs/AI_CONTROL_PROOF.md)
+
+Example command used during smoke:
+
+```bash
+curl -sS -X POST http://127.0.0.1:30010/nova/scene/spawn \
+  -H "Content-Type: application/json" \
+  -d '{"class":"PointLight","label":"LaunchSmokeLight","x":0,"y":0,"z":260}'
+```
 
 ## Release Status
 
