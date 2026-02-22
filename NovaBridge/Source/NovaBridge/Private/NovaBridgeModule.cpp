@@ -311,6 +311,10 @@ void FNovaBridgeModule::StartHttpServer()
 			RequiredApiKey = TrimmedEnvKey;
 		}
 	}
+	if (RequiredApiKey.IsEmpty())
+	{
+		UE_LOG(LogNovaBridge, Warning, TEXT("[WARNING] NovaBridge running without authentication."));
+	}
 
 	HttpRouter = FHttpServerModule::Get().GetHttpRouter(HttpPort);
 	if (!HttpRouter)
@@ -424,7 +428,7 @@ void FNovaBridgeModule::StartHttpServer()
 		Bind(TEXT("/nova/optimize/collision"), EHttpServerRequestVerbs::VERB_POST, &FNovaBridgeModule::HandleOptimizeCollision);
 
 	FHttpServerModule::Get().StartAllListeners();
-	UE_LOG(LogNovaBridge, Log, TEXT("NovaBridge HTTP server started on port %d with %d API routes"), HttpPort, ApiRouteCount);
+	UE_LOG(LogNovaBridge, Log, TEXT("NovaBridge server listening on 127.0.0.1:%d (UE HTTP default bind address) with %d API routes"), HttpPort, ApiRouteCount);
 	if (!RequiredApiKey.IsEmpty())
 	{
 		UE_LOG(LogNovaBridge, Log, TEXT("NovaBridge API key auth is enabled"));

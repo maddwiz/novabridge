@@ -12,4 +12,4 @@
 5. (Optional) Start MCP server:
    - `python mcp-server/novabridge_mcp.py`
 6. (Optional) Build a release package:
-   - `./scripts/package_release.sh v0.9.0`
+   - `./scripts/package_release.sh 0.9.0`

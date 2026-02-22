@@ -1,12 +1,21 @@
 param(
     [Parameter(Mandatory = $true)][string]$RepoRoot,
     [Parameter(Mandatory = $true)][string]$ArtifactsRoot,
-    [Parameter(Mandatory = $false)][string]$Version = "v0.9.0"
+    [Parameter(Mandatory = $false)][string]$Version = "0.9.0"
 )
 
 $ErrorActionPreference = "Stop"
 
-$distZip = Join-Path $RepoRoot "dist\NovaBridge-$Version.zip"
+$versionNormalized = $Version.Trim()
+if ($versionNormalized.StartsWith("v")) {
+    $versionNormalized = $versionNormalized.Substring(1)
+}
+if ([string]::IsNullOrWhiteSpace($versionNormalized)) {
+    throw "Version cannot be empty."
+}
+$versionTag = "v$versionNormalized"
+
+$distZip = Join-Path $RepoRoot "dist\NovaBridge-$versionTag.zip"
 if (-not (Test-Path $distZip)) {
     throw "Package zip not found: $distZip"
 }
@@ -20,10 +29,10 @@ New-Item -ItemType Directory -Force $packDir | Out-Null
 New-Item -ItemType Directory -Force $unz | Out-Null
 New-Item -ItemType Directory -Force $proj | Out-Null
 
-robocopy (Join-Path $RepoRoot "NovaBridgeDefault") $proj /E /XD Binaries Intermediate Saved | Out-Null
+robocopy (Join-Path $RepoRoot "NovaBridgeDefault") $proj /E /XD Binaries Intermediate Saved artifacts | Out-Null
 & "C:\Program Files\7-Zip\7z.exe" x $distZip -o"$unz" | Out-Null
 
-$pkgRoot = Join-Path $unz "NovaBridge-$Version"
+$pkgRoot = Join-Path $unz "NovaBridge-$versionTag"
 if (-not (Test-Path $pkgRoot)) {
     $pkgRoot = $unz
 }

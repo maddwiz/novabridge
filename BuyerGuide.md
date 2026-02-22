@@ -25,3 +25,12 @@
 - Linux x86_64 native runtime validation
 - Production SLA / enterprise support terms
 - Managed cloud hosting
+
+## Quick Verification
+
+1. Launch Unreal Editor with your project loaded.
+2. Confirm log: `NovaBridge server listening on 127.0.0.1:30010`
+3. Run:
+   - `curl http://127.0.0.1:30010/nova/health`
+4. Expect:
+   - `{ "status": "ok" }`

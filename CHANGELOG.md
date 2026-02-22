@@ -5,6 +5,7 @@
 - Added UE 5.7 compatibility for sequencer playback positioning and asset duplication.
 - Avoided hard crash when `WebSocketNetworking` is unavailable by disabling the stream server gracefully.
 - Added Windows packaging and packaged-smoke helper scripts.
+- Hardened release defaults/documentation for `v0.9.0` (version normalization, localhost-first security guidance, packaging hygiene excludes).
 - Documented known issue on UE < 5.7: sequencer scrub path recurses in `NovaBridgeSetPlaybackTime`; fix planned for `v0.9.1`.
 
 ## Planned v0.9.1

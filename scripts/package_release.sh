@@ -2,9 +2,11 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${1:-v0.9.0}"
+VERSION_RAW="${1:-0.9.0}"
+VERSION="${VERSION_RAW#v}"
+VERSION_TAG="v${VERSION}"
 DIST_DIR="${ROOT_DIR}/dist"
-PKG_NAME="NovaBridge-${VERSION}"
+PKG_NAME="NovaBridge-${VERSION_TAG}"
 PKG_DIR="${DIST_DIR}/${PKG_NAME}"
 ZIP_PATH="${DIST_DIR}/${PKG_NAME}.zip"
 
@@ -23,6 +25,7 @@ copy_tree() {
     --exclude 'Binaries' \
     --exclude 'Intermediate' \
     --exclude 'Saved' \
+    --exclude 'artifacts' \
     --exclude 'Content/Developers' \
     --exclude 'Content/Collections' \
     --exclude 'DerivedDataCache' \

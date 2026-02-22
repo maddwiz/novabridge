@@ -32,6 +32,13 @@ For headless startup without an existing project, use `NovaBridgeDefault/NovaBri
 - Validated now: Linux ARM64, macOS, Windows Win64
 - In validation: Linux x86_64
 
+## Security Defaults
+
+- NovaBridge uses Unreal HTTP Server's default listener bind address (`127.0.0.1`).
+- It is designed for local Unreal Editor workflows on the same machine.
+- API key authentication is enabled automatically when `NOVABRIDGE_API_KEY` or `-NovaBridgeApiKey=<key>` is set.
+- If no API key is configured, NovaBridge allows requests and logs a startup warning.
+
 ## API Endpoints
 
 Primary API reference lives at [docs/API.md](docs/API.md).
@@ -84,7 +91,7 @@ The `extensions/openclaw/nova-blender` bridge now supports environment-based con
 Create a distribution zip:
 
 ```bash
-./scripts/package_release.sh v0.9.0
+./scripts/package_release.sh 0.9.0
 ```
 
 Output is written to `dist/NovaBridge-v0.9.0.zip`.

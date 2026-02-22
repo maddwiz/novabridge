@@ -1,12 +1,21 @@
 param(
     [Parameter(Mandatory = $false)][string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
-    [Parameter(Mandatory = $false)][string]$Version = "v0.9.0"
+    [Parameter(Mandatory = $false)][string]$Version = "0.9.0"
 )
 
 $ErrorActionPreference = "Stop"
 
+$versionNormalized = $Version.Trim()
+if ($versionNormalized.StartsWith("v")) {
+    $versionNormalized = $versionNormalized.Substring(1)
+}
+if ([string]::IsNullOrWhiteSpace($versionNormalized)) {
+    throw "Version cannot be empty."
+}
+$versionTag = "v$versionNormalized"
+
 $distDir = Join-Path $RepoRoot "dist"
-$pkgName = "NovaBridge-$Version"
+$pkgName = "NovaBridge-$versionTag"
 $pkgDir = Join-Path $distDir $pkgName
 $zipPath = "$pkgDir.zip"
 
@@ -16,7 +25,7 @@ function Copy-Tree {
         [string]$Destination
     )
     robocopy $Source $Destination /E `
-        /XD .git node_modules __pycache__ Binaries Intermediate Saved DerivedDataCache "Content\Developers" "Content\Collections" `
+        /XD .git node_modules __pycache__ Binaries Intermediate Saved DerivedDataCache artifacts "Content\Developers" "Content\Collections" `
         /XF *.pyc *.log `
         /NFL /NDL /NJH /NJS /NC /NS | Out-Null
 }
