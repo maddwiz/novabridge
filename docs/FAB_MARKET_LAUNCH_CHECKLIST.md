@@ -44,6 +44,7 @@ Use this checklist to publish NovaBridge on Fab with current repo state.
 - [ ] Media prepared:
   - icon/thumbnail,
   - screenshots (health, spawn/import flow, viewport result),
+  - include `docs/images/mac-smoke-launchproof.png` as explicit AI-control smoke proof,
   - short demo video/GIF.
 - [ ] Documentation link set (repo docs or docs microsite).
 

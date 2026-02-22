@@ -104,6 +104,7 @@ The `extensions/openclaw/nova-blender` bridge now supports environment-based con
 - v0.9.1 bug-fix handoff: [docs/BUG_FIX_HANDOFF_v0.9.1.md](docs/BUG_FIX_HANDOFF_v0.9.1.md)
 - Fab launch checklist: [docs/FAB_MARKET_LAUNCH_CHECKLIST.md](docs/FAB_MARKET_LAUNCH_CHECKLIST.md)
 - Fab listing copy draft: [docs/FAB_LISTING_COPY.md](docs/FAB_LISTING_COPY.md)
+- Lemon Squeezy listing copy draft: [docs/LEMON_SQUEEZY_LISTING_COPY.md](docs/LEMON_SQUEEZY_LISTING_COPY.md)
 - Self-hosted CI runbook: [docs/CI_SELF_HOSTED.md](docs/CI_SELF_HOSTED.md)
 - Runner bootstrap: [docs/RUNNER_SETUP.md](docs/RUNNER_SETUP.md)
 

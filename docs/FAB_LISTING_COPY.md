@@ -47,6 +47,29 @@ Release tier: Early Access (`v0.9.0`)
 - Optional API key security is supported (`NOVABRIDGE_API_KEY` / `-NovaBridgeApiKey`).
 - Early Access: validated on Windows Win64, macOS, and Linux ARM64.
 
+## Quick API Proof Snippets
+
+```bash
+curl -sS http://127.0.0.1:30010/nova/health
+```
+
+```bash
+curl -sS -X POST http://127.0.0.1:30010/nova/scene/spawn \
+  -H "Content-Type: application/json" \
+  -d '{"class":"PointLight","label":"LaunchSmokeLight","x":0,"y":0,"z":260}'
+```
+
+```bash
+curl -sS -X POST http://127.0.0.1:30010/nova/scene/delete \
+  -H "Content-Type: application/json" \
+  -d '{"name":"LaunchSmokeLight"}'
+```
+
+## Visual Asset To Upload
+
+- Screenshot proof file: `docs/images/mac-smoke-launchproof.png`
+- Proof chain doc (routes bound + health/spawn/delete evidence): `docs/AI_CONTROL_PROOF.md`
+
 ## Support
 
 - Primary support: GitHub Issues
