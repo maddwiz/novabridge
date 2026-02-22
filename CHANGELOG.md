@@ -5,6 +5,11 @@
 - Added UE 5.7 compatibility for sequencer playback positioning and asset duplication.
 - Avoided hard crash when `WebSocketNetworking` is unavailable by disabling the stream server gracefully.
 - Added Windows packaging and packaged-smoke helper scripts.
+- Documented known issue on UE < 5.7: sequencer scrub path recurses in `NovaBridgeSetPlaybackTime`; fix planned for `v0.9.1`.
+
+## Planned v0.9.1
+
+- Fix infinite recursion in sequencer scrub on UE versions before 5.7 (`NovaBridgeSetPlaybackTime` fallback branch).
 
 ## v0.9.0 - 2026-02-18
 
@@ -16,4 +21,3 @@
 - Removed hardcoded user paths from OpenClaw extensions.
 - Updated packaging to include customer-facing docs only.
 - Added customer launch docs (`INSTALL.md`, `BuyerGuide.md`, `SUPPORT.md`, `EULA.txt`).
-
