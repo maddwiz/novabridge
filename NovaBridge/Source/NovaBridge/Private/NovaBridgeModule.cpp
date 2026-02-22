@@ -119,14 +119,11 @@ static void NovaBridgeSetPlaybackTime(ULevelSequencePlayer* Player, float TimeSe
 	Params.UpdateMethod = bScrub ? EUpdatePositionMethod::Scrub : EUpdatePositionMethod::Jump;
 	Player->SetPlaybackPosition(Params);
 #else
-	if (bScrub)
-	{
-		NovaBridgeSetPlaybackTime(Player, TimeSeconds, true);
-	}
-	else
-	{
-		Player->JumpToSeconds(TimeSeconds);
-	}
+	FMovieSceneSequencePlaybackParams Params;
+	Params.PositionType = EMovieScenePositionType::Time;
+	Params.Time = TimeSeconds;
+	Params.UpdateMethod = bScrub ? EUpdatePositionMethod::Scrub : EUpdatePositionMethod::Jump;
+	Player->SetPlaybackPosition(Params);
 #endif
 }
 
