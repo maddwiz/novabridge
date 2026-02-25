@@ -66,6 +66,25 @@
     - `python3 -m unittest discover -s python-sdk/tests -p 'test_*.py'` (`Ran 2 tests ... OK`)
     - `python3 -m unittest discover -s mcp-server/tests -p 'test_*.py'` (`Ran 2 tests ... OK`)
 
+## macOS Runtime ExecutePlan-Handler Split Validation
+
+- Date: 2026-02-25
+- Command:
+  - `NOVABRIDGE_BUILD=1 ./scripts/mac_executeplan_smoke.sh`
+- Source project:
+  - `/Users/desmondpottle/Documents/New project/novabridge/NovaBridgeDefault/NovaBridgeDefault.uproject`
+- Result:
+  - `Succeeded` (build + editor/runtime execute-plan smoke)
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260225-091303/artifacts/executeplan-smoke`
+- Notes:
+  - Added `NovaBridgeRuntimeExecutePlanHandlers.cpp` and moved runtime `POST /nova/executePlan`, runtime `POST /nova/undo`, plus runtime actor/property utility helpers there.
+  - `NovaBridgeRuntimeModule.cpp` line count reduced to `643`.
+  - `run-summary.json` reported editor `success_count=2/error_count=0` and runtime `success_count=2/error_count=0`.
+  - Python test refresh passed:
+    - `python3 -m unittest discover -s python-sdk/tests -p 'test_*.py'` (`Ran 2 tests ... OK`)
+    - `python3 -m unittest discover -s mcp-server/tests -p 'test_*.py'` (`Ran 2 tests ... OK`)
+
 ## macOS Editor-Policy-State Split Validation
 
 - Date: 2026-02-25
