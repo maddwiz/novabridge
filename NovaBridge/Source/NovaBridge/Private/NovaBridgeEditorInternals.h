@@ -51,6 +51,7 @@ void PushAuditEntry(const FString& Route, const FString& Action, const FString& 
 void QueueEventObject(const TSharedPtr<FJsonObject>& EventObj);
 
 AActor* FindActorByName(const FString& Name);
+TSharedPtr<FJsonObject> ActorToJson(AActor* Actor);
 UClass* ResolveActorClassByName(const FString& InClassName);
 bool SetActorPropertyValue(AActor* Actor, const FString& PropertyName, const FString& Value, FString& OutError);
 

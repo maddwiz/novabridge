@@ -1,4 +1,5 @@
 #include "NovaBridgeModule.h"
+#include "NovaBridgeEditorInternals.h"
 
 #include "Async/Async.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -13,8 +14,6 @@
 #include "Modules/ModuleManager.h"
 #include "PhysicsEngine/AggregateGeom.h"
 #include "PhysicsEngine/BodySetup.h"
-
-AActor* FindActorByName(const FString& Name);
 
 bool FNovaBridgeModule::HandleOptimizeNanite(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
 {

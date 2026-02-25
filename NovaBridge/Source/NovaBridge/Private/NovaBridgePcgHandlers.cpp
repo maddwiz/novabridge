@@ -1,4 +1,5 @@
 #include "NovaBridgeModule.h"
+#include "NovaBridgeEditorInternals.h"
 
 #include "Async/Async.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -10,9 +11,6 @@
 #include "PCGGraph.h"
 #include "PCGVolume.h"
 #endif
-
-AActor* FindActorByName(const FString& Name);
-TSharedPtr<FJsonObject> ActorToJson(AActor* Actor);
 
 // ============================================================
 // PCG Handlers

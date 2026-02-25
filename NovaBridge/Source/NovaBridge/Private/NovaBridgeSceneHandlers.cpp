@@ -11,9 +11,6 @@
 #include "Subsystems/EditorActorSubsystem.h"
 #include "UObject/UnrealType.h"
 
-AActor* FindActorByName(const FString& Name);
-TSharedPtr<FJsonObject> ActorToJson(AActor* Actor);
-
 bool FNovaBridgeModule::HandleSceneList(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
 {
 	(void)Request;

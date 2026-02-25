@@ -1,4 +1,5 @@
 #include "NovaBridgeModule.h"
+#include "NovaBridgeEditorInternals.h"
 
 #include "Async/Async.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -61,8 +62,6 @@ FGuid NovaBridgeFindBinding(ULevelSequence* Sequence, AActor* Actor, UWorld* Wor
 #endif
 }
 } // namespace
-
-AActor* FindActorByName(const FString& Name);
 
 bool FNovaBridgeModule::HandleSequencerCreate(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
 {
