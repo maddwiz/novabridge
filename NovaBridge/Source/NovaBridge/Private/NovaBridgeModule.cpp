@@ -1719,25 +1719,25 @@ void FNovaBridgeModule::PumpEventSocketQueue()
 			? PendingTypes[PayloadIndex]
 			: TEXT("audit");
 
-			for (int32 ClientIndex = EventWsClients.Num() - 1; ClientIndex >= 0; --ClientIndex)
+		for (int32 ClientIndex = EventWsClients.Num() - 1; ClientIndex >= 0; --ClientIndex)
+		{
+			if (!EventWsClients[ClientIndex].Socket)
 			{
-				if (!EventWsClients[ClientIndex].Socket)
-				{
-					EventWsClients.RemoveAtSwap(ClientIndex);
-					continue;
-				}
-				if (!EventWsClients[ClientIndex].bSubscriptionConfirmed)
-				{
-					continue;
-				}
-
-				if (EventWsClients[ClientIndex].bEventTypeFilterEnabled
-					&& !EventWsClients[ClientIndex].EventTypes.Contains(PayloadType))
-				{
-					continue;
-				}
-				EventWsClients[ClientIndex].Socket->Send(MutableData, DataLen, false);
+				EventWsClients.RemoveAtSwap(ClientIndex);
+				continue;
 			}
+			if (!EventWsClients[ClientIndex].bSubscriptionConfirmed)
+			{
+				continue;
+			}
+
+			if (EventWsClients[ClientIndex].bEventTypeFilterEnabled
+				&& !EventWsClients[ClientIndex].EventTypes.Contains(PayloadType))
+			{
+				continue;
+			}
+			EventWsClients[ClientIndex].Socket->Send(MutableData, DataLen, false);
+		}
 	}
 #endif
 }

@@ -1069,22 +1069,22 @@ void FNovaBridgeRuntimeModule::PumpEventSocketQueue()
 		uint8* MutableData = const_cast<uint8*>(Data);
 		const int32 DataLen = Utf8Payload.Length();
 
-			for (int32 ClientIndex = EventWsClients.Num() - 1; ClientIndex >= 0; --ClientIndex)
+		for (int32 ClientIndex = EventWsClients.Num() - 1; ClientIndex >= 0; --ClientIndex)
+		{
+			if (!EventWsClients[ClientIndex].Socket)
 			{
-				if (!EventWsClients[ClientIndex].Socket)
-				{
-					EventWsClients.RemoveAtSwap(ClientIndex);
-					continue;
-				}
-				if (!EventWsClients[ClientIndex].bSubscriptionConfirmed)
-				{
-					continue;
-				}
+				EventWsClients.RemoveAtSwap(ClientIndex);
+				continue;
+			}
+			if (!EventWsClients[ClientIndex].bSubscriptionConfirmed)
+			{
+				continue;
+			}
 
-				if (EventWsClients[ClientIndex].bEventTypeFilterEnabled
-					&& !EventWsClients[ClientIndex].EventTypes.Contains(PayloadType))
-				{
-					continue;
+			if (EventWsClients[ClientIndex].bEventTypeFilterEnabled
+				&& !EventWsClients[ClientIndex].EventTypes.Contains(PayloadType))
+			{
+				continue;
 			}
 			EventWsClients[ClientIndex].Socket->Send(MutableData, DataLen, false);
 		}
