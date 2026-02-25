@@ -490,6 +490,107 @@ static const TArray<FString>& SupportedEventTypes()
 	return Types;
 }
 
+static bool IsSupportedEventType(const FString& EventType)
+{
+	return SupportedEventTypes().Contains(EventType);
+}
+
+static FString SerializeJsonObject(const TSharedPtr<FJsonObject>& JsonObj)
+{
+	FString Serialized;
+	if (!JsonObj.IsValid())
+	{
+		return Serialized;
+	}
+
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Serialized);
+	FJsonSerializer::Serialize(JsonObj.ToSharedRef(), Writer);
+	return Serialized;
+}
+
+static void SendSocketJsonMessage(INetworkingWebSocket* Socket, const TSharedPtr<FJsonObject>& JsonObj)
+{
+	if (!Socket || !JsonObj.IsValid())
+	{
+		return;
+	}
+
+	const FString Serialized = SerializeJsonObject(JsonObj);
+	if (Serialized.IsEmpty())
+	{
+		return;
+	}
+
+	const FTCHARToUTF8 Utf8Payload(*Serialized);
+	const uint8* Data = reinterpret_cast<const uint8*>(Utf8Payload.Get());
+	uint8* MutableData = const_cast<uint8*>(Data);
+	Socket->Send(MutableData, Utf8Payload.Length(), false);
+}
+
+static bool ParseEventSubscriptionPayload(const FString& Message, TSet<FString>& OutTypes, bool& bOutEnableFilter, FString& OutError)
+{
+	OutTypes.Reset();
+	bOutEnableFilter = false;
+
+	TSharedPtr<FJsonObject> JsonObj;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Message);
+	if (!FJsonSerializer::Deserialize(Reader, JsonObj) || !JsonObj.IsValid())
+	{
+		OutError = TEXT("Invalid subscription message JSON");
+		return false;
+	}
+
+	FString Action = JsonObj->HasTypedField<EJson::String>(TEXT("action"))
+		? NormalizeEventType(JsonObj->GetStringField(TEXT("action")))
+		: TEXT("subscribe");
+	if (Action.IsEmpty())
+	{
+		Action = TEXT("subscribe");
+	}
+
+	if (Action == TEXT("clear") || Action == TEXT("all") || Action == TEXT("subscribe_all") || Action == TEXT("reset"))
+	{
+		return true;
+	}
+
+	if (Action != TEXT("subscribe"))
+	{
+		OutError = FString::Printf(TEXT("Unsupported subscription action: %s"), *Action);
+		return false;
+	}
+
+	if (!JsonObj->HasTypedField<EJson::Array>(TEXT("types")))
+	{
+		OutError = TEXT("Missing 'types' array for subscribe action");
+		return false;
+	}
+
+	const TArray<TSharedPtr<FJsonValue>>& TypeValues = JsonObj->GetArrayField(TEXT("types"));
+	for (const TSharedPtr<FJsonValue>& TypeValue : TypeValues)
+	{
+		if (!TypeValue.IsValid() || TypeValue->Type != EJson::String)
+		{
+			OutError = TEXT("Subscription 'types' entries must be strings");
+			return false;
+		}
+
+		const FString Type = NormalizeEventType(TypeValue->AsString());
+		if (Type.IsEmpty())
+		{
+			continue;
+		}
+		if (!IsSupportedEventType(Type))
+		{
+			OutError = FString::Printf(TEXT("Unsupported event type: %s"), *Type);
+			return false;
+		}
+		OutTypes.Add(Type);
+	}
+
+	bOutEnableFilter = OutTypes.Num() > 0;
+	return true;
+}
+
 static void QueueEventObject(const TSharedPtr<FJsonObject>& EventObj)
 {
 	if (!EventObj.IsValid())
@@ -1431,26 +1532,64 @@ void FNovaBridgeModule::StartEventWebSocketServer()
 	}
 	RegisterEditorCapabilities(EventWsPort);
 
-	FWebSocketClientConnectedCallBack ConnectedCallback;
-	ConnectedCallback.BindLambda([this](INetworkingWebSocket* Socket)
-	{
-		if (!Socket)
+		FWebSocketClientConnectedCallBack ConnectedCallback;
+		ConnectedCallback.BindLambda([this](INetworkingWebSocket* Socket)
 		{
-			return;
-		}
+			if (!Socket)
+			{
+				return;
+			}
 
-		FWsClient Client;
-		Client.Socket = Socket;
-		Client.Id = FGuid::NewGuid();
-		EventWsClients.Add(MoveTemp(Client));
+			FWsClient Client;
+			Client.Socket = Socket;
+			Client.Id = FGuid::NewGuid();
+			Client.bEventTypeFilterEnabled = false;
+			EventWsClients.Add(MoveTemp(Client));
 
-		FWebSocketPacketReceivedCallBack ReceiveCallback;
-		ReceiveCallback.BindLambda([](void* Data, int32 Size)
-		{
-			(void)Data;
-			(void)Size;
-		});
-		Socket->SetReceiveCallBack(ReceiveCallback);
+			FWebSocketPacketReceivedCallBack ReceiveCallback;
+			ReceiveCallback.BindLambda([this, Socket](void* Data, int32 Size)
+			{
+				if (!Data || Size <= 0)
+				{
+					return;
+				}
+
+				const FUTF8ToTCHAR Converted(static_cast<const ANSICHAR*>(Data), Size);
+				const FString Message(Converted.Length(), Converted.Get());
+				TSet<FString> RequestedTypes;
+				bool bEnableFilter = false;
+				FString ParseError;
+				if (!ParseEventSubscriptionPayload(Message, RequestedTypes, bEnableFilter, ParseError))
+				{
+					TSharedPtr<FJsonObject> ErrorReply = MakeShared<FJsonObject>();
+					ErrorReply->SetStringField(TEXT("type"), TEXT("subscription"));
+					ErrorReply->SetStringField(TEXT("status"), TEXT("error"));
+					ErrorReply->SetStringField(TEXT("message"), ParseError);
+					ErrorReply->SetArrayField(TEXT("supported_types"), MakeJsonStringArray(SupportedEventTypes()));
+					SendSocketJsonMessage(Socket, ErrorReply);
+					return;
+				}
+
+				const int32 ClientIndex = EventWsClients.IndexOfByPredicate([Socket](const FWsClient& InClient)
+				{
+					return InClient.Socket == Socket;
+				});
+				if (ClientIndex == INDEX_NONE)
+				{
+					return;
+				}
+
+				EventWsClients[ClientIndex].bEventTypeFilterEnabled = bEnableFilter;
+				EventWsClients[ClientIndex].EventTypes = MoveTemp(RequestedTypes);
+
+				TSharedPtr<FJsonObject> AckReply = MakeShared<FJsonObject>();
+				AckReply->SetStringField(TEXT("type"), TEXT("subscription"));
+				AckReply->SetStringField(TEXT("status"), TEXT("ok"));
+				AckReply->SetBoolField(TEXT("filter_enabled"), EventWsClients[ClientIndex].bEventTypeFilterEnabled);
+				AckReply->SetArrayField(TEXT("types"), MakeJsonStringArray(EventWsClients[ClientIndex].EventTypes.Array()));
+				SendSocketJsonMessage(Socket, AckReply);
+			});
+			Socket->SetReceiveCallBack(ReceiveCallback);
 
 		FWebSocketInfoCallBack CloseCallback;
 		CloseCallback.BindLambda([this, Socket]()
@@ -1468,11 +1607,19 @@ void FNovaBridgeModule::StartEventWebSocketServer()
 				}
 				EventWsClients.RemoveAtSwap(Index);
 			}
-		});
-		Socket->SetSocketClosedCallBack(CloseCallback);
+			});
+			Socket->SetSocketClosedCallBack(CloseCallback);
 
-		UE_LOG(LogNovaBridge, Log, TEXT("NovaBridge events client connected (%d total)"), EventWsClients.Num());
-	});
+			TSharedPtr<FJsonObject> WelcomeReply = MakeShared<FJsonObject>();
+			WelcomeReply->SetStringField(TEXT("type"), TEXT("subscription"));
+			WelcomeReply->SetStringField(TEXT("status"), TEXT("ready"));
+			WelcomeReply->SetBoolField(TEXT("filter_enabled"), false);
+			WelcomeReply->SetArrayField(TEXT("supported_types"), MakeJsonStringArray(SupportedEventTypes()));
+			WelcomeReply->SetStringField(TEXT("hint"), TEXT("{\"action\":\"subscribe\",\"types\":[\"spawn\",\"error\"]}"));
+			SendSocketJsonMessage(Socket, WelcomeReply);
+
+			UE_LOG(LogNovaBridge, Log, TEXT("NovaBridge events client connected (%d total)"), EventWsClients.Num());
+		});
 
 	IWebSocketNetworkingModule* WsModule = FModuleManager::Get().LoadModulePtr<IWebSocketNetworkingModule>(TEXT("WebSocketNetworking"));
 	if (!WsModule)
@@ -1537,16 +1684,22 @@ void FNovaBridgeModule::PumpEventSocketQueue()
 	}
 
 	TArray<FString> PendingPayloads;
+	TArray<FString> PendingTypes;
+	{
+		FScopeLock EventLock(&NovaBridgeEventQueueMutex);
+		if (NovaBridgePendingEventPayloads.Num() == 0)
 		{
-			FScopeLock EventLock(&NovaBridgeEventQueueMutex);
-			if (NovaBridgePendingEventPayloads.Num() == 0)
-			{
-				return;
-			}
-			PendingPayloads = MoveTemp(NovaBridgePendingEventPayloads);
-			NovaBridgePendingEventPayloads.Reset();
-			NovaBridgePendingEventTypes.Reset();
+			return;
 		}
+		PendingPayloads = MoveTemp(NovaBridgePendingEventPayloads);
+		PendingTypes = MoveTemp(NovaBridgePendingEventTypes);
+		NovaBridgePendingEventPayloads.Reset();
+		NovaBridgePendingEventTypes.Reset();
+	}
+	if (PendingTypes.Num() != PendingPayloads.Num())
+	{
+		PendingTypes.Init(TEXT("audit"), PendingPayloads.Num());
+	}
 
 	for (int32 PayloadIndex = 0; PayloadIndex < PendingPayloads.Num(); ++PayloadIndex)
 	{
@@ -1554,12 +1707,21 @@ void FNovaBridgeModule::PumpEventSocketQueue()
 		const uint8* Data = reinterpret_cast<const uint8*>(Utf8Payload.Get());
 		uint8* MutableData = const_cast<uint8*>(Data);
 		const int32 DataLen = Utf8Payload.Length();
+		const FString& PayloadType = PendingTypes.IsValidIndex(PayloadIndex) && !PendingTypes[PayloadIndex].IsEmpty()
+			? PendingTypes[PayloadIndex]
+			: TEXT("audit");
 
 		for (int32 ClientIndex = EventWsClients.Num() - 1; ClientIndex >= 0; --ClientIndex)
 		{
 			if (!EventWsClients[ClientIndex].Socket)
 			{
 				EventWsClients.RemoveAtSwap(ClientIndex);
+				continue;
+			}
+
+			if (EventWsClients[ClientIndex].bEventTypeFilterEnabled
+				&& !EventWsClients[ClientIndex].EventTypes.Contains(PayloadType))
+			{
 				continue;
 			}
 			EventWsClients[ClientIndex].Socket->Send(MutableData, DataLen, false);
@@ -1878,6 +2040,7 @@ static void RegisterEditorCapabilities(uint32 InEventWsPort)
 	EventsData->SetStringField(TEXT("ws_url"), FString::Printf(TEXT("ws://localhost:%d"), InEventWsPort));
 	EventsData->SetArrayField(TEXT("supported_types"), MakeJsonStringArray(SupportedEventTypes()));
 	EventsData->SetStringField(TEXT("filter_query_param"), TEXT("types"));
+	EventsData->SetStringField(TEXT("subscription_action"), TEXT("{\"action\":\"subscribe\",\"types\":[\"spawn\",\"error\"]}"));
 	RegisterCapability(TEXT("events"), BuildCapabilityRoles(true, true, true), EventsData);
 
 	RegisterCapability(TEXT("executePlan"), BuildCapabilityRoles(true, true, false), MakeShared<FJsonObject>());
@@ -1932,6 +2095,14 @@ bool FNovaBridgeModule::HandleEvents(const FHttpServerRequest& Request, const FH
 	{
 		PendingByType.FindOrAdd(PendingType)++;
 	}
+	int32 ClientsWithFilters = 0;
+	for (const FWsClient& Client : EventWsClients)
+	{
+		if (Client.Socket && Client.bEventTypeFilterEnabled)
+		{
+			ClientsWithFilters++;
+		}
+	}
 
 	if (FilterTypes.Num() == 0)
 	{
@@ -1955,9 +2126,11 @@ bool FNovaBridgeModule::HandleEvents(const FHttpServerRequest& Request, const FH
 	Result->SetStringField(TEXT("ws_url"), FString::Printf(TEXT("ws://localhost:%d"), EventWsPort));
 	Result->SetNumberField(TEXT("ws_port"), EventWsPort);
 	Result->SetNumberField(TEXT("clients"), EventWsClients.Num());
+	Result->SetNumberField(TEXT("clients_with_filters"), ClientsWithFilters);
 	Result->SetNumberField(TEXT("pending_events"), PendingEvents);
 	Result->SetNumberField(TEXT("filtered_pending_events"), FilteredPendingEvents);
 	Result->SetArrayField(TEXT("supported_types"), MakeJsonStringArray(SupportedEventTypes()));
+	Result->SetStringField(TEXT("subscription_action"), TEXT("{\"action\":\"subscribe\",\"types\":[\"spawn\",\"error\"]}"));
 	if (FilterTypes.Num() > 0)
 	{
 		Result->SetArrayField(TEXT("filter_types"), MakeJsonStringArray(FilterTypes));

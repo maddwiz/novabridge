@@ -2,7 +2,7 @@
 
 ## Last Updated
 
-- Date: 2026-02-24
+- Date: 2026-02-25
 - Environments:
   - Linux ARM64 host (`aarch64`) validation previously completed.
   - macOS native validation completed on `MacBookPro17,1` (Apple M1, 8 GB RAM), macOS `15.6.1` (`24G90`), Xcode `26.2` (`17C52`), Unreal Engine `5.6.1-44394996`.
@@ -56,6 +56,32 @@ Runtime checks:
 - Enabled with `-NovaBridgeRuntime=1 -NovaBridgeRuntimePort=30220 -NovaBridgeRuntimeEventsPort=30222`.
 - `POST /nova/executePlan` with runtime spawn `label` + delete by that name succeeded (`success_count=2`, `error_count=0`).
 - Runtime `GET /nova/events` and `GET /nova/events?types=spawn,error` returned type-aware metadata and counters.
+
+### macOS Subscription Filter Validation Refresh
+
+- Date: 2026-02-25
+- Run root:
+  - `/tmp/novabridge-smoke-20260224-190608`
+- Build command:
+  - `"/Users/Shared/Epic Games/UE_5.6/Engine/Build/BatchFiles/Mac/Build.sh" UnrealEditor Mac Development -Project="<...>/NovaBridgeDefault.uproject" -WaitMutex -NoHotReloadFromIDE`
+
+Editor checks (port `30470`, events port `30472`):
+- WebSocket client receives subscription control handshake:
+  - `status=ready`, then `status=ok` after `{"action":"subscribe","types":["spawn"]}`.
+- `POST /nova/scene/spawn` + `POST /nova/scene/delete` run after subscription ACK.
+- Event stream filter result: only `spawn` events delivered to this client.
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260224-190608/artifacts/editor-validation-4`
+
+Runtime checks (port `30460`, events port `30462`):
+- WebSocket client subscribes to `spawn` and waits for `status=ok` before pairing/execution.
+- `POST /nova/runtime/pair` + token-gated `POST /nova/executePlan` (spawn + delete) succeeded.
+- Event stream filter result: only `spawn` events delivered to this client.
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260224-190608/artifacts/runtime-validation-5`
+
+Note:
+- If actions are issued before subscription `status=ok`, pre-subscription events may still be observed by that client.
 
 ## macOS Validation (Completed)
 

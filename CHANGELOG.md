@@ -21,6 +21,7 @@
 - Added runtime token-gated events discovery endpoint: `GET /nova/events` with runtime event WebSocket stream.
 - Expanded `/nova/events` metadata with `supported_types`, `pending_by_type`, `filtered_pending_events`, and optional `types` query filter.
 - Added typed event emission for editor/runtime event streams (`audit`, `spawn`, `delete`, `plan_step`, `plan_complete`, `error`).
+- Added per-client event WebSocket subscription control messages (`subscribe`/`clear`) with ACKs and `clients_with_filters` metadata.
 - Runtime `executePlan` `spawn` now supports optional `label` as requested actor/object name.
 - Enforced localhost-only runtime request policy (`Host` must be loopback).
 - Added runtime `executePlan` per-minute rate limiting and pairing-code rotation on successful pair.

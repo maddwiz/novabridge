@@ -68,6 +68,8 @@ private:
 	{
 		INetworkingWebSocket* Socket = nullptr;
 		FGuid Id;
+		bool bEventTypeFilterEnabled = false;
+		TSet<FString> EventTypes;
 	};
 	TUniquePtr<IWebSocketServer> EventWsServer;
 	TArray<FWsClient> EventWsClients;

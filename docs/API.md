@@ -39,9 +39,9 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
 - `GET /events`
   - Query: `types` (optional comma-separated type filter for metadata counters)
   - Returns event socket metadata:
-    - `ws_url`, `ws_port`, `clients`
+    - `ws_url`, `ws_port`, `clients`, `clients_with_filters`
     - `pending_events`, `filtered_pending_events`
-    - `supported_types`, `pending_by_type`
+    - `supported_types`, `pending_by_type`, `subscription_action`
   - Event stream types:
     - `audit`
     - `spawn`
@@ -49,6 +49,12 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
     - `plan_step`
     - `plan_complete`
     - `error`
+  - WebSocket subscription control:
+    - On connect, server sends `{"type":"subscription","status":"ready",...}`
+    - Client can narrow stream by sending `{"action":"subscribe","types":["spawn","error"]}`
+    - Server replies `{"type":"subscription","status":"ok","filter_enabled":true,...}`
+    - `{"action":"clear"}` / `{"action":"all"}` clears filter for that client
+    - For strict filtering, wait for `status=ok` before issuing event-producing actions
 - `GET /audit`
   - Query: `limit` (1-500, default 50)
 - `POST /executePlan`
@@ -75,7 +81,7 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
 - `GET /events`
   - token-gated runtime event socket discovery
   - Query: `types` (optional comma-separated type filter for metadata counters)
-  - returns `ws_url`, `ws_port`, `clients`, `pending_events`, `filtered_pending_events`, `supported_types`, `pending_by_type`
+  - returns `ws_url`, `ws_port`, `clients`, `clients_with_filters`, `pending_events`, `filtered_pending_events`, `supported_types`, `pending_by_type`, `subscription_action`
 - `GET /audit`
   - token-gated in-memory runtime audit trail
   - Query: `limit` (1-500, default 50)

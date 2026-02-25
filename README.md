@@ -102,12 +102,14 @@ curl -sS -X POST http://127.0.0.1:30010/nova/scene/spawn \
 
 - `GET /nova/caps` for capability + policy discovery.
 - `GET /nova/events` for event channel discovery (`ws://localhost:30012` by default) with type-aware metadata (`supported_types`, `pending_by_type`) and optional `types` filter query.
+- Event WebSocket now supports per-client subscription control (`{"action":"subscribe","types":[...]}`) with server ACKs and filter metrics (`clients_with_filters`).
 - `POST /nova/executePlan` for schema-driven multi-step execution (`spawn`, `delete`, `set`, `screenshot`).
 - `POST /nova/undo` for reversible operations (currently tracked spawn actions).
 - `GET /nova/audit` for structured in-memory execution/audit trail.
 - Runtime now also exposes token-gated `GET /nova/audit`.
 - Runtime also exposes token-gated `GET /nova/events` for event socket discovery (`ws://localhost:30022` by default).
 - Event stream now emits typed payloads (`audit`, `spawn`, `delete`, `plan_step`, `plan_complete`, `error`) for both editor and runtime modules.
+- For strict event filtering, subscribe on the socket and wait for `{"type":"subscription","status":"ok"}` before issuing actions that produce events.
 - Spawn guardrails for non-admin roles:
   - class allow list
   - transform bounds
