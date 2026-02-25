@@ -1,6 +1,6 @@
 # macOS Validation Checklist
 
-> Active release track is `v1.0.1`.  
+> Active release track is `v1.0.2`.  
 > Historical evidence blocks below include older `v0.9.0` outputs from archived baseline runs.
 
 Run on a real Mac before claiming production macOS support.

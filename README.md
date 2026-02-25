@@ -1,6 +1,6 @@
 # NovaBridge
 
-> **v1.0.1 - Now Ship-Ready**
+> **v1.0.2 - Now Ship-Ready**
 >
 > NovaBridge is a schema-driven, capability-based, permissioned UE5 control layer with Editor + Runtime support, public test surface, CI checks, Docker tooling, and Python/MCP integrations.
 
@@ -18,7 +18,7 @@ AI Agent
 
 ## Launch Status
 
-- Version: `v1.0.1`
+- Version: `v1.0.2`
 - Editor mode: production-ready
 - Runtime mode: production-ready (token-gated + localhost-only)
 - WebSocket events: available in editor + runtime modes
@@ -197,13 +197,13 @@ Cross-platform validation handoffs:
 Create release bundle + wheel:
 
 ```bash
-./scripts/package_release.sh 1.0.1
+./scripts/package_release.sh 1.0.2
 ```
 
 Build Docker image during packaging:
 
 ```bash
-NOVABRIDGE_BUILD_DOCKER=1 NOVABRIDGE_DOCKER_IMAGE=ghcr.io/maddwiz/novabridge ./scripts/package_release.sh 1.0.1
+NOVABRIDGE_BUILD_DOCKER=1 NOVABRIDGE_DOCKER_IMAGE=ghcr.io/maddwiz/novabridge ./scripts/package_release.sh 1.0.2
 ```
 
 ## Experimental Sidecars

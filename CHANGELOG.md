@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.0.2 - 2026-02-25
+
+- Added one-click launch UX:
+  - `NovaBridge-OneClick.command` (macOS/Linux)
+  - `NovaBridge-OneClick.bat` (Windows)
+  - `scripts/one_click.sh`
+  - `scripts/one_click_win.ps1`
+  - `novabridge.env.example`
+- Added one-click setup docs and launch wiring:
+  - `docs/ONE_CLICK_SETUP.md`
+  - `README.md`, `INSTALL.md`, and `QUICK_START.md`
+- Bumped plugin/package metadata to `v1.0.2` (`.uplugin`, core version constant, package defaults, release workflow defaults, and docs).
+- No API contract changes from `v1.0.1`; this is a launch UX and packaging patch release.
+
 ## v1.0.1 - 2026-02-25
 
 - Bumped plugin/package version metadata to `v1.0.1` (`.uplugin`, core version constant, packaging defaults, and launch docs).

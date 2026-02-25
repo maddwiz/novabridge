@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 101,
-	"VersionName": "1.0.1",
+	"Version": 102,
+	"VersionName": "1.0.2",
 	"FriendlyName": "NovaBridge - AI Scene Control",
 	"Description": "Give AI agents full programmatic control over UE5 via HTTP API. Scene manipulation, asset import, material editing, viewport capture, and blueprint tooling.",
 	"Category": "Editor",

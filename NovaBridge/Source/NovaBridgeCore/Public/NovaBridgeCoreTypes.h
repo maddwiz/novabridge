@@ -4,7 +4,7 @@
 
 namespace NovaBridgeCore
 {
-static const TCHAR* PluginVersion = TEXT("1.0.1");
+static const TCHAR* PluginVersion = TEXT("1.0.2");
 static const int32 EditorDefaultHttpPort = 30010;
 static const int32 RuntimeDefaultHttpPort = 30020;
 

@@ -1,4 +1,4 @@
-# NovaBridge Quick Start (v1.0.1)
+# NovaBridge Quick Start (v1.0.2)
 
 ## 1) Setup
 
@@ -55,7 +55,7 @@ curl -X POST http://127.0.0.1:30020/nova/runtime/pair -H "Content-Type: applicat
 ## 6) Package Release Bundle
 
 ```bash
-./scripts/package_release.sh 1.0.1
+./scripts/package_release.sh 1.0.2
 ```
 
 ## 7) Docker Harness
