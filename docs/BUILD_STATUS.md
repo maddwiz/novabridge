@@ -167,6 +167,34 @@ Editor checks (port `30730`, events port `30732`):
 - Artifact root:
   - `/tmp/novabridge-smoke-20260224-195531/artifacts/caps-role-filter-2`
 
+### macOS Caps Permission Snapshot Validation
+
+- Date: 2026-02-25
+- Run root:
+  - `/tmp/novabridge-smoke-20260224-195531`
+
+Editor checks (port `30910`, events port `30912`):
+- `GET /nova/caps` (admin) includes `permissions` object with:
+  - role/mode
+  - spawn limits + bounds + class allow-list
+  - execute-plan allowed actions + max steps + route rate limits
+- `GET /nova/caps` with `X-NovaBridge-Role: read_only` includes:
+  - `permissions.executePlan.allowed=false`
+  - `permissions.executePlan.allowed_actions=["screenshot"]`
+  - `permissions.spawn.allowed=false`
+  - zeroed write-route limits in snapshot (`executePlan=0`, `scene_spawn=0`, `scene_delete=0`)
+
+Runtime checks (port `30920`, events port `30922`):
+- Runtime pairing + token auth succeeded (`POST /nova/runtime/pair`).
+- Token-gated `GET /nova/caps` includes `permissions` object with:
+  - `localhost_only=true`
+  - `pairing_required=true`
+  - `token_required=true`
+  - runtime spawn/execute limits and allowed actions
+
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260224-195531/artifacts/caps-permissions-1`
+
 ### macOS Runtime Command-Dispatch Refactor Validation
 
 - Date: 2026-02-25

@@ -2014,6 +2014,68 @@ static TSharedPtr<FJsonObject> BuildSpawnBoundsJson()
 	return SpawnBounds;
 }
 
+static TSharedPtr<FJsonObject> BuildEditorPermissionsSnapshot(const FString& Role)
+{
+	TSharedPtr<FJsonObject> Permissions = MakeShared<FJsonObject>();
+	Permissions->SetStringField(TEXT("mode"), TEXT("editor"));
+	Permissions->SetStringField(TEXT("role"), Role);
+
+	const bool bSpawnRouteAllowed = IsRouteAllowedForRole(Role, TEXT("/nova/scene/spawn"), EHttpServerRequestVerbs::VERB_POST);
+	const bool bExecutePlanRouteAllowed = IsRouteAllowedForRole(Role, TEXT("/nova/executePlan"), EHttpServerRequestVerbs::VERB_POST);
+	const bool bUndoRouteAllowed = IsRouteAllowedForRole(Role, TEXT("/nova/undo"), EHttpServerRequestVerbs::VERB_POST);
+	const bool bEventsRouteAllowed = IsRouteAllowedForRole(Role, TEXT("/nova/events"), EHttpServerRequestVerbs::VERB_GET);
+	const bool bSceneDeleteRouteAllowed = IsRouteAllowedForRole(Role, TEXT("/nova/scene/delete"), EHttpServerRequestVerbs::VERB_POST);
+
+	TArray<TSharedPtr<FJsonValue>> AllowedClassValues;
+	for (const FString& AllowedClass : NovaBridgeSpawnClassAllowList())
+	{
+		AllowedClassValues.Add(MakeShared<FJsonValueString>(AllowedClass));
+	}
+
+	TSharedPtr<FJsonObject> SpawnPolicy = MakeShared<FJsonObject>();
+	SpawnPolicy->SetBoolField(TEXT("allowed"), IsPlanActionAllowedForRole(Role, TEXT("spawn")) && bSpawnRouteAllowed);
+	SpawnPolicy->SetBoolField(TEXT("classes_unrestricted"), Role == TEXT("admin"));
+	SpawnPolicy->SetArrayField(TEXT("allowedClasses"), AllowedClassValues);
+	SpawnPolicy->SetObjectField(TEXT("bounds"), BuildSpawnBoundsJson());
+	SpawnPolicy->SetNumberField(TEXT("max_spawn_per_plan"), GetPlanSpawnLimit(Role));
+	SpawnPolicy->SetNumberField(TEXT("max_requests_per_minute"), bSpawnRouteAllowed ? GetRouteRateLimitPerMinute(Role, TEXT("/nova/scene/spawn")) : 0);
+	Permissions->SetObjectField(TEXT("spawn"), SpawnPolicy);
+
+	TArray<FString> AllowedPlanActions;
+	for (const FString& Action : NovaBridgeCore::GetSupportedPlanActionsRef(NovaBridgeCore::ENovaBridgePlanMode::Editor))
+	{
+		if (IsPlanActionAllowedForRole(Role, Action))
+		{
+			AllowedPlanActions.Add(Action);
+		}
+	}
+
+	TSharedPtr<FJsonObject> ExecutePlanPolicy = MakeShared<FJsonObject>();
+	ExecutePlanPolicy->SetBoolField(TEXT("allowed"), bExecutePlanRouteAllowed);
+	ExecutePlanPolicy->SetArrayField(TEXT("allowed_actions"), MakeJsonStringArray(AllowedPlanActions));
+	ExecutePlanPolicy->SetNumberField(TEXT("max_steps"), NovaBridgeEditorMaxPlanSteps);
+	ExecutePlanPolicy->SetNumberField(TEXT("max_requests_per_minute"), bExecutePlanRouteAllowed ? GetRouteRateLimitPerMinute(Role, TEXT("/nova/executePlan")) : 0);
+	Permissions->SetObjectField(TEXT("executePlan"), ExecutePlanPolicy);
+
+	TSharedPtr<FJsonObject> UndoPolicy = MakeShared<FJsonObject>();
+	UndoPolicy->SetBoolField(TEXT("allowed"), bUndoRouteAllowed);
+	UndoPolicy->SetStringField(TEXT("supported"), TEXT("spawn"));
+	Permissions->SetObjectField(TEXT("undo"), UndoPolicy);
+
+	TSharedPtr<FJsonObject> EventsPolicy = MakeShared<FJsonObject>();
+	EventsPolicy->SetBoolField(TEXT("allowed"), bEventsRouteAllowed);
+	EventsPolicy->SetBoolField(TEXT("subscription_ack_required"), true);
+	Permissions->SetObjectField(TEXT("events"), EventsPolicy);
+
+	TSharedPtr<FJsonObject> RateLimits = MakeShared<FJsonObject>();
+	RateLimits->SetNumberField(TEXT("executePlan"), bExecutePlanRouteAllowed ? GetRouteRateLimitPerMinute(Role, TEXT("/nova/executePlan")) : 0);
+	RateLimits->SetNumberField(TEXT("scene_spawn"), bSpawnRouteAllowed ? GetRouteRateLimitPerMinute(Role, TEXT("/nova/scene/spawn")) : 0);
+	RateLimits->SetNumberField(TEXT("scene_delete"), bSceneDeleteRouteAllowed ? GetRouteRateLimitPerMinute(Role, TEXT("/nova/scene/delete")) : 0);
+	Permissions->SetObjectField(TEXT("route_rate_limits_per_minute"), RateLimits);
+
+	return Permissions;
+}
+
 static void RegisterEditorCapabilities(uint32 InEventWsPort)
 {
 	using namespace NovaBridgeCore;
@@ -2076,6 +2138,7 @@ bool FNovaBridgeModule::HandleCapabilities(const FHttpServerRequest& Request, co
 	Result->SetStringField(TEXT("version"), NovaBridgeVersion);
 	Result->SetStringField(TEXT("default_role"), NovaBridgeDefaultRole);
 	Result->SetStringField(TEXT("role"), Role);
+	Result->SetObjectField(TEXT("permissions"), BuildEditorPermissionsSnapshot(Role));
 
 	TArray<TSharedPtr<FJsonValue>> Capabilities;
 	TArray<NovaBridgeCore::FCapabilityRecord> Snapshot = NovaBridgeCore::FCapabilityRegistry::Get().Snapshot();

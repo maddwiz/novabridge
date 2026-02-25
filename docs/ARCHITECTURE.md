@@ -28,6 +28,7 @@ Optional Blender path:
 - Scene screenshots use a dedicated `SceneCapture2D` actor (`NovaBridge_SceneCapture`).
 - Capability discovery is exposed via `GET /nova/caps`.
 - Editor capability discovery is role-scoped to the resolved caller role.
+- Capability discovery now includes explicit `permissions` snapshots to expose effective limits and policy for the current role/mode.
 - Structured multi-step execution is exposed via `POST /nova/executePlan`.
 - `executePlan` schema validation and action support registry are shared in `NovaBridgeCore`.
 - Editor `executePlan` step parsing reuses shared core extraction (`NovaBridgePlanDispatch::ExtractPlanStep`).

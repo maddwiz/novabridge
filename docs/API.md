@@ -37,6 +37,10 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
 - `GET /project/info`
 - `GET /caps`
   - In editor mode, capability list is filtered by resolved role (`X-NovaBridge-Role` or default role).
+  - Includes `permissions` snapshot for the resolved role with:
+    - spawn policy (`allowedClasses`, `classes_unrestricted`, `bounds`, max spawn and spawn-rate limits)
+    - execute-plan policy (`allowed_actions`, `max_steps`, request rate limit)
+    - undo/events flags and route-level per-minute limits
 - `GET /events`
   - Query: `types` (optional comma-separated type filter for metadata counters)
   - Returns event socket metadata:
@@ -81,6 +85,7 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
   - runtime mode requires token auth
 - `GET /caps`
   - runtime-safe capability subset
+  - includes `permissions` snapshot with runtime guardrails (`localhost_only`, token/pairing requirement, spawn/execute limits)
 - `GET /events`
   - token-gated runtime event socket discovery
   - Query: `types` (optional comma-separated type filter for metadata counters)

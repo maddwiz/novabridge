@@ -102,6 +102,7 @@ curl -sS -X POST http://127.0.0.1:30010/nova/scene/spawn \
 
 - `GET /nova/caps` for capability + policy discovery.
 - `GET /nova/caps` is role-aware in editor mode (`X-NovaBridge-Role`) and only returns capabilities permitted for that role.
+- `GET /nova/caps` now also returns an explicit `permissions` snapshot (role/mode limits, allowed actions, spawn bounds/classes, and route rate limits).
 - `GET /nova/events` for event channel discovery (`ws://localhost:30012` by default) with type-aware metadata (`supported_types`, `pending_by_type`) and optional `types` filter query.
 - Event WebSocket now supports per-client subscription control (`{"action":"subscribe","types":[...]}`) with server ACKs and filter metrics (`clients_with_filters`).
 - Event sockets now hold back action/audit traffic until a subscription ACK is received (fixes pre-subscription event leakage).
@@ -136,6 +137,7 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 - Shared plan action/schema registry now lives in `NovaBridgeCore` and is enforced by both Editor and Runtime `executePlan`.
 - Runtime `executePlan` step parsing and action dispatch now route through a shared core command-dispatch layer (`NovaBridgeCore`).
 - Editor `executePlan` step parsing now routes through the shared core step extractor (`NovaBridgeCore::ExtractPlanStep`).
+- `GET /nova/caps` now returns explicit `permissions` snapshots for editor/runtime policy introspection.
 - Resolved deferred event-stream bug: WebSocket clients no longer receive pre-subscription events before `status=ok`.
 
 ## Blender Extension Configuration

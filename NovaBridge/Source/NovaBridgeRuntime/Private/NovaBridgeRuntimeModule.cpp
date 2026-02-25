@@ -285,6 +285,68 @@ static bool IsLoopbackHost(const FString& HostHeader)
 
 static const TArray<FString>& RuntimeAllowedClasses();
 
+static TSharedPtr<FJsonObject> BuildRuntimeSpawnBoundsJson()
+{
+	const FVector& MinSpawnBounds = NovaBridgeCore::MinSpawnBounds();
+	const FVector& MaxSpawnBounds = NovaBridgeCore::MaxSpawnBounds();
+
+	TSharedPtr<FJsonObject> SpawnBounds = MakeShared<FJsonObject>();
+	TSharedPtr<FJsonObject> MinBounds = MakeShared<FJsonObject>();
+	MinBounds->SetNumberField(TEXT("x"), MinSpawnBounds.X);
+	MinBounds->SetNumberField(TEXT("y"), MinSpawnBounds.Y);
+	MinBounds->SetNumberField(TEXT("z"), MinSpawnBounds.Z);
+	TSharedPtr<FJsonObject> MaxBounds = MakeShared<FJsonObject>();
+	MaxBounds->SetNumberField(TEXT("x"), MaxSpawnBounds.X);
+	MaxBounds->SetNumberField(TEXT("y"), MaxSpawnBounds.Y);
+	MaxBounds->SetNumberField(TEXT("z"), MaxSpawnBounds.Z);
+	SpawnBounds->SetObjectField(TEXT("min"), MinBounds);
+	SpawnBounds->SetObjectField(TEXT("max"), MaxBounds);
+	return SpawnBounds;
+}
+
+static TSharedPtr<FJsonObject> BuildRuntimePermissionsSnapshot(const int32 MaxSpawnPerPlan, const int32 MaxPlanSteps, const int32 MaxExecutePlanPerMinute)
+{
+	TSharedPtr<FJsonObject> Permissions = MakeShared<FJsonObject>();
+	Permissions->SetStringField(TEXT("mode"), TEXT("runtime"));
+	Permissions->SetBoolField(TEXT("localhost_only"), true);
+	Permissions->SetBoolField(TEXT("pairing_required"), true);
+	Permissions->SetBoolField(TEXT("token_required"), true);
+
+	TArray<TSharedPtr<FJsonValue>> AllowedClassValues;
+	for (const FString& AllowedClass : RuntimeAllowedClasses())
+	{
+		AllowedClassValues.Add(MakeShared<FJsonValueString>(AllowedClass));
+	}
+
+	TSharedPtr<FJsonObject> SpawnPolicy = MakeShared<FJsonObject>();
+	SpawnPolicy->SetBoolField(TEXT("allowed"), true);
+	SpawnPolicy->SetArrayField(TEXT("allowedClasses"), AllowedClassValues);
+	SpawnPolicy->SetObjectField(TEXT("bounds"), BuildRuntimeSpawnBoundsJson());
+	SpawnPolicy->SetNumberField(TEXT("max_spawn_per_plan"), MaxSpawnPerPlan);
+	Permissions->SetObjectField(TEXT("spawn"), SpawnPolicy);
+
+	TSharedPtr<FJsonObject> ExecutePlanPolicy = MakeShared<FJsonObject>();
+	ExecutePlanPolicy->SetBoolField(TEXT("allowed"), true);
+	ExecutePlanPolicy->SetArrayField(
+		TEXT("allowed_actions"),
+		MakeJsonStringArray(NovaBridgeCore::GetSupportedPlanActionsRef(NovaBridgeCore::ENovaBridgePlanMode::Runtime)));
+	ExecutePlanPolicy->SetNumberField(TEXT("max_steps"), MaxPlanSteps);
+	ExecutePlanPolicy->SetNumberField(TEXT("max_requests_per_minute"), MaxExecutePlanPerMinute);
+	Permissions->SetObjectField(TEXT("executePlan"), ExecutePlanPolicy);
+
+	TSharedPtr<FJsonObject> UndoPolicy = MakeShared<FJsonObject>();
+	UndoPolicy->SetBoolField(TEXT("allowed"), true);
+	UndoPolicy->SetStringField(TEXT("supported"), TEXT("spawn"));
+	Permissions->SetObjectField(TEXT("undo"), UndoPolicy);
+
+	TSharedPtr<FJsonObject> EventsPolicy = MakeShared<FJsonObject>();
+	EventsPolicy->SetBoolField(TEXT("allowed"), true);
+	EventsPolicy->SetBoolField(TEXT("subscription_ack_required"), true);
+	Permissions->SetObjectField(TEXT("events"), EventsPolicy);
+
+	return Permissions;
+}
+
 static void RegisterRuntimeCapabilities(const int32 MaxSpawnPerPlan, const int32 MaxPlanSteps, const int32 MaxExecutePlanPerMinute, const uint32 InEventWsPort)
 {
 	using namespace NovaBridgeCore;
@@ -306,23 +368,9 @@ static void RegisterRuntimeCapabilities(const int32 MaxSpawnPerPlan, const int32
 		AllowedClassValues.Add(MakeShared<FJsonValueString>(AllowedClass));
 	}
 
-	const FVector& MinSpawnBounds = NovaBridgeCore::MinSpawnBounds();
-	const FVector& MaxSpawnBounds = NovaBridgeCore::MaxSpawnBounds();
-	TSharedPtr<FJsonObject> SpawnBounds = MakeShared<FJsonObject>();
-	TSharedPtr<FJsonObject> MinBounds = MakeShared<FJsonObject>();
-	MinBounds->SetNumberField(TEXT("x"), MinSpawnBounds.X);
-	MinBounds->SetNumberField(TEXT("y"), MinSpawnBounds.Y);
-	MinBounds->SetNumberField(TEXT("z"), MinSpawnBounds.Z);
-	TSharedPtr<FJsonObject> MaxBounds = MakeShared<FJsonObject>();
-	MaxBounds->SetNumberField(TEXT("x"), MaxSpawnBounds.X);
-	MaxBounds->SetNumberField(TEXT("y"), MaxSpawnBounds.Y);
-	MaxBounds->SetNumberField(TEXT("z"), MaxSpawnBounds.Z);
-	SpawnBounds->SetObjectField(TEXT("min"), MinBounds);
-	SpawnBounds->SetObjectField(TEXT("max"), MaxBounds);
-
 	TSharedPtr<FJsonObject> SpawnData = MakeShared<FJsonObject>();
 	SpawnData->SetArrayField(TEXT("allowedClasses"), AllowedClassValues);
-	SpawnData->SetObjectField(TEXT("bounds"), SpawnBounds);
+	SpawnData->SetObjectField(TEXT("bounds"), BuildRuntimeSpawnBoundsJson());
 	SpawnData->SetNumberField(TEXT("max_spawn_per_plan"), MaxSpawnPerPlan);
 	RegisterCapability(TEXT("spawn"), SpawnData);
 
@@ -1338,6 +1386,7 @@ bool FNovaBridgeRuntimeModule::HandleCapabilities(const FHttpServerRequest& Requ
 	Result->SetStringField(TEXT("status"), TEXT("ok"));
 	Result->SetStringField(TEXT("mode"), RuntimeModeName);
 	Result->SetStringField(TEXT("version"), NovaBridgeCore::PluginVersion);
+	Result->SetObjectField(TEXT("permissions"), BuildRuntimePermissionsSnapshot(MaxSpawnPerPlan, MaxPlanSteps, MaxExecutePlanPerMinute));
 	Result->SetArrayField(TEXT("capabilities"), Capabilities);
 	SendJsonResponse(OnComplete, Result);
 	return true;
