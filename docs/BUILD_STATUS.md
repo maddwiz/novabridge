@@ -1,5 +1,8 @@
 # Build Status
 
+> Current active version track: `v0.9.5-dev`.  
+> Historical validation snapshots in this file may reference `v0.9.0` from the 2026-02-18 baseline release.
+
 ## Last Updated
 
 - Date: 2026-02-25

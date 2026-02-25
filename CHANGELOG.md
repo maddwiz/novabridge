@@ -92,6 +92,7 @@
 - Updated OpenClaw Blender bridge to remove machine-specific default binary paths and prefer `NOVABRIDGE_BLENDER_PATH`/`PATH`.
 - Added explicit closed-source contribution policy (`CONTRIBUTING.md`).
 - Aligned packaging/support defaults and customer quick-start docs to `v0.9.5-dev` where `0.9.0` defaults remained.
+- Added explicit doc notes clarifying that remaining `v0.9.0` mentions are historical baseline evidence, while active track is `v0.9.5-dev`.
 - Added dedicated documentation for OpenClaw environment-based customer configuration (`extensions/openclaw/README.md`).
 - Added explicit experimental support-status notices in sidecar READMEs and centralized policy in `docs/EXPERIMENTAL_SIDECARS.md`.
 - Extended fast QA workflow to include assistant-server syntax checks.

@@ -1,5 +1,8 @@
 # macOS Validation Checklist
 
+> Active release track is `v0.9.5-dev`.  
+> Historical evidence blocks below include older `v0.9.0` outputs from archived baseline runs.
+
 Run on a real Mac before claiming production macOS support.
 
 Fast path (automated executePlan validation):
