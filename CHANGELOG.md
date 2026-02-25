@@ -52,6 +52,8 @@
 - Split scene mutation endpoints (`/nova/scene/spawn`, `/nova/scene/delete`, `/nova/scene/set-property`) into `NovaBridgeSceneHandlers.cpp` so all scene endpoints live in one translation unit.
 - Added private shared helper header `NovaBridgeEditorInternals.h` for scene/audit/policy utilities reused across extracted editor handler files.
 - Promoted `LogNovaBridge` from file-static to shared module log category (`DECLARE_LOG_CATEGORY_EXTERN` + `DEFINE_LOG_CATEGORY`) so extracted handler units keep unified logging.
+- Split control-plane handlers into `NovaBridgeControlHandlers.cpp` (`/nova/health`, `/nova/project/info`, `/nova/caps`, `/nova/events`, `/nova/audit`, `/nova/undo`) and kept `executePlan` in module for now.
+- Exposed shared internal editor helper contracts (role/policy lookups, audit/event snapshots, capability registration) through `NovaBridgeEditorInternals.h` to support multi-unit control-plane decomposition.
 - Fixed Python SDK raw screenshot path to include auth/runtime headers and shared error handling (`NovaBridge._request_bytes`).
 - Added Python SDK unit tests for request header propagation and raw screenshot auth path (`python-sdk/tests/test_novabridge_client.py`).
 - Added MCP server unit tests for wrapper error handling and spawn argument forwarding (`mcp-server/tests/test_novabridge_mcp.py`).
