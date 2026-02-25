@@ -599,7 +599,7 @@ AActor* FindActorByName(const FString& Name)
 }
 
 // Helper to serialize actor to JSON
-static TSharedPtr<FJsonObject> ActorToJson(AActor* Actor)
+TSharedPtr<FJsonObject> ActorToJson(AActor* Actor)
 {
 	TSharedPtr<FJsonObject> Obj = MakeShareable(new FJsonObject);
 	Obj->SetStringField(TEXT("name"), Actor->GetName());
@@ -2757,38 +2757,6 @@ bool FNovaBridgeModule::HandleUndo(const FHttpServerRequest& Request, const FHtt
 // Scene Handlers
 // ============================================================
 
-bool FNovaBridgeModule::HandleSceneList(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
-{
-	AsyncTask(ENamedThreads::GameThread, [this, OnComplete]()
-	{
-		if (!GEditor)
-		{
-			SendErrorResponse(OnComplete, TEXT("No editor"), 500);
-			return;
-		}
-
-		UWorld* World = GEditor->GetEditorWorldContext().World();
-		if (!World)
-		{
-			SendErrorResponse(OnComplete, TEXT("No world"), 500);
-			return;
-		}
-
-		TArray<TSharedPtr<FJsonValue>> ActorArray;
-		for (TActorIterator<AActor> It(World); It; ++It)
-		{
-			ActorArray.Add(MakeShareable(new FJsonValueObject(ActorToJson(*It))));
-		}
-
-		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
-		Result->SetArrayField(TEXT("actors"), ActorArray);
-		Result->SetNumberField(TEXT("count"), ActorArray.Num());
-		Result->SetStringField(TEXT("level"), World->GetMapName());
-		SendJsonResponse(OnComplete, Result);
-	});
-	return true;
-}
-
 bool FNovaBridgeModule::HandleSceneSpawn(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
 {
 	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
@@ -2948,135 +2916,6 @@ bool FNovaBridgeModule::HandleSceneDelete(const FHttpServerRequest& Request, con
 			QueueEventObject(DeleteEvent);
 			SendOkResponse(OnComplete);
 		});
-	return true;
-}
-
-bool FNovaBridgeModule::HandleSceneTransform(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
-{
-	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
-	if (!Body)
-	{
-		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
-		return true;
-	}
-
-	FString ActorName = Body->GetStringField(TEXT("name"));
-	TSharedPtr<FJsonObject> LocObj = Body->HasField(TEXT("location")) ? Body->GetObjectField(TEXT("location")) : nullptr;
-	TSharedPtr<FJsonObject> RotObj = Body->HasField(TEXT("rotation")) ? Body->GetObjectField(TEXT("rotation")) : nullptr;
-	TSharedPtr<FJsonObject> ScaleObj = Body->HasField(TEXT("scale")) ? Body->GetObjectField(TEXT("scale")) : nullptr;
-
-	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, ActorName, LocObj, RotObj, ScaleObj]()
-	{
-		AActor* Actor = FindActorByName(ActorName);
-		if (!Actor)
-		{
-			SendErrorResponse(OnComplete, FString::Printf(TEXT("Actor not found: %s"), *ActorName), 404);
-			return;
-		}
-
-		if (LocObj)
-		{
-			FVector Loc(LocObj->GetNumberField(TEXT("x")), LocObj->GetNumberField(TEXT("y")), LocObj->GetNumberField(TEXT("z")));
-			Actor->SetActorLocation(Loc);
-		}
-		if (RotObj)
-		{
-			FRotator Rot(RotObj->GetNumberField(TEXT("pitch")), RotObj->GetNumberField(TEXT("yaw")), RotObj->GetNumberField(TEXT("roll")));
-			Actor->SetActorRotation(Rot);
-		}
-		if (ScaleObj)
-		{
-			FVector Scale(ScaleObj->GetNumberField(TEXT("x")), ScaleObj->GetNumberField(TEXT("y")), ScaleObj->GetNumberField(TEXT("z")));
-			Actor->SetActorScale3D(Scale);
-		}
-
-		SendJsonResponse(OnComplete, ActorToJson(Actor));
-	});
-	return true;
-}
-
-bool FNovaBridgeModule::HandleSceneGet(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
-{
-	// Accept name from query params or body
-	FString ActorName;
-	if (Request.QueryParams.Contains(TEXT("name")))
-	{
-		ActorName = Request.QueryParams[TEXT("name")];
-	}
-	else
-	{
-		TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
-		if (Body) ActorName = Body->GetStringField(TEXT("name"));
-	}
-
-	if (ActorName.IsEmpty())
-	{
-		SendErrorResponse(OnComplete, TEXT("Missing 'name' parameter"));
-		return true;
-	}
-
-	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, ActorName]()
-	{
-		AActor* Actor = FindActorByName(ActorName);
-		if (!Actor)
-		{
-			SendErrorResponse(OnComplete, FString::Printf(TEXT("Actor not found: %s"), *ActorName), 404);
-			return;
-		}
-
-		TSharedPtr<FJsonObject> Result = ActorToJson(Actor);
-
-		// Add editable properties
-		TSharedPtr<FJsonObject> Props = MakeShareable(new FJsonObject);
-		for (TFieldIterator<FProperty> PropIt(Actor->GetClass()); PropIt; ++PropIt)
-		{
-			FProperty* Prop = *PropIt;
-			if (!Prop->HasAnyPropertyFlags(CPF_Edit | CPF_BlueprintVisible)) continue;
-
-			FString ValueStr;
-			void* ValuePtr = Prop->ContainerPtrToValuePtr<void>(Actor);
-			Prop->ExportTextItem_Direct(ValueStr, ValuePtr, nullptr, Actor, PPF_None);
-			Props->SetStringField(Prop->GetName(), ValueStr);
-		}
-		Result->SetObjectField(TEXT("properties"), Props);
-
-		// Add components with their key properties
-		TArray<TSharedPtr<FJsonValue>> Components;
-		for (UActorComponent* Comp : Actor->GetComponents())
-		{
-			TSharedPtr<FJsonObject> CompObj = MakeShareable(new FJsonObject);
-			CompObj->SetStringField(TEXT("name"), Comp->GetName());
-			CompObj->SetStringField(TEXT("class"), Comp->GetClass()->GetName());
-
-			// Include editable properties of each component (limited to avoid huge responses)
-			TSharedPtr<FJsonObject> CompProps = MakeShareable(new FJsonObject);
-			int32 PropCount = 0;
-			for (TFieldIterator<FProperty> PropIt(Comp->GetClass()); PropIt; ++PropIt)
-			{
-				FProperty* Prop = *PropIt;
-				if (!Prop->HasAnyPropertyFlags(CPF_Edit | CPF_BlueprintVisible)) continue;
-				if (PropCount >= 30) break; // Limit to prevent huge responses
-
-				FString ValueStr;
-				void* ValuePtr = Prop->ContainerPtrToValuePtr<void>(Comp);
-				Prop->ExportTextItem_Direct(ValueStr, ValuePtr, nullptr, Comp, PPF_None);
-				if (ValueStr.Len() < 200) // Skip very long values
-				{
-					CompProps->SetStringField(Prop->GetName(), ValueStr);
-					PropCount++;
-				}
-			}
-			CompObj->SetObjectField(TEXT("properties"), CompProps);
-
-			// Include hint about how to set properties: "ComponentName.PropertyName"
-			CompObj->SetStringField(TEXT("set_property_prefix"), Comp->GetName());
-
-			Components.Add(MakeShareable(new FJsonValueObject(CompObj)));
-		}
-		Result->SetArrayField(TEXT("components"), Components);
-
-		SendJsonResponse(OnComplete, Result);
-	});
 	return true;
 }
 
