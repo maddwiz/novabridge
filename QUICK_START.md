@@ -2,6 +2,14 @@
 
 ## 1) Setup
 
+One-click (no terminal):
+
+- macOS/Linux: double-click `NovaBridge-OneClick.command`
+- Windows: double-click `NovaBridge-OneClick.bat`
+- Optional config: copy `novabridge.env.example` -> `novabridge.env`
+
+Terminal setup:
+
 macOS/Linux:
 
 ```bash

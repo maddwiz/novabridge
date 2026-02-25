@@ -3,6 +3,8 @@
 ## v1.0.1 - 2026-02-25
 
 - Bumped plugin/package version metadata to `v1.0.1` (`.uplugin`, core version constant, packaging defaults, and launch docs).
+- Added one-click launch flow (`NovaBridge-OneClick.command`, `NovaBridge-OneClick.bat`) with shared env template (`novabridge.env.example`) and OS-specific bootstrap scripts (`scripts/one_click.sh`, `scripts/one_click_win.ps1`).
+- Added one-click setup documentation (`docs/ONE_CLICK_SETUP.md`) and install/quick-start wiring.
 - Added external validation handoff docs for:
   - Windows Codex: `docs/HANDOFF_WINDOWS_CODEX_VALIDATION.md`
   - NVIDIA Spark Codex (Linux/NVIDIA): `docs/HANDOFF_NVIDIA_SPARK_CODEX_VALIDATION.md`

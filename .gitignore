@@ -29,3 +29,6 @@ dist/
 # Python
 __pycache__/
 *.pyc
+
+# Local launcher/provider secrets
+novabridge.env

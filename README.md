@@ -43,6 +43,25 @@ These scripts:
 - print the exact launch command
 - auto-launch UnrealEditor when a local engine binary is detected
 
+## One-Click Launch (No Terminal Required)
+
+1. Copy `novabridge.env.example` to `novabridge.env` and set your provider/API settings.
+2. Double-click one of:
+   - `NovaBridge-OneClick.command` (macOS/Linux)
+   - `NovaBridge-OneClick.bat` (Windows)
+
+The one-click launcher will:
+- bootstrap plugin install + Unreal launch
+- start assistant server when Node.js is installed
+- open browser Studio at `/nova/studio`
+
+Provider support from one-click env setup:
+- OpenAI, Anthropic, Ollama (local), custom endpoint
+- NovaBridge API key forwarding
+- OpenClaw bridge host/port envs
+
+Reference: [docs/ONE_CLICK_SETUP.md](docs/ONE_CLICK_SETUP.md)
+
 ## Quick Start (Manual)
 
 1. Copy `NovaBridge/` to your UE5 project `Plugins/` directory.

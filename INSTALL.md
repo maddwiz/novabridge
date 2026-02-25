@@ -9,6 +9,15 @@
 
 ## Fastest Install
 
+One-click launchers (no terminal):
+
+- `NovaBridge-OneClick.command` (macOS/Linux)
+- `NovaBridge-OneClick.bat` (Windows)
+
+Optional: copy `novabridge.env.example` to `novabridge.env` to preconfigure provider/API settings.
+
+CLI setup scripts:
+
 macOS/Linux:
 
 ```bash
