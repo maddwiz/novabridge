@@ -50,6 +50,7 @@ Optional Blender path:
 - Runtime control server defaults to `127.0.0.1:30020` and is enabled with `-NovaBridgeRuntime=1`.
 - Runtime request handling enforces localhost host access before auth/dispatch.
 - Runtime HTTP helpers are now isolated in `NovaBridgeRuntimeHttpHelpers.cpp` (CORS + auth + request parsing/response serialization).
+- Runtime event WebSocket handlers are now isolated in `NovaBridgeRuntimeEventHandlers.cpp` (subscription protocol, queue pump, and `/nova/events` metadata endpoint).
 - Runtime pairing endpoint: `POST /nova/runtime/pair`.
 - Runtime audit trail endpoint: token-gated `GET /nova/audit`.
 - Runtime undo endpoint: token-gated `POST /nova/undo` (spawn entries currently tracked).

@@ -59,6 +59,7 @@
 - Split shared editor policy/control state into `NovaBridgeEditorPolicyState.cpp` (`default role`, route policy, rate-limit buckets, undo stack, audit trail, pending event queue) and trimmed `NovaBridgeModule.cpp` to `480` lines.
 - Split HTTP bootstrap/auth/CORS/JSON response helpers into `NovaBridgeHttpServer.cpp` and reduced `NovaBridgeModule.cpp` to lifecycle-only (`23` lines).
 - Split runtime HTTP helper/auth/CORS/JSON parsing logic into `NovaBridgeRuntimeHttpHelpers.cpp` and reduced `NovaBridgeRuntimeModule.cpp` to `1809` lines.
+- Split runtime event/WebSocket handlers into `NovaBridgeRuntimeEventHandlers.cpp` (`/nova/events`, event WS start/stop, subscription handshake, queue pump) and reduced `NovaBridgeRuntimeModule.cpp` to `1401` lines.
 - Exposed shared internal editor helper contracts (role/policy lookups, audit/event snapshots, capability registration) through `NovaBridgeEditorInternals.h` to support multi-unit control-plane decomposition.
 - Fixed Python SDK raw screenshot path to include auth/runtime headers and shared error handling (`NovaBridge._request_bytes`).
 - Added Python SDK unit tests for request header propagation and raw screenshot auth path (`python-sdk/tests/test_novabridge_client.py`).

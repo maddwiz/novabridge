@@ -7,6 +7,8 @@
 #include "HttpServerResponse.h"
 #include "Containers/Ticker.h"
 
+DECLARE_LOG_CATEGORY_EXTERN(LogNovaBridgeRuntime, Log, All);
+
 class IHttpRouter;
 class FJsonObject;
 class IWebSocketServer;

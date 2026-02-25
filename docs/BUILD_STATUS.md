@@ -46,6 +46,26 @@
     - `python3 -m unittest discover -s python-sdk/tests -p 'test_*.py'` (`Ran 2 tests ... OK`)
     - `python3 -m unittest discover -s mcp-server/tests -p 'test_*.py'` (`Ran 2 tests ... OK`)
 
+## macOS Runtime Event-Handler Split Validation
+
+- Date: 2026-02-25
+- Command:
+  - `NOVABRIDGE_BUILD=1 ./scripts/mac_executeplan_smoke.sh`
+- Source project:
+  - `/Users/desmondpottle/Documents/New project/novabridge/NovaBridgeDefault/NovaBridgeDefault.uproject`
+- Result:
+  - `Succeeded` (build + editor/runtime execute-plan smoke)
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260225-090446/artifacts/executeplan-smoke`
+- Notes:
+  - Added `NovaBridgeRuntimeEventHandlers.cpp` and moved runtime event WebSocket lifecycle, subscription parsing, queue pump, and `/nova/events` metadata handler there.
+  - Promoted runtime logging to a shared module log category (`LogNovaBridgeRuntime`) so extracted runtime units keep unified logging.
+  - `NovaBridgeRuntimeModule.cpp` line count reduced to `1401`.
+  - `run-summary.json` reported editor `success_count=2/error_count=0` and runtime `success_count=2/error_count=0`.
+  - Python test refresh passed:
+    - `python3 -m unittest discover -s python-sdk/tests -p 'test_*.py'` (`Ran 2 tests ... OK`)
+    - `python3 -m unittest discover -s mcp-server/tests -p 'test_*.py'` (`Ran 2 tests ... OK`)
+
 ## macOS Editor-Policy-State Split Validation
 
 - Date: 2026-02-25
