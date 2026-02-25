@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 90,
-	"VersionName": "0.9.0",
+	"Version": 95,
+	"VersionName": "0.9.5-dev",
 	"FriendlyName": "NovaBridge - AI Scene Control",
 	"Description": "Give AI agents full programmatic control over UE5 via HTTP API. Scene manipulation, asset import, material editing, viewport capture, and blueprint tooling.",
 	"Category": "Editor",
@@ -17,21 +17,52 @@
 	"Plugins": [
 		{
 			"Name": "EditorScriptingUtilities",
-			"Enabled": true
+			"Enabled": true,
+			"Optional": true,
+			"TargetAllowList": [
+				"Editor"
+			]
 		},
 		{
 			"Name": "WebSocketNetworking",
-			"Enabled": true
+			"Enabled": true,
+			"Optional": true
 		},
 		{
 			"Name": "MovieRenderPipeline",
-			"Enabled": true
+			"Enabled": true,
+			"Optional": true,
+			"TargetAllowList": [
+				"Editor"
+			]
 		}
 	],
 	"Modules": [
 		{
+			"Name": "NovaBridgeCore",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"LinuxArm64",
+				"Linux",
+				"Win64",
+				"Mac"
+			]
+		},
+		{
 			"Name": "NovaBridge",
 			"Type": "Editor",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"LinuxArm64",
+				"Linux",
+				"Win64",
+				"Mac"
+			]
+		},
+		{
+			"Name": "NovaBridgeRuntime",
+			"Type": "Runtime",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [
 				"LinuxArm64",

@@ -15,6 +15,7 @@ public class NovaBridge : ModuleRules
 			"HTTPServer",
 			"Json",
 			"JsonUtilities",
+			"NovaBridgeCore",
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]

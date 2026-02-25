@@ -25,12 +25,22 @@ class NovaBridge:
     port: int = 30010
     timeout: int = 60
     api_key: Optional[str] = None
+    role: Optional[str] = None
+    runtime_token: Optional[str] = None
 
     @property
     def base_url(self) -> str:
         return f"http://{self.host}:{self.port}/nova"
 
-    def _request(self, method: str, route: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _request(
+        self,
+        method: str,
+        route: str,
+        data: Optional[Dict[str, Any]] = None,
+        *,
+        role: Optional[str] = None,
+        runtime_token: Optional[str] = None,
+    ) -> Dict[str, Any]:
         body = None
         headers = {}
         if data is not None:
@@ -39,6 +49,12 @@ class NovaBridge:
             headers["Content-Length"] = str(len(body))
         if self.api_key:
             headers["X-API-Key"] = self.api_key
+        effective_role = role if role is not None else self.role
+        if effective_role:
+            headers["X-NovaBridge-Role"] = effective_role
+        effective_runtime_token = runtime_token if runtime_token is not None else self.runtime_token
+        if effective_runtime_token:
+            headers["X-NovaBridge-Token"] = effective_runtime_token
 
         req = urllib.request.Request(
             f"{self.base_url}{route}",
@@ -60,19 +76,66 @@ class NovaBridge:
         except json.JSONDecodeError as exc:
             raise NovaBridgeError(f"Invalid JSON response: {exc}") from exc
 
-    def _get(self, route: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _get(
+        self,
+        route: str,
+        params: Optional[Dict[str, Any]] = None,
+        *,
+        role: Optional[str] = None,
+        runtime_token: Optional[str] = None,
+    ) -> Dict[str, Any]:
         if params:
             route = f"{route}?{urllib.parse.urlencode(params)}"
-        return self._request("GET", route)
+        return self._request("GET", route, role=role, runtime_token=runtime_token)
 
-    def _post(self, route: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        return self._request("POST", route, data or {})
+    def _post(
+        self,
+        route: str,
+        data: Optional[Dict[str, Any]] = None,
+        *,
+        role: Optional[str] = None,
+        runtime_token: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return self._request("POST", route, data or {}, role=role, runtime_token=runtime_token)
 
     def health(self) -> Dict[str, Any]:
         return self._get("/health")
 
     def project_info(self) -> Dict[str, Any]:
         return self._get("/project/info")
+
+    def caps(self) -> Dict[str, Any]:
+        return self._get("/caps")
+
+    def events(self) -> Dict[str, Any]:
+        return self._get("/events")
+
+    def audit(self, *, limit: int = 50) -> Dict[str, Any]:
+        return self._get("/audit", {"limit": int(limit)})
+
+    def execute_plan(
+        self,
+        steps: Any,
+        *,
+        plan_id: Optional[str] = None,
+        role: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        data: Dict[str, Any] = {"steps": steps}
+        if plan_id is not None:
+            data["plan_id"] = plan_id
+        if role is not None:
+            data["role"] = role
+        return self._post("/executePlan", data, role=role)
+
+    def undo(self, *, role: Optional[str] = None) -> Dict[str, Any]:
+        return self._post("/undo", {}, role=role)
+
+    def runtime_pair(self, code: str) -> Dict[str, Any]:
+        result = self._post("/runtime/pair", {"code": code}, runtime_token="")
+        token = result.get("token")
+        if isinstance(token, str) and token:
+            self.runtime_token = token
+        return result
 
     def scene_list(self) -> Dict[str, Any]:
         return self._get("/scene/list")

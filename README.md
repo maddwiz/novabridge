@@ -4,9 +4,9 @@ HTTP API bridge giving AI agents full programmatic control over Unreal Engine 5.
 
 ## What it does
 
-NovaBridge is a UE5 Editor plugin that exposes 30 HTTP endpoints for scene manipulation, asset management, material creation, viewport control, and more. Combined with a Blender integration pipeline, AI agents can autonomously generate 3D content and build scenes in Unreal Engine.
+NovaBridge is a UE5 control plugin with an editor-first HTTP surface for scene manipulation, asset management, material creation, viewport control, and more. Combined with a Blender integration pipeline, AI agents can autonomously generate 3D content and build scenes in Unreal Engine.
 
-> Editor-only scope: NovaBridge runs inside Unreal Editor with a loaded `.uproject`. It is not intended for packaged runtime game builds.
+> Editor module is still the primary production path. An experimental runtime module now exists for packaged builds and must be explicitly enabled.
 
 ## Architecture
 
@@ -19,6 +19,15 @@ AI Agent (any LLM)
 AI Agent → Blender (Python/MB-Lab) → OBJ export → NovaBridge import → UE5
 ```
 
+Runtime path (experimental):
+
+```
+AI Agent
+  → local runtime HTTP calls (token + pairing)
+    → NovaBridgeRuntime module (port 30020 by default, disabled unless -NovaBridgeRuntime=1)
+      → packaged UE5 runtime world
+```
+
 ## Quick Start
 
 1. Copy `NovaBridge/` to your UE5 project's `Plugins/` folder
@@ -29,6 +38,25 @@ AI Agent → Blender (Python/MB-Lab) → OBJ export → NovaBridge import → UE
 Port override: change `-NovaBridgePort=30010` to any open port, then use that same port in your API calls.
 
 For headless startup without an existing project, use `NovaBridgeDefault/NovaBridgeDefault.uproject`.
+
+## Runtime Mode (Experimental)
+
+Enable runtime server in packaged/game processes only when needed:
+
+```bash
+YourGame -NovaBridgeRuntime=1 -NovaBridgeRuntimePort=30020
+```
+
+Runtime pairing flow:
+
+1. Read pairing code from runtime logs on startup.
+2. Exchange code:
+```bash
+curl -sS -X POST http://127.0.0.1:30020/nova/runtime/pair \
+  -H "Content-Type: application/json" \
+  -d '{"code":"123456"}'
+```
+3. Use returned token in `X-NovaBridge-Token` for `/nova/health`, `/nova/caps`, `/nova/executePlan`.
 
 ## macOS Smoke Snapshot
 
@@ -49,7 +77,7 @@ curl -sS -X POST http://127.0.0.1:30010/nova/scene/spawn \
 
 ## Release Status
 
-- Current release: `v0.9.0` (Early Access)
+- Current release: `v0.9.5-dev` (Early Access)
 - Validated now: Linux ARM64, macOS, Windows Win64
 - In validation: Linux x86_64
 
@@ -59,6 +87,24 @@ curl -sS -X POST http://127.0.0.1:30010/nova/scene/spawn \
 - It is designed for local Unreal Editor workflows on the same machine.
 - API key authentication is enabled automatically when `NOVABRIDGE_API_KEY` or `-NovaBridgeApiKey=<key>` is set.
 - If no API key is configured, NovaBridge allows requests and logs a startup warning.
+- Role-based policy is available via `X-NovaBridge-Role` (`admin`, `automation`, `read_only`) or `NOVABRIDGE_DEFAULT_ROLE` / `-NovaBridgeDefaultRole=`.
+- Runtime mode requires token auth via `X-NovaBridge-Token` after pairing (`POST /nova/runtime/pair`).
+- Runtime requests are localhost-only (non-loopback hosts are rejected).
+
+## Platform Control Additions (v0.9.5-dev)
+
+- `GET /nova/caps` for capability + policy discovery.
+- `GET /nova/events` for event channel discovery (`ws://localhost:30012` by default).
+- `POST /nova/executePlan` for schema-driven multi-step execution (`spawn`, `delete`, `set`, `screenshot`).
+- `POST /nova/undo` for reversible operations (currently tracked spawn actions).
+- `GET /nova/audit` for structured in-memory execution/audit trail.
+- Runtime now also exposes token-gated `GET /nova/audit`.
+- Spawn guardrails for non-admin roles:
+  - class allow list
+  - transform bounds
+  - per-plan and per-minute limits
+- Capability discovery is now backed by a shared core registry (`NovaBridgeCore`) used by Editor and Runtime modules.
+- Event socket port override: `-NovaBridgeEventsPort=<port>`.
 
 ## API Endpoints
 
@@ -68,6 +114,7 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 
 - `POST /nova/asset/import` now accepts optional `scale` (default `100`) to normalize Blender meter-scale OBJ files to UE centimeters.
 - `POST /nova/scene/set-property` now includes class-name alias matching for component prefixes (for example, `PointLightComponent0.Intensity` resolves correctly).
+- Sequencer scrub fallback on UE `< 5.7` now uses a direct playback jump path to avoid recursion/stack overflow regressions.
 - MB-Lab export cleanup removes non-character scene objects/ground planes before export.
 
 ## Blender Extension Configuration
@@ -101,7 +148,7 @@ The `extensions/openclaw/nova-blender` bridge now supports environment-based con
 - macOS: [docs/SETUP_MAC.md](docs/SETUP_MAC.md)
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Build status: [docs/BUILD_STATUS.md](docs/BUILD_STATUS.md)
-- v0.9.1 bug-fix handoff: [docs/BUG_FIX_HANDOFF_v0.9.1.md](docs/BUG_FIX_HANDOFF_v0.9.1.md)
+- v0.9.1 bug-fix handoff (resolved): [docs/BUG_FIX_HANDOFF_v0.9.1.md](docs/BUG_FIX_HANDOFF_v0.9.1.md)
 - Fab launch checklist: [docs/FAB_MARKET_LAUNCH_CHECKLIST.md](docs/FAB_MARKET_LAUNCH_CHECKLIST.md)
 - Fab listing copy draft: [docs/FAB_LISTING_COPY.md](docs/FAB_LISTING_COPY.md)
 - Lemon Squeezy listing copy draft: [docs/LEMON_SQUEEZY_LISTING_COPY.md](docs/LEMON_SQUEEZY_LISTING_COPY.md)
@@ -113,10 +160,10 @@ The `extensions/openclaw/nova-blender` bridge now supports environment-based con
 Create a distribution zip:
 
 ```bash
-./scripts/package_release.sh 0.9.0
+./scripts/package_release.sh 0.9.5-dev
 ```
 
-Output is written to `dist/NovaBridge-v0.9.0.zip`.
+Output is written to `dist/NovaBridge-v0.9.5-dev.zip`.
 
 ## Platform Status
 

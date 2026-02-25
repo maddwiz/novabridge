@@ -38,6 +38,11 @@ private:
 	// Health
 	bool HandleHealth(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 	bool HandleProjectInfo(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
+	bool HandleCapabilities(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
+	bool HandleExecutePlan(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
+	bool HandleUndo(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
+	bool HandleAuditTrail(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
+	bool HandleEvents(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 
 	// Scene handlers
 	bool HandleSceneList(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
@@ -118,6 +123,9 @@ private:
 	void StartStreamTicker();
 	void StopStreamTicker();
 	void StreamTick();
+	void StartEventWebSocketServer();
+	void StopEventWebSocketServer();
+	void PumpEventSocketQueue();
 
 	// Scene capture for offscreen viewport
 	void EnsureCaptureSetup();
@@ -149,6 +157,12 @@ private:
 	double LastStreamFrameTime = 0.0;
 	FTSTicker::FDelegateHandle WsServerTickHandle;
 	FTSTicker::FDelegateHandle StreamTickHandle;
+
+	// WebSocket event state
+	TUniquePtr<IWebSocketServer> EventWsServer;
+	TArray<FWsClient> EventWsClients;
+	uint32 EventWsPort = 30012;
+	FTSTicker::FDelegateHandle EventWsServerTickHandle;
 
 	// Offscreen capture state
 	TWeakObjectPtr<ASceneCapture2D> CaptureActor;

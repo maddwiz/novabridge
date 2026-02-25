@@ -1,5 +1,10 @@
 # BUG FIX HANDOFF — NovaBridge v0.9.1
 
+## Status
+
+- Resolved in `v0.9.5-dev`.
+- Pre-5.7 fallback now uses direct `JumpToSeconds(...)` in `NovaBridgeSetPlaybackTime`.
+
 ## Priority
 
 - Priority: Low
@@ -70,4 +75,3 @@ Notes:
 ## Risk assessment
 
 Low risk. This branch only compiles on UE `< 5.7`. Current validated environments are on UE 5.7+.
-

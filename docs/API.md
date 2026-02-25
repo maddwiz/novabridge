@@ -2,6 +2,8 @@
 
 Base URL: `http://localhost:30010/nova`
 
+Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
+
 ## Conventions
 
 - All write endpoints use `POST` with JSON body.
@@ -9,18 +11,71 @@ Base URL: `http://localhost:30010/nova`
 - Error shape:
   - `{"status":"error","error":"<message>","code":<http_code>}`
 - CORS headers are included on all responses.
-- Spawn safety limit: `/scene/spawn` enforces max 100 spawns/minute.
+- Role-based policy is supported via `X-NovaBridge-Role`:
+  - `admin` (full access)
+  - `automation` (exec/build restricted)
+  - `read_only` (read routes only)
+- Default role can be configured with `NOVABRIDGE_DEFAULT_ROLE` or `-NovaBridgeDefaultRole=`.
+- Request-level and role-level per-minute rate limits are enforced.
 - Optional auth: set `NOVABRIDGE_API_KEY` (or `-NovaBridgeApiKey=<key>`) and send:
   - `X-API-Key: <key>` or
   - `Authorization: Bearer <key>`
+- Runtime mode (experimental):
+  - Enable with `-NovaBridgeRuntime=1` (or `NOVABRIDGE_RUNTIME=1`)
+  - Runtime endpoints enforce localhost host access (`127.0.0.1`, `localhost`, `::1`)
+  - Pair with `POST /runtime/pair` using startup pairing code
+  - Send runtime token using `X-NovaBridge-Token: <token>`
+  - `POST /executePlan` is rate-limited in runtime mode (default 30 requests/minute)
 
 ## Endpoints
 
 ### System
 
 - `GET /health`
-  - Includes `version` and `api_key_required`
+  - Includes `version`, `mode`, `default_role`, `api_key_required`, `stream_ws_port`, `events_ws_port`
 - `GET /project/info`
+- `GET /caps`
+- `GET /events`
+  - Returns event socket metadata (`ws_url`, `ws_port`, `clients`, `pending_events`)
+  - Event payloads are JSON with:
+    - `type` (`audit`)
+    - `timestamp_utc`
+    - `route`
+    - `action`
+    - `role`
+    - `status`
+    - `message`
+- `GET /audit`
+  - Query: `limit` (1-500, default 50)
+- `POST /executePlan`
+  - Plan schema:
+    - `plan_id` (optional)
+    - `steps[]` each with `action` and `params`
+  - Supported actions:
+    - `spawn`
+    - `delete`
+    - `set`
+    - `screenshot`
+- `POST /undo`
+  - Reversible operations currently tracked: `spawn`
+
+### Runtime (Experimental)
+
+- `POST /runtime/pair`
+  - request: `{"code":"<6-digit-pairing-code>"}`
+  - returns short-lived in-memory runtime token
+- `GET /health`
+  - runtime mode requires token auth
+- `GET /caps`
+  - runtime-safe capability subset
+- `GET /audit`
+  - token-gated in-memory runtime audit trail
+  - Query: `limit` (1-500, default 50)
+- `POST /executePlan`
+  - runtime-safe subset currently supports:
+    - `spawn`
+    - `delete`
+    - `set`
 
 ### Scene
 
@@ -121,6 +176,14 @@ curl -s http://localhost:30010/nova/health
 ```
 
 ```bash
+curl -s http://localhost:30010/nova/caps
+```
+
+```bash
+curl -s http://localhost:30010/nova/events
+```
+
+```bash
 curl -s -X POST http://localhost:30010/nova/asset/import \
   -H "Content-Type: application/json" \
   -d '{"file_path":"/tmp/model.obj","asset_name":"ModelA","destination":"/Game","scale":100}'
@@ -150,4 +213,44 @@ curl -s -X POST http://localhost:30010/nova/pcg/generate \
 curl -s -X POST http://localhost:30010/nova/sequencer/create \
   -H "Content-Type: application/json" \
   -d '{"name":"Cine01","path":"/Game","duration_seconds":8,"fps":30}'
+```
+
+```bash
+curl -s -X POST http://localhost:30010/nova/executePlan \
+  -H "Content-Type: application/json" \
+  -d '{
+    "plan_id":"demo-plan",
+    "steps":[
+      {"action":"spawn","params":{"type":"PointLight","label":"LaunchSmokeLight","transform":{"location":[0,0,260]}}},
+      {"action":"set","params":{"target":"LaunchSmokeLight","props":{"PointLightComponent.Intensity":50000}}},
+      {"action":"screenshot","params":{"width":1280,"height":720}}
+    ]
+  }'
+```
+
+```bash
+curl -s -X POST http://localhost:30010/nova/undo
+```
+
+```bash
+curl -s -X POST http://localhost:30020/nova/runtime/pair \
+  -H "Content-Type: application/json" \
+  -d '{"code":"123456"}'
+```
+
+```bash
+curl -s "http://localhost:30020/nova/audit?limit=20" \
+  -H "X-NovaBridge-Token: <token-from-pair>"
+```
+
+```bash
+curl -s -X POST http://localhost:30020/nova/executePlan \
+  -H "Content-Type: application/json" \
+  -H "X-NovaBridge-Token: <token-from-pair>" \
+  -d '{
+    "plan_id":"runtime-plan",
+    "steps":[
+      {"action":"spawn","params":{"type":"PointLight","x":0,"y":0,"z":220}}
+    ]
+  }'
 ```
