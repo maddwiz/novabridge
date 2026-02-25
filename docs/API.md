@@ -49,6 +49,7 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
     - `plan_step`
     - `plan_complete`
     - `error`
+  - `POST /executePlan` spawn/delete steps also emit typed `spawn`/`delete` events.
   - WebSocket subscription control:
     - On connect, server sends `{"type":"subscription","status":"ready",...}`
     - Client can narrow stream by sending `{"action":"subscribe","types":["spawn","error"]}`
@@ -91,6 +92,9 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
     - `delete`
     - `set`
   - Runtime `spawn` supports optional `label` (used as requested actor/object name)
+- `POST /undo`
+  - token-gated runtime undo endpoint
+  - currently supports undoing spawn entries recorded by runtime `executePlan`
 
 ### Scene
 
@@ -278,4 +282,11 @@ curl -s -X POST http://localhost:30020/nova/executePlan \
       {"action":"delete","params":{"name":"RuntimePlanLight"}}
     ]
   }'
+```
+
+```bash
+curl -s -X POST http://localhost:30020/nova/undo \
+  -H "Content-Type: application/json" \
+  -H "X-NovaBridge-Token: <token-from-pair>" \
+  -d '{}'
 ```

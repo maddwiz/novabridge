@@ -332,6 +332,10 @@ static void RegisterRuntimeCapabilities(const int32 MaxSpawnPerPlan, const int32
 	ExecutePlanData->SetNumberField(TEXT("max_requests_per_minute"), MaxExecutePlanPerMinute);
 	RegisterCapability(TEXT("executePlan"), ExecutePlanData);
 
+	TSharedPtr<FJsonObject> UndoData = MakeShared<FJsonObject>();
+	UndoData->SetStringField(TEXT("supported"), TEXT("spawn"));
+	RegisterCapability(TEXT("undo"), UndoData);
+
 	TSharedPtr<FJsonObject> AuditData = MakeShared<FJsonObject>();
 	AuditData->SetStringField(TEXT("endpoint"), TEXT("/nova/audit"));
 	RegisterCapability(TEXT("audit"), AuditData);
@@ -704,6 +708,10 @@ void FNovaBridgeRuntimeModule::StartHttpServer()
 		RuntimePendingEventPayloads.Empty();
 		RuntimePendingEventTypes.Empty();
 	}
+	{
+		FScopeLock UndoLock(&RuntimeUndoMutex);
+		RuntimeUndoStack.Empty();
+	}
 
 	int32 ParsedPort = 0;
 	if (FParse::Value(FCommandLine::Get(), TEXT("NovaBridgeRuntimePort="), ParsedPort))
@@ -825,6 +833,7 @@ void FNovaBridgeRuntimeModule::StartHttpServer()
 	Bind(TEXT("/nova/events"), EHttpServerRequestVerbs::VERB_GET, true, &FNovaBridgeRuntimeModule::HandleEvents);
 	Bind(TEXT("/nova/audit"), EHttpServerRequestVerbs::VERB_GET, true, &FNovaBridgeRuntimeModule::HandleAuditTrail);
 	Bind(TEXT("/nova/executePlan"), EHttpServerRequestVerbs::VERB_POST, true, &FNovaBridgeRuntimeModule::HandleExecutePlan);
+	Bind(TEXT("/nova/undo"), EHttpServerRequestVerbs::VERB_POST, true, &FNovaBridgeRuntimeModule::HandleUndo);
 
 	FHttpServerModule::Get().StartAllListeners();
 	bServerStarted = true;
@@ -1204,6 +1213,35 @@ void FNovaBridgeRuntimeModule::PushAuditEntry(const FString& Route, const FStrin
 	EventObj->SetStringField(TEXT("status"), Entry.Status);
 	EventObj->SetStringField(TEXT("message"), Entry.Message);
 	QueueRuntimeEvent(EventObj);
+}
+
+void FNovaBridgeRuntimeModule::PushRuntimeUndoEntry(const FString& Action, const FString& ActorName, const FString& ActorLabel)
+{
+	FRuntimeUndoEntry Entry;
+	Entry.TimestampUtc = FDateTime::UtcNow().ToIso8601();
+	Entry.Action = Action;
+	Entry.ActorName = ActorName;
+	Entry.ActorLabel = ActorLabel;
+
+	FScopeLock Lock(&RuntimeUndoMutex);
+	RuntimeUndoStack.Add(Entry);
+	if (RuntimeUndoStack.Num() > RuntimeUndoLimit)
+	{
+		RuntimeUndoStack.RemoveAt(0, RuntimeUndoStack.Num() - RuntimeUndoLimit, EAllowShrinking::No);
+	}
+}
+
+bool FNovaBridgeRuntimeModule::PopRuntimeUndoEntry(FRuntimeUndoEntry& OutEntry)
+{
+	FScopeLock Lock(&RuntimeUndoMutex);
+	if (RuntimeUndoStack.Num() == 0)
+	{
+		return false;
+	}
+
+	OutEntry = RuntimeUndoStack.Last();
+	RuntimeUndoStack.Pop(EAllowShrinking::No);
+	return true;
 }
 
 bool FNovaBridgeRuntimeModule::IsAuthorizedRuntimeToken(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) const
@@ -1656,6 +1694,7 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 						SpawnEvent->SetStringField(TEXT("requested_name"), RequestedName);
 					}
 					QueueRuntimeEvent(SpawnEvent);
+					PushRuntimeUndoEntry(TEXT("spawn"), NewActor->GetName(), NewActor->GetActorLabel());
 					SpawnCount++;
 					SuccessCount++;
 					continue;
@@ -1885,6 +1924,76 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 			SendJsonResponse(OnComplete, Result);
 			PushAuditEntry(TEXT("/nova/executePlan"), TEXT("executePlan.complete"), TEXT("success"),
 				FString::Printf(TEXT("Plan %s complete: %d success, %d error"), *PlanId, SuccessCount, ErrorCount));
+	});
+
+	return true;
+}
+
+bool FNovaBridgeRuntimeModule::HandleUndo(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	(void)Request;
+
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete]()
+	{
+		FRuntimeUndoEntry Entry;
+		if (!PopRuntimeUndoEntry(Entry))
+		{
+			PushAuditEntry(TEXT("/nova/undo"), TEXT("undo"), TEXT("error"), TEXT("Runtime undo stack is empty"));
+			SendErrorResponse(OnComplete, TEXT("Undo stack is empty"), 404);
+			return;
+		}
+
+		if (!Entry.Action.Equals(TEXT("spawn"), ESearchCase::IgnoreCase))
+		{
+			PushAuditEntry(TEXT("/nova/undo"), TEXT("undo"), TEXT("error"), TEXT("Unsupported undo action type"));
+			SendErrorResponse(OnComplete, FString::Printf(TEXT("Unsupported undo action: %s"), *Entry.Action), 400);
+			return;
+		}
+
+		UWorld* World = ResolveRuntimeWorld();
+		if (!World)
+		{
+			PushAuditEntry(TEXT("/nova/undo"), TEXT("undo"), TEXT("error"), TEXT("No runtime world is available"));
+			SendErrorResponse(OnComplete, TEXT("No runtime world is available"), 500);
+			return;
+		}
+
+		AActor* Actor = FindActorByNameRuntime(World, Entry.ActorName);
+		if (!Actor && !Entry.ActorLabel.IsEmpty())
+		{
+			Actor = FindActorByNameRuntime(World, Entry.ActorLabel);
+		}
+		if (!Actor)
+		{
+			PushAuditEntry(TEXT("/nova/undo"), TEXT("undo"), TEXT("error"),
+				FString::Printf(TEXT("Actor not found for undo: %s"), *Entry.ActorName));
+			SendErrorResponse(OnComplete, FString::Printf(TEXT("Actor not found for undo: %s"), *Entry.ActorName), 404);
+			return;
+		}
+
+		Actor->Destroy();
+
+		TSharedPtr<FJsonObject> DeleteEvent = MakeShared<FJsonObject>();
+		DeleteEvent->SetStringField(TEXT("type"), TEXT("delete"));
+		DeleteEvent->SetStringField(TEXT("mode"), RuntimeModeName);
+		DeleteEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
+		DeleteEvent->SetStringField(TEXT("route"), TEXT("/nova/undo"));
+		DeleteEvent->SetStringField(TEXT("action"), TEXT("undo"));
+		DeleteEvent->SetStringField(TEXT("status"), TEXT("success"));
+		DeleteEvent->SetStringField(TEXT("actor_name"), Entry.ActorName);
+		DeleteEvent->SetStringField(TEXT("actor_label"), Entry.ActorLabel);
+		QueueRuntimeEvent(DeleteEvent);
+
+		TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetStringField(TEXT("mode"), RuntimeModeName);
+		Result->SetStringField(TEXT("undone_action"), Entry.Action);
+		Result->SetStringField(TEXT("actor_name"), Entry.ActorName);
+		Result->SetStringField(TEXT("actor_label"), Entry.ActorLabel);
+		SendJsonResponse(OnComplete, Result);
+
+		PushAuditEntry(TEXT("/nova/undo"), TEXT("undo"), TEXT("success"),
+			FString::Printf(TEXT("Undid spawn for actor '%s'"), *Entry.ActorName));
 	});
 
 	return true;

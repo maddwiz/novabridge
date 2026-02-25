@@ -23,6 +23,8 @@
 - Added typed event emission for editor/runtime event streams (`audit`, `spawn`, `delete`, `plan_step`, `plan_complete`, `error`).
 - Added per-client event WebSocket subscription control messages (`subscribe`/`clear`) with ACKs and `clients_with_filters` metadata.
 - Runtime `executePlan` `spawn` now supports optional `label` as requested actor/object name.
+- Editor `executePlan` `spawn`/`delete` now emit typed `spawn`/`delete` events for event-socket subscribers.
+- Added runtime token-gated undo endpoint: `POST /nova/undo` (spawn undo entries from runtime `executePlan`).
 - Enforced localhost-only runtime request policy (`Host` must be loopback).
 - Added runtime `executePlan` per-minute rate limiting and pairing-code rotation on successful pair.
 - Fixed UE `< 5.7` sequencer scrub fallback to avoid recursion regressions (`NovaBridgeSetPlaybackTime` now uses explicit playback params on pre-5.7).

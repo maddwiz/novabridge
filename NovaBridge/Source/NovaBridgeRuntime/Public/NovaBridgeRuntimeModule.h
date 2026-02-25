@@ -19,6 +19,8 @@ public:
 	virtual void ShutdownModule() override;
 
 private:
+	struct FRuntimeUndoEntry;
+
 	void StartHttpServer();
 	void StopHttpServer();
 	void StartEventWebSocketServer();
@@ -35,6 +37,8 @@ private:
 	bool IsAuthorizedRuntimeToken(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) const;
 	void QueueRuntimeEvent(const TSharedPtr<FJsonObject>& EventObj);
 	void PushAuditEntry(const FString& Route, const FString& Action, const FString& Status, const FString& Message);
+	void PushRuntimeUndoEntry(const FString& Action, const FString& ActorName, const FString& ActorLabel);
+	bool PopRuntimeUndoEntry(FRuntimeUndoEntry& OutEntry);
 
 	bool HandleHealth(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 	bool HandleCapabilities(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
@@ -42,6 +46,7 @@ private:
 	bool HandleAuditTrail(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 	bool HandlePair(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 	bool HandleExecutePlan(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
+	bool HandleUndo(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 
 private:
 	TSharedPtr<IHttpRouter> HttpRouter;
@@ -91,4 +96,15 @@ private:
 	mutable FCriticalSection RuntimeAuditMutex;
 	TArray<FRuntimeAuditEntry> RuntimeAuditTrail;
 	int32 RuntimeAuditLimit = 512;
+
+	struct FRuntimeUndoEntry
+	{
+		FString TimestampUtc;
+		FString Action;
+		FString ActorName;
+		FString ActorLabel;
+	};
+	mutable FCriticalSection RuntimeUndoMutex;
+	TArray<FRuntimeUndoEntry> RuntimeUndoStack;
+	int32 RuntimeUndoLimit = 256;
 };

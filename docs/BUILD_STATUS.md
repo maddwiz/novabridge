@@ -83,6 +83,30 @@ Runtime checks (port `30460`, events port `30462`):
 Note:
 - If actions are issued before subscription `status=ok`, pre-subscription events may still be observed by that client.
 
+### macOS ExecutePlan Event + Runtime Undo Validation
+
+- Date: 2026-02-25
+- Run root:
+  - `/tmp/novabridge-smoke-20260224-190608`
+- Build command:
+  - `"/Users/Shared/Epic Games/UE_5.6/Engine/Build/BatchFiles/Mac/Build.sh" UnrealEditor Mac Development -Project="<...>/NovaBridgeDefault.uproject" -WaitMutex -NoHotReloadFromIDE`
+
+Editor checks (port `30510`, events port `30512`):
+- WebSocket client subscribed to `spawn` and waited for `status=ok`.
+- `POST /nova/executePlan` (spawn + delete) now produced typed `spawn` events for filtered subscribers.
+- Validation result: `editor_executeplan_ws_filter_validation=ok`.
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260224-190608/artifacts/editor-validation-5`
+
+Runtime checks (port `30540`, events port `30542`):
+- Pairing + token flow succeeded (`POST /nova/runtime/pair`).
+- `GET /nova/caps` includes `undo` capability.
+- `POST /nova/executePlan` (spawn) followed by token-gated `POST /nova/undo` succeeded.
+- Follow-up delete check confirms actor removal (`Actor not found` after undo).
+- Validation result: `runtime_undo_validation=ok`.
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260224-190608/artifacts/runtime-validation-7`
+
 ## macOS Validation (Completed)
 
 ### Toolchain discovery and setup

@@ -57,7 +57,7 @@ curl -sS -X POST http://127.0.0.1:30020/nova/runtime/pair \
   -H "Content-Type: application/json" \
   -d '{"code":"123456"}'
 ```
-3. Use returned token in `X-NovaBridge-Token` for `/nova/health`, `/nova/caps`, `/nova/events`, `/nova/executePlan`, `/nova/audit`.
+3. Use returned token in `X-NovaBridge-Token` for `/nova/health`, `/nova/caps`, `/nova/events`, `/nova/executePlan`, `/nova/undo`, `/nova/audit`.
 
 Runtime events WebSocket defaults to `ws://localhost:30022` and can be overridden with:
 
@@ -107,6 +107,7 @@ curl -sS -X POST http://127.0.0.1:30010/nova/scene/spawn \
 - `POST /nova/undo` for reversible operations (currently tracked spawn actions).
 - `GET /nova/audit` for structured in-memory execution/audit trail.
 - Runtime now also exposes token-gated `GET /nova/audit`.
+- Runtime now also exposes token-gated `POST /nova/undo` for spawn undo entries created by runtime `executePlan`.
 - Runtime also exposes token-gated `GET /nova/events` for event socket discovery (`ws://localhost:30022` by default).
 - Event stream now emits typed payloads (`audit`, `spawn`, `delete`, `plan_step`, `plan_complete`, `error`) for both editor and runtime modules.
 - For strict event filtering, subscribe on the socket and wait for `{"type":"subscription","status":"ok"}` before issuing actions that produce events.
@@ -128,6 +129,7 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 - Sequencer scrub fallback on UE `< 5.7` now uses explicit playback params (non-recursive) to avoid stack overflow regressions.
 - MB-Lab export cleanup removes non-character scene objects/ground planes before export.
 - Runtime `executePlan` spawn now respects optional `label` as requested actor/object name (enables follow-up delete by that name).
+- Editor `executePlan` spawn/delete now emit typed `spawn`/`delete` events for filtered WebSocket clients.
 
 ## Blender Extension Configuration
 

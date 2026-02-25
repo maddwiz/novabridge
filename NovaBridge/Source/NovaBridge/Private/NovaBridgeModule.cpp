@@ -2383,6 +2383,22 @@ bool FNovaBridgeModule::HandleExecutePlan(const FHttpServerRequest& Request, con
 				StepResult->SetStringField(TEXT("label"), NewActor->GetActorLabel());
 				StepResult->SetStringField(TEXT("class"), ClassName);
 				StepResults.Add(MakeShareable(new FJsonValueObject(StepResult)));
+
+				TSharedPtr<FJsonObject> SpawnEvent = MakeShared<FJsonObject>();
+				SpawnEvent->SetStringField(TEXT("type"), TEXT("spawn"));
+				SpawnEvent->SetStringField(TEXT("mode"), TEXT("editor"));
+				SpawnEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
+				SpawnEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
+				SpawnEvent->SetStringField(TEXT("action"), Action);
+				SpawnEvent->SetStringField(TEXT("status"), TEXT("success"));
+				SpawnEvent->SetStringField(TEXT("plan_id"), PlanId);
+				SpawnEvent->SetNumberField(TEXT("step"), StepIndex);
+				SpawnEvent->SetStringField(TEXT("object_id"), NewActor->GetName());
+				SpawnEvent->SetStringField(TEXT("actor_name"), NewActor->GetName());
+				SpawnEvent->SetStringField(TEXT("actor_label"), NewActor->GetActorLabel());
+				SpawnEvent->SetStringField(TEXT("class"), ClassName);
+				QueueEventObject(SpawnEvent);
+
 				PushAuditEntry(TEXT("/nova/executePlan"), Action, Role, TEXT("success"),
 					FString::Printf(TEXT("Spawned actor '%s'"), *NewActor->GetActorLabel()));
 				continue;
@@ -2427,6 +2443,19 @@ bool FNovaBridgeModule::HandleExecutePlan(const FHttpServerRequest& Request, con
 
 				StepResults.Add(MakeShareable(new FJsonValueObject(
 					MakePlanStepResult(StepIndex, TEXT("success"), FString::Printf(TEXT("Deleted actor %s"), *ActorName)))));
+
+				TSharedPtr<FJsonObject> DeleteEvent = MakeShared<FJsonObject>();
+				DeleteEvent->SetStringField(TEXT("type"), TEXT("delete"));
+				DeleteEvent->SetStringField(TEXT("mode"), TEXT("editor"));
+				DeleteEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
+				DeleteEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
+				DeleteEvent->SetStringField(TEXT("action"), Action);
+				DeleteEvent->SetStringField(TEXT("status"), TEXT("success"));
+				DeleteEvent->SetStringField(TEXT("plan_id"), PlanId);
+				DeleteEvent->SetNumberField(TEXT("step"), StepIndex);
+				DeleteEvent->SetStringField(TEXT("actor_name"), ActorName);
+				QueueEventObject(DeleteEvent);
+
 				PushAuditEntry(TEXT("/nova/executePlan"), Action, Role, TEXT("success"),
 					FString::Printf(TEXT("Deleted actor '%s'"), *ActorName));
 				continue;

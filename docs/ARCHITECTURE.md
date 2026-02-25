@@ -37,8 +37,10 @@ Optional Blender path:
 - Runtime request handling enforces localhost host access before auth/dispatch.
 - Runtime pairing endpoint: `POST /nova/runtime/pair`.
 - Runtime audit trail endpoint: token-gated `GET /nova/audit`.
+- Runtime undo endpoint: token-gated `POST /nova/undo` (spawn entries currently tracked).
 - Runtime events endpoint: token-gated `GET /nova/events` with WebSocket stream (`ws://localhost:30022` by default).
 - Editor and Runtime event streams emit typed events: `audit`, `spawn`, `delete`, `plan_step`, `plan_complete`, `error`.
+- Editor/runtime `executePlan` spawn/delete steps emit typed `spawn`/`delete` events in addition to plan-level events.
 
 ## Control Policy Layer
 
