@@ -49,6 +49,7 @@ Optional Blender path:
 - Event sockets support per-client subscription control (`subscribe` / `clear`) with explicit ACK messages and filter-aware client counts; delivery is paused until subscription ACK.
 - Runtime control server defaults to `127.0.0.1:30020` and is enabled with `-NovaBridgeRuntime=1`.
 - Runtime request handling enforces localhost host access before auth/dispatch.
+- Runtime HTTP helpers are now isolated in `NovaBridgeRuntimeHttpHelpers.cpp` (CORS + auth + request parsing/response serialization).
 - Runtime pairing endpoint: `POST /nova/runtime/pair`.
 - Runtime audit trail endpoint: token-gated `GET /nova/audit`.
 - Runtime undo endpoint: token-gated `POST /nova/undo` (spawn entries currently tracked).

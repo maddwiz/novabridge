@@ -160,6 +160,7 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 - Shared editor actor/property utility logic now lives in `NovaBridgeEditorUtilityHelpers.cpp` (actor lookup/serialization, class/transform parsing, generic property mutation helpers).
 - Shared editor policy/control state now lives in `NovaBridgeEditorPolicyState.cpp` (role defaulting, route permissions, rate limiting, undo/audit/event queue state).
 - HTTP server/bootstrap logic now lives in `NovaBridgeHttpServer.cpp` (route binding, auth, CORS, and JSON response helpers), while `NovaBridgeModule.cpp` is lifecycle-only.
+- Runtime HTTP helper/auth logic now lives in `NovaBridgeRuntimeHttpHelpers.cpp` (CORS, request body parsing, localhost gating, runtime token auth, JSON responses).
 - `GET /nova/optimize/stats` spotlight counting now uses `USpotLightComponent` detection (component-based, no class-name string matching).
 - Python SDK raw screenshot path now includes auth/runtime headers and shared HTTP error handling (`NovaBridge._request_bytes`).
 - Added baseline automated tests for Python integrations (`python-sdk/tests` and `mcp-server/tests`) and core execute-plan schema automation coverage (`NovaBridgePlanSchemaTests`).
