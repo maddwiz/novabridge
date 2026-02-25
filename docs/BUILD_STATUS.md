@@ -225,6 +225,22 @@ Runtime checks (port `30820`, events port `30822`):
   - Rebuild included `NovaBridgeModule.cpp` changes wiring editor `executePlan` step parsing to `NovaBridgeCore::ExtractPlanStep`.
   - Runtime and core modules also recompiled cleanly in the same pass.
 
+### macOS Editor Command-Router Refactor Validation
+
+- Date: 2026-02-25
+- Run root:
+  - `/tmp/novabridge-smoke-20260224-195531`
+
+Editor checks (port `30930`, events port `30932`):
+- `POST /nova/executePlan` with steps:
+  - `spawn` (`PointLight`, label `EditorRouterLight`)
+  - `set` (location update)
+  - `delete` (cleanup)
+- Result: `success_count=3`, `error_count=0`.
+- Confirms editor execute-plan behavior after shared core command-router integration.
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260224-195531/artifacts/editor-command-router`
+
 ### NovaBridge Studio Scaffold Validation
 
 - Date: 2026-02-25

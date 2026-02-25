@@ -2320,517 +2320,526 @@ bool FNovaBridgeModule::HandleExecutePlan(const FHttpServerRequest& Request, con
 		}
 	}
 
-		AsyncTask(ENamedThreads::GameThread, [this, OnComplete, Steps, PlanId, Role]()
-		{
-			TArray<TSharedPtr<FJsonValue>> StepResults;
-			StepResults.Reserve(Steps.Num());
-			TArray<FString> StepActions;
-			StepActions.SetNum(Steps.Num());
-			int32 SpawnedInPlan = 0;
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, Steps, PlanId, Role]()
+	{
+		TArray<TSharedPtr<FJsonValue>> StepResults;
+		StepResults.Reserve(Steps.Num());
+		TArray<FString> StepActions;
+		StepActions.SetNum(Steps.Num());
+		int32 SpawnedInPlan = 0;
 
-			for (int32 StepIndex = 0; StepIndex < Steps.Num(); ++StepIndex)
+		NovaBridgeCore::FPlanCommandRouter CommandRouter;
+		CommandRouter.Register(TEXT("spawn"), [this, Role, PlanId, &SpawnedInPlan](const NovaBridgeCore::FPlanStepContext& Step)
+		{
+			const TSharedPtr<FJsonObject> Params = Step.Params.IsValid() ? Step.Params : MakeShared<FJsonObject>();
+
+			FString ClassName;
+			if (Params->HasTypedField<EJson::String>(TEXT("class")))
 			{
-				NovaBridgeCore::FPlanStepContext StepContext;
-				TSharedPtr<FJsonObject> ParseErrorResult;
-				if (!NovaBridgeCore::ExtractPlanStep(Steps[StepIndex], StepIndex, StepContext, ParseErrorResult))
+				ClassName = Params->GetStringField(TEXT("class"));
+			}
+			else if (Params->HasTypedField<EJson::String>(TEXT("type")))
+			{
+				ClassName = Params->GetStringField(TEXT("type"));
+			}
+
+			if (ClassName.IsEmpty())
+			{
+				return NovaBridgeCore::MakePlanStepResult(
+					Step.StepIndex,
+					TEXT("error"),
+					TEXT("spawn.params.class or spawn.params.type is required"));
+			}
+
+			const int32 PlanSpawnLimit = GetPlanSpawnLimit(Role);
+			if (SpawnedInPlan >= PlanSpawnLimit)
+			{
+				return NovaBridgeCore::MakePlanStepResult(
+					Step.StepIndex,
+					TEXT("error"),
+					FString::Printf(TEXT("Plan spawn limit reached (%d) for role '%s'"), PlanSpawnLimit, *Role));
+			}
+
+			FVector SpawnLocation = FVector::ZeroVector;
+			FRotator SpawnRotation = FRotator::ZeroRotator;
+			FVector SpawnScale = FVector(1.0, 1.0, 1.0);
+			ParseSpawnTransformFromParams(Params, SpawnLocation, SpawnRotation, SpawnScale);
+			if (!IsSpawnClassAllowedForRole(Role, ClassName))
+			{
+				const FString Message = FString::Printf(TEXT("Class '%s' is not allowed for role '%s'"), *ClassName, *Role);
+				PushAuditEntry(TEXT("/nova/executePlan"), Step.Action, Role, TEXT("denied"), Message);
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), Message);
+			}
+			if (!IsSpawnLocationInBounds(SpawnLocation))
+			{
+				const FString Message = TEXT("Spawn location is outside allowed bounds");
+				PushAuditEntry(TEXT("/nova/executePlan"), Step.Action, Role, TEXT("denied"), Message);
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), Message);
+			}
+
+			const int32 SpawnRateLimit = GetRouteRateLimitPerMinute(Role, TEXT("/nova/scene/spawn"));
+			FString SpawnRateError;
+			if (!ConsumeRateLimit(Role + TEXT("|plan.spawn"), SpawnRateLimit, SpawnRateError))
+			{
+				PushAuditEntry(TEXT("/nova/executePlan"), Step.Action, Role, TEXT("rate_limited"), SpawnRateError);
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), SpawnRateError);
+			}
+
+			if (!GEditor)
+			{
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), TEXT("No editor"));
+			}
+
+			UEditorActorSubsystem* ActorSub = GEditor->GetEditorSubsystem<UEditorActorSubsystem>();
+			if (!ActorSub)
+			{
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), TEXT("No EditorActorSubsystem"));
+			}
+
+			UClass* ActorClass = ResolveActorClassByName(ClassName);
+			if (!ActorClass)
+			{
+				return NovaBridgeCore::MakePlanStepResult(
+					Step.StepIndex,
+					TEXT("error"),
+					FString::Printf(TEXT("Class not found: %s"), *ClassName));
+			}
+
+			AActor* NewActor = ActorSub->SpawnActorFromClass(TSubclassOf<AActor>(ActorClass), SpawnLocation, SpawnRotation);
+			if (!NewActor)
+			{
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), TEXT("Failed to spawn actor"));
+			}
+
+			if (!SpawnScale.Equals(FVector(1.0, 1.0, 1.0)))
+			{
+				NewActor->SetActorScale3D(SpawnScale);
+			}
+
+			FString Label = Params->HasTypedField<EJson::String>(TEXT("label")) ? Params->GetStringField(TEXT("label")) : FString();
+			if (!Label.IsEmpty())
+			{
+				NewActor->SetActorLabel(Label);
+			}
+
+			FNovaBridgeUndoEntry UndoEntry;
+			UndoEntry.Action = TEXT("spawn");
+			UndoEntry.ActorName = NewActor->GetName();
+			UndoEntry.ActorLabel = NewActor->GetActorLabel();
+			PushUndoEntry(UndoEntry);
+			SpawnedInPlan++;
+
+			TSharedPtr<FJsonObject> StepResult = NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("success"), TEXT("Spawned actor"));
+			StepResult->SetStringField(TEXT("object_id"), NewActor->GetName());
+			StepResult->SetStringField(TEXT("label"), NewActor->GetActorLabel());
+			StepResult->SetStringField(TEXT("class"), ClassName);
+
+			TSharedPtr<FJsonObject> SpawnEvent = MakeShared<FJsonObject>();
+			SpawnEvent->SetStringField(TEXT("type"), TEXT("spawn"));
+			SpawnEvent->SetStringField(TEXT("mode"), TEXT("editor"));
+			SpawnEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
+			SpawnEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
+			SpawnEvent->SetStringField(TEXT("action"), Step.Action);
+			SpawnEvent->SetStringField(TEXT("status"), TEXT("success"));
+			SpawnEvent->SetStringField(TEXT("plan_id"), PlanId);
+			SpawnEvent->SetNumberField(TEXT("step"), Step.StepIndex);
+			SpawnEvent->SetStringField(TEXT("object_id"), NewActor->GetName());
+			SpawnEvent->SetStringField(TEXT("actor_name"), NewActor->GetName());
+			SpawnEvent->SetStringField(TEXT("actor_label"), NewActor->GetActorLabel());
+			SpawnEvent->SetStringField(TEXT("class"), ClassName);
+			QueueEventObject(SpawnEvent);
+
+			PushAuditEntry(
+				TEXT("/nova/executePlan"),
+				Step.Action,
+				Role,
+				TEXT("success"),
+				FString::Printf(TEXT("Spawned actor '%s'"), *NewActor->GetActorLabel()));
+			return StepResult;
+		});
+
+		CommandRouter.Register(TEXT("delete"), [this, Role, PlanId](const NovaBridgeCore::FPlanStepContext& Step)
+		{
+			const TSharedPtr<FJsonObject> Params = Step.Params.IsValid() ? Step.Params : MakeShared<FJsonObject>();
+			FString ActorName = Params->HasTypedField<EJson::String>(TEXT("name")) ? Params->GetStringField(TEXT("name")) : FString();
+			if (ActorName.IsEmpty() && Params->HasTypedField<EJson::String>(TEXT("target")))
+			{
+				ActorName = Params->GetStringField(TEXT("target"));
+			}
+			if (ActorName.IsEmpty())
+			{
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), TEXT("delete.params.name is required"));
+			}
+
+			AActor* Actor = FindActorByName(ActorName);
+			if (!Actor)
+			{
+				return NovaBridgeCore::MakePlanStepResult(
+					Step.StepIndex,
+					TEXT("error"),
+					FString::Printf(TEXT("Actor not found: %s"), *ActorName));
+			}
+			if (Actor->GetActorLabel() == TEXT("NovaBridge_SceneCapture") || Actor->GetName().Contains(TEXT("NovaBridge_SceneCapture")))
+			{
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), TEXT("Cannot delete NovaBridge_SceneCapture"));
+			}
+
+			if (UEditorActorSubsystem* ActorSub = GEditor ? GEditor->GetEditorSubsystem<UEditorActorSubsystem>() : nullptr)
+			{
+				ActorSub->DestroyActor(Actor);
+			}
+			else
+			{
+				Actor->Destroy();
+			}
+
+			TSharedPtr<FJsonObject> StepResult = NovaBridgeCore::MakePlanStepResult(
+				Step.StepIndex,
+				TEXT("success"),
+				FString::Printf(TEXT("Deleted actor %s"), *ActorName));
+
+			TSharedPtr<FJsonObject> DeleteEvent = MakeShared<FJsonObject>();
+			DeleteEvent->SetStringField(TEXT("type"), TEXT("delete"));
+			DeleteEvent->SetStringField(TEXT("mode"), TEXT("editor"));
+			DeleteEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
+			DeleteEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
+			DeleteEvent->SetStringField(TEXT("action"), Step.Action);
+			DeleteEvent->SetStringField(TEXT("status"), TEXT("success"));
+			DeleteEvent->SetStringField(TEXT("plan_id"), PlanId);
+			DeleteEvent->SetNumberField(TEXT("step"), Step.StepIndex);
+			DeleteEvent->SetStringField(TEXT("actor_name"), ActorName);
+			QueueEventObject(DeleteEvent);
+
+			PushAuditEntry(
+				TEXT("/nova/executePlan"),
+				Step.Action,
+				Role,
+				TEXT("success"),
+				FString::Printf(TEXT("Deleted actor '%s'"), *ActorName));
+			return StepResult;
+		});
+
+		CommandRouter.Register(TEXT("set"), [this, Role](const NovaBridgeCore::FPlanStepContext& Step)
+		{
+			const TSharedPtr<FJsonObject> Params = Step.Params.IsValid() ? Step.Params : MakeShared<FJsonObject>();
+
+			FString Target = Params->HasTypedField<EJson::String>(TEXT("target")) ? Params->GetStringField(TEXT("target")) : FString();
+			if (Target.IsEmpty() && Params->HasTypedField<EJson::String>(TEXT("name")))
+			{
+				Target = Params->GetStringField(TEXT("name"));
+			}
+			if (Target.IsEmpty())
+			{
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), TEXT("set.params.target is required"));
+			}
+
+			AActor* Actor = FindActorByName(Target);
+			if (!Actor)
+			{
+				return NovaBridgeCore::MakePlanStepResult(
+					Step.StepIndex,
+					TEXT("error"),
+					FString::Printf(TEXT("Actor not found: %s"), *Target));
+			}
+
+			if (!Params->HasTypedField<EJson::Object>(TEXT("props")))
+			{
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), TEXT("set.params.props object is required"));
+			}
+
+			const TSharedPtr<FJsonObject> Props = Params->GetObjectField(TEXT("props"));
+			bool bSetAnyProperty = false;
+			bool bSetError = false;
+			FString SetErrorMessage;
+
+			for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : Props->Values)
+			{
+				const FString Key = Pair.Key;
+				const TSharedPtr<FJsonValue> PropValue = Pair.Value;
+				if (!PropValue.IsValid())
 				{
-					StepActions[StepIndex] = TEXT("unknown");
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						ParseErrorResult.IsValid()
-							? ParseErrorResult
-							: MakePlanStepResult(StepIndex, TEXT("error"), TEXT("Invalid plan step")))));
 					continue;
 				}
 
-				const FString& Action = StepContext.Action;
-				StepActions[StepIndex] = Action;
-				const TSharedPtr<FJsonObject> Params = StepContext.Params.IsValid()
-					? StepContext.Params
-					: MakeShareable(new FJsonObject);
+				if (Key.Equals(TEXT("location"), ESearchCase::IgnoreCase))
+				{
+					FVector ParsedLocation = FVector::ZeroVector;
+					if (JsonValueToVector(PropValue, ParsedLocation))
+					{
+						Actor->SetActorLocation(ParsedLocation);
+						bSetAnyProperty = true;
+						continue;
+					}
+				}
+				if (Key.Equals(TEXT("rotation"), ESearchCase::IgnoreCase))
+				{
+					FRotator ParsedRotation = FRotator::ZeroRotator;
+					if (JsonValueToRotator(PropValue, ParsedRotation))
+					{
+						Actor->SetActorRotation(ParsedRotation);
+						bSetAnyProperty = true;
+						continue;
+					}
+				}
+				if (Key.Equals(TEXT("scale"), ESearchCase::IgnoreCase))
+				{
+					FVector ParsedScale = FVector(1.0, 1.0, 1.0);
+					if (JsonValueToVector(PropValue, ParsedScale))
+					{
+						Actor->SetActorScale3D(ParsedScale);
+						bSetAnyProperty = true;
+						continue;
+					}
+				}
+
+				FString ImportText;
+				if (!JsonValueToImportText(PropValue, ImportText))
+				{
+					bSetError = true;
+					SetErrorMessage = FString::Printf(TEXT("Unsupported value type for property '%s'"), *Key);
+					break;
+				}
+
+				FString PropertyError;
+				if (!SetActorPropertyValue(Actor, Key, ImportText, PropertyError))
+				{
+					bSetError = true;
+					SetErrorMessage = PropertyError;
+					break;
+				}
+				bSetAnyProperty = true;
+			}
+
+			if (bSetError)
+			{
+				PushAuditEntry(TEXT("/nova/executePlan"), Step.Action, Role, TEXT("error"), SetErrorMessage);
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), SetErrorMessage);
+			}
+			if (!bSetAnyProperty)
+			{
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), TEXT("No valid properties were applied"));
+			}
+
+			Actor->PostEditChange();
+			PushAuditEntry(
+				TEXT("/nova/executePlan"),
+				Step.Action,
+				Role,
+				TEXT("success"),
+				FString::Printf(TEXT("Updated actor '%s'"), *Target));
+			return NovaBridgeCore::MakePlanStepResult(
+				Step.StepIndex,
+				TEXT("success"),
+				FString::Printf(TEXT("Updated actor %s"), *Target));
+		});
+
+		CommandRouter.Register(TEXT("screenshot"), [this, Role](const NovaBridgeCore::FPlanStepContext& Step)
+		{
+			const TSharedPtr<FJsonObject> Params = Step.Params.IsValid() ? Step.Params : MakeShared<FJsonObject>();
+
+			const int32 RequestedWidth = Params->HasField(TEXT("width")) ? static_cast<int32>(Params->GetNumberField(TEXT("width"))) : CaptureWidth;
+			const int32 RequestedHeight = Params->HasField(TEXT("height")) ? static_cast<int32>(Params->GetNumberField(TEXT("height"))) : CaptureHeight;
+			const bool bInlineImage = (Params->HasTypedField<EJson::Boolean>(TEXT("inline")) && Params->GetBoolField(TEXT("inline")))
+				|| (Params->HasTypedField<EJson::Boolean>(TEXT("return_base64")) && Params->GetBoolField(TEXT("return_base64")));
+
+			if (RequestedWidth > 0 && RequestedHeight > 0 && (RequestedWidth != CaptureWidth || RequestedHeight != CaptureHeight))
+			{
+				CaptureWidth = FMath::Clamp(RequestedWidth, 64, 3840);
+				CaptureHeight = FMath::Clamp(RequestedHeight, 64, 2160);
+				CleanupCapture();
+			}
+
+			EnsureCaptureSetup();
+			if (!CaptureActor.IsValid() || !RenderTarget.IsValid())
+			{
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), TEXT("Failed to initialize scene capture"));
+			}
+
+			USceneCaptureComponent2D* CaptureComp = CaptureActor->GetCaptureComponent2D();
+			CaptureActor->SetActorLocation(CameraLocation);
+			CaptureActor->SetActorRotation(CameraRotation);
+			CaptureComp->FOVAngle = CameraFOV;
+			CaptureComp->CaptureScene();
+
+			FTextureRenderTargetResource* RTResource = RenderTarget->GameThread_GetRenderTargetResource();
+			if (!RTResource)
+			{
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), TEXT("No render target resource"));
+			}
+
+			TArray<FColor> Bitmap;
+			if (!RTResource->ReadPixels(Bitmap) || Bitmap.Num() == 0)
+			{
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), TEXT("Failed to read render target pixels"));
+			}
+
+			IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
+			TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::PNG);
+			ImageWrapper->SetRaw(Bitmap.GetData(), Bitmap.Num() * sizeof(FColor), CaptureWidth, CaptureHeight, ERGBFormat::BGRA, 8);
+			TArray64<uint8> PngData = ImageWrapper->GetCompressed(0);
+			if (PngData.Num() == 0)
+			{
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), TEXT("Failed to encode PNG"));
+			}
+
+			TSharedPtr<FJsonObject> StepResult = NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("success"), TEXT("Captured screenshot"));
+			StepResult->SetNumberField(TEXT("width"), CaptureWidth);
+			StepResult->SetNumberField(TEXT("height"), CaptureHeight);
+			StepResult->SetStringField(TEXT("format"), TEXT("png"));
+			if (bInlineImage)
+			{
+				const FString Base64 = FBase64::Encode(PngData.GetData(), PngData.Num());
+				StepResult->SetStringField(TEXT("image"), Base64);
+			}
+
+			PushAuditEntry(TEXT("/nova/executePlan"), Step.Action, Role, TEXT("success"), TEXT("Captured screenshot"));
+			return StepResult;
+		});
+
+		for (int32 StepIndex = 0; StepIndex < Steps.Num(); ++StepIndex)
+		{
+			NovaBridgeCore::FPlanStepContext StepContext;
+			TSharedPtr<FJsonObject> ParseErrorResult;
+			if (!NovaBridgeCore::ExtractPlanStep(Steps[StepIndex], StepIndex, StepContext, ParseErrorResult))
+			{
+				StepActions[StepIndex] = TEXT("unknown");
+				StepResults.Add(MakeShareable(new FJsonValueObject(
+					ParseErrorResult.IsValid()
+						? ParseErrorResult
+						: NovaBridgeCore::MakePlanStepResult(StepIndex, TEXT("error"), TEXT("Invalid plan step")))));
+				continue;
+			}
+
+			const FString& Action = StepContext.Action;
+			StepActions[StepIndex] = Action;
 
 			if (!IsPlanActionAllowedForRole(Role, Action))
 			{
 				const FString Message = FString::Printf(TEXT("Role '%s' cannot execute action '%s'"), *Role, *Action);
 				StepResults.Add(MakeShareable(new FJsonValueObject(
-					MakePlanStepResult(StepIndex, TEXT("error"), Message))));
+					NovaBridgeCore::MakePlanStepResult(StepIndex, TEXT("error"), Message))));
 				PushAuditEntry(TEXT("/nova/executePlan"), Action, Role, TEXT("denied"), Message);
 				continue;
 			}
 
-			if (Action == TEXT("spawn"))
+			TSharedPtr<FJsonObject> StepResult;
+			if (!CommandRouter.HasHandler(Action))
 			{
-				FString ClassName;
-				if (Params->HasTypedField<EJson::String>(TEXT("class")))
-				{
-					ClassName = Params->GetStringField(TEXT("class"));
-				}
-				else if (Params->HasTypedField<EJson::String>(TEXT("type")))
-				{
-					ClassName = Params->GetStringField(TEXT("type"));
-				}
-
-				if (ClassName.IsEmpty())
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), TEXT("spawn.params.class or spawn.params.type is required")))));
-					continue;
-				}
-
-				const int32 PlanSpawnLimit = GetPlanSpawnLimit(Role);
-				if (SpawnedInPlan >= PlanSpawnLimit)
-				{
-					const FString Message = FString::Printf(TEXT("Plan spawn limit reached (%d) for role '%s'"), PlanSpawnLimit, *Role);
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), Message))));
-					continue;
-				}
-
-				FVector SpawnLocation;
-				FRotator SpawnRotation;
-				FVector SpawnScale;
-				ParseSpawnTransformFromParams(Params, SpawnLocation, SpawnRotation, SpawnScale);
-				if (!IsSpawnClassAllowedForRole(Role, ClassName))
-				{
-					const FString Message = FString::Printf(TEXT("Class '%s' is not allowed for role '%s'"), *ClassName, *Role);
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), Message))));
-					PushAuditEntry(TEXT("/nova/executePlan"), Action, Role, TEXT("denied"), Message);
-					continue;
-				}
-				if (!IsSpawnLocationInBounds(SpawnLocation))
-				{
-					const FString Message = TEXT("Spawn location is outside allowed bounds");
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), Message))));
-					PushAuditEntry(TEXT("/nova/executePlan"), Action, Role, TEXT("denied"), Message);
-					continue;
-				}
-
-				const int32 SpawnRateLimit = GetRouteRateLimitPerMinute(Role, TEXT("/nova/scene/spawn"));
-				FString SpawnRateError;
-				if (!ConsumeRateLimit(Role + TEXT("|plan.spawn"), SpawnRateLimit, SpawnRateError))
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), SpawnRateError))));
-					PushAuditEntry(TEXT("/nova/executePlan"), Action, Role, TEXT("rate_limited"), SpawnRateError);
-					continue;
-				}
-
-				if (!GEditor)
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), TEXT("No editor")))));
-					continue;
-				}
-
-				UEditorActorSubsystem* ActorSub = GEditor->GetEditorSubsystem<UEditorActorSubsystem>();
-				if (!ActorSub)
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), TEXT("No EditorActorSubsystem")))));
-					continue;
-				}
-
-				UClass* ActorClass = ResolveActorClassByName(ClassName);
-				if (!ActorClass)
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), FString::Printf(TEXT("Class not found: %s"), *ClassName)))));
-					continue;
-				}
-
-				AActor* NewActor = ActorSub->SpawnActorFromClass(TSubclassOf<AActor>(ActorClass), SpawnLocation, SpawnRotation);
-				if (!NewActor)
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), TEXT("Failed to spawn actor")))));
-					continue;
-				}
-
-				if (!SpawnScale.Equals(FVector(1.0, 1.0, 1.0)))
-				{
-					NewActor->SetActorScale3D(SpawnScale);
-				}
-
-				FString Label = Params->HasTypedField<EJson::String>(TEXT("label")) ? Params->GetStringField(TEXT("label")) : FString();
-				if (!Label.IsEmpty())
-				{
-					NewActor->SetActorLabel(Label);
-				}
-
-				FNovaBridgeUndoEntry UndoEntry;
-				UndoEntry.Action = TEXT("spawn");
-				UndoEntry.ActorName = NewActor->GetName();
-				UndoEntry.ActorLabel = NewActor->GetActorLabel();
-				PushUndoEntry(UndoEntry);
-				SpawnedInPlan++;
-
-				TSharedPtr<FJsonObject> StepResult = MakePlanStepResult(StepIndex, TEXT("success"), TEXT("Spawned actor"));
-				StepResult->SetStringField(TEXT("object_id"), NewActor->GetName());
-				StepResult->SetStringField(TEXT("label"), NewActor->GetActorLabel());
-				StepResult->SetStringField(TEXT("class"), ClassName);
-				StepResults.Add(MakeShareable(new FJsonValueObject(StepResult)));
-
-				TSharedPtr<FJsonObject> SpawnEvent = MakeShared<FJsonObject>();
-				SpawnEvent->SetStringField(TEXT("type"), TEXT("spawn"));
-				SpawnEvent->SetStringField(TEXT("mode"), TEXT("editor"));
-				SpawnEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
-				SpawnEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
-				SpawnEvent->SetStringField(TEXT("action"), Action);
-				SpawnEvent->SetStringField(TEXT("status"), TEXT("success"));
-				SpawnEvent->SetStringField(TEXT("plan_id"), PlanId);
-				SpawnEvent->SetNumberField(TEXT("step"), StepIndex);
-				SpawnEvent->SetStringField(TEXT("object_id"), NewActor->GetName());
-				SpawnEvent->SetStringField(TEXT("actor_name"), NewActor->GetName());
-				SpawnEvent->SetStringField(TEXT("actor_label"), NewActor->GetActorLabel());
-				SpawnEvent->SetStringField(TEXT("class"), ClassName);
-				QueueEventObject(SpawnEvent);
-
-				PushAuditEntry(TEXT("/nova/executePlan"), Action, Role, TEXT("success"),
-					FString::Printf(TEXT("Spawned actor '%s'"), *NewActor->GetActorLabel()));
-				continue;
+				StepResult = NovaBridgeCore::MakePlanStepResult(
+					StepIndex,
+					TEXT("error"),
+					FString::Printf(TEXT("Unsupported action: %s"), *Action));
+				PushAuditEntry(TEXT("/nova/executePlan"), Action, Role, TEXT("error"), TEXT("Unsupported action"));
+			}
+			else
+			{
+				StepResult = CommandRouter.Dispatch(StepContext);
 			}
 
-			if (Action == TEXT("delete"))
+			if (!StepResult.IsValid())
 			{
-				FString ActorName = Params->HasTypedField<EJson::String>(TEXT("name")) ? Params->GetStringField(TEXT("name")) : FString();
-				if (ActorName.IsEmpty() && Params->HasTypedField<EJson::String>(TEXT("target")))
-				{
-					ActorName = Params->GetStringField(TEXT("target"));
-				}
-				if (ActorName.IsEmpty())
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), TEXT("delete.params.name is required")))));
-					continue;
-				}
-
-				AActor* Actor = FindActorByName(ActorName);
-				if (!Actor)
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), FString::Printf(TEXT("Actor not found: %s"), *ActorName)))));
-					continue;
-				}
-				if (Actor->GetActorLabel() == TEXT("NovaBridge_SceneCapture") || Actor->GetName().Contains(TEXT("NovaBridge_SceneCapture")))
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), TEXT("Cannot delete NovaBridge_SceneCapture")))));
-					continue;
-				}
-
-				if (UEditorActorSubsystem* ActorSub = GEditor ? GEditor->GetEditorSubsystem<UEditorActorSubsystem>() : nullptr)
-				{
-					ActorSub->DestroyActor(Actor);
-				}
-				else
-				{
-					Actor->Destroy();
-				}
-
-				StepResults.Add(MakeShareable(new FJsonValueObject(
-					MakePlanStepResult(StepIndex, TEXT("success"), FString::Printf(TEXT("Deleted actor %s"), *ActorName)))));
-
-				TSharedPtr<FJsonObject> DeleteEvent = MakeShared<FJsonObject>();
-				DeleteEvent->SetStringField(TEXT("type"), TEXT("delete"));
-				DeleteEvent->SetStringField(TEXT("mode"), TEXT("editor"));
-				DeleteEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
-				DeleteEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
-				DeleteEvent->SetStringField(TEXT("action"), Action);
-				DeleteEvent->SetStringField(TEXT("status"), TEXT("success"));
-				DeleteEvent->SetStringField(TEXT("plan_id"), PlanId);
-				DeleteEvent->SetNumberField(TEXT("step"), StepIndex);
-				DeleteEvent->SetStringField(TEXT("actor_name"), ActorName);
-				QueueEventObject(DeleteEvent);
-
-				PushAuditEntry(TEXT("/nova/executePlan"), Action, Role, TEXT("success"),
-					FString::Printf(TEXT("Deleted actor '%s'"), *ActorName));
-				continue;
+				StepResult = NovaBridgeCore::MakePlanStepResult(StepIndex, TEXT("error"), TEXT("Step execution failed"));
 			}
-
-			if (Action == TEXT("set"))
-			{
-				FString Target = Params->HasTypedField<EJson::String>(TEXT("target")) ? Params->GetStringField(TEXT("target")) : FString();
-				if (Target.IsEmpty() && Params->HasTypedField<EJson::String>(TEXT("name")))
-				{
-					Target = Params->GetStringField(TEXT("name"));
-				}
-				if (Target.IsEmpty())
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), TEXT("set.params.target is required")))));
-					continue;
-				}
-
-				AActor* Actor = FindActorByName(Target);
-				if (!Actor)
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), FString::Printf(TEXT("Actor not found: %s"), *Target)))));
-					continue;
-				}
-
-				if (!Params->HasTypedField<EJson::Object>(TEXT("props")))
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), TEXT("set.params.props object is required")))));
-					continue;
-				}
-
-				const TSharedPtr<FJsonObject> Props = Params->GetObjectField(TEXT("props"));
-				bool bSetAnyProperty = false;
-				bool bSetError = false;
-				FString SetErrorMessage;
-
-				for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : Props->Values)
-				{
-					const FString Key = Pair.Key;
-					const TSharedPtr<FJsonValue> PropValue = Pair.Value;
-					if (!PropValue.IsValid())
-					{
-						continue;
-					}
-
-					if (Key.Equals(TEXT("location"), ESearchCase::IgnoreCase))
-					{
-						FVector ParsedLocation = FVector::ZeroVector;
-						if (JsonValueToVector(PropValue, ParsedLocation))
-						{
-							Actor->SetActorLocation(ParsedLocation);
-							bSetAnyProperty = true;
-							continue;
-						}
-					}
-					if (Key.Equals(TEXT("rotation"), ESearchCase::IgnoreCase))
-					{
-						FRotator ParsedRotation = FRotator::ZeroRotator;
-						if (JsonValueToRotator(PropValue, ParsedRotation))
-						{
-							Actor->SetActorRotation(ParsedRotation);
-							bSetAnyProperty = true;
-							continue;
-						}
-					}
-					if (Key.Equals(TEXT("scale"), ESearchCase::IgnoreCase))
-					{
-						FVector ParsedScale = FVector(1.0, 1.0, 1.0);
-						if (JsonValueToVector(PropValue, ParsedScale))
-						{
-							Actor->SetActorScale3D(ParsedScale);
-							bSetAnyProperty = true;
-							continue;
-						}
-					}
-
-					FString ImportText;
-					if (!JsonValueToImportText(PropValue, ImportText))
-					{
-						bSetError = true;
-						SetErrorMessage = FString::Printf(TEXT("Unsupported value type for property '%s'"), *Key);
-						break;
-					}
-
-					FString PropertyError;
-					if (!SetActorPropertyValue(Actor, Key, ImportText, PropertyError))
-					{
-						bSetError = true;
-						SetErrorMessage = PropertyError;
-						break;
-					}
-					bSetAnyProperty = true;
-				}
-
-				if (bSetError)
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), SetErrorMessage))));
-					PushAuditEntry(TEXT("/nova/executePlan"), Action, Role, TEXT("error"), SetErrorMessage);
-					continue;
-				}
-				if (!bSetAnyProperty)
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), TEXT("No valid properties were applied")))));
-					continue;
-				}
-
-				Actor->PostEditChange();
-				StepResults.Add(MakeShareable(new FJsonValueObject(
-					MakePlanStepResult(StepIndex, TEXT("success"), FString::Printf(TEXT("Updated actor %s"), *Target)))));
-				PushAuditEntry(TEXT("/nova/executePlan"), Action, Role, TEXT("success"),
-					FString::Printf(TEXT("Updated actor '%s'"), *Target));
-				continue;
-			}
-
-			if (Action == TEXT("screenshot"))
-			{
-				const int32 RequestedWidth = Params->HasField(TEXT("width")) ? static_cast<int32>(Params->GetNumberField(TEXT("width"))) : CaptureWidth;
-				const int32 RequestedHeight = Params->HasField(TEXT("height")) ? static_cast<int32>(Params->GetNumberField(TEXT("height"))) : CaptureHeight;
-				const bool bInlineImage = (Params->HasTypedField<EJson::Boolean>(TEXT("inline")) && Params->GetBoolField(TEXT("inline")))
-					|| (Params->HasTypedField<EJson::Boolean>(TEXT("return_base64")) && Params->GetBoolField(TEXT("return_base64")));
-
-				if (RequestedWidth > 0 && RequestedHeight > 0 && (RequestedWidth != CaptureWidth || RequestedHeight != CaptureHeight))
-				{
-					CaptureWidth = FMath::Clamp(RequestedWidth, 64, 3840);
-					CaptureHeight = FMath::Clamp(RequestedHeight, 64, 2160);
-					CleanupCapture();
-				}
-
-				EnsureCaptureSetup();
-				if (!CaptureActor.IsValid() || !RenderTarget.IsValid())
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), TEXT("Failed to initialize scene capture")))));
-					continue;
-				}
-
-				USceneCaptureComponent2D* CaptureComp = CaptureActor->GetCaptureComponent2D();
-				CaptureActor->SetActorLocation(CameraLocation);
-				CaptureActor->SetActorRotation(CameraRotation);
-				CaptureComp->FOVAngle = CameraFOV;
-				CaptureComp->CaptureScene();
-
-				FTextureRenderTargetResource* RTResource = RenderTarget->GameThread_GetRenderTargetResource();
-				if (!RTResource)
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), TEXT("No render target resource")))));
-					continue;
-				}
-
-				TArray<FColor> Bitmap;
-				if (!RTResource->ReadPixels(Bitmap) || Bitmap.Num() == 0)
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), TEXT("Failed to read render target pixels")))));
-					continue;
-				}
-
-				IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
-				TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::PNG);
-				ImageWrapper->SetRaw(Bitmap.GetData(), Bitmap.Num() * sizeof(FColor), CaptureWidth, CaptureHeight, ERGBFormat::BGRA, 8);
-				TArray64<uint8> PngData = ImageWrapper->GetCompressed(0);
-				if (PngData.Num() == 0)
-				{
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), TEXT("Failed to encode PNG")))));
-					continue;
-				}
-
-				TSharedPtr<FJsonObject> StepResult = MakePlanStepResult(StepIndex, TEXT("success"), TEXT("Captured screenshot"));
-				StepResult->SetNumberField(TEXT("width"), CaptureWidth);
-				StepResult->SetNumberField(TEXT("height"), CaptureHeight);
-				StepResult->SetStringField(TEXT("format"), TEXT("png"));
-				if (bInlineImage)
-				{
-					const FString Base64 = FBase64::Encode(PngData.GetData(), PngData.Num());
-					StepResult->SetStringField(TEXT("image"), Base64);
-				}
-				StepResults.Add(MakeShareable(new FJsonValueObject(StepResult)));
-				PushAuditEntry(TEXT("/nova/executePlan"), Action, Role, TEXT("success"), TEXT("Captured screenshot"));
-				continue;
-			}
-
-			StepResults.Add(MakeShareable(new FJsonValueObject(
-				MakePlanStepResult(StepIndex, TEXT("error"), FString::Printf(TEXT("Unsupported action: %s"), *Action)))));
-			PushAuditEntry(TEXT("/nova/executePlan"), Action, Role, TEXT("error"), TEXT("Unsupported action"));
+			StepResults.Add(MakeShareable(new FJsonValueObject(StepResult)));
 		}
 
-			TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
-			Result->SetStringField(TEXT("status"), TEXT("ok"));
-			Result->SetStringField(TEXT("plan_id"), PlanId);
-			Result->SetStringField(TEXT("mode"), TEXT("editor"));
-			Result->SetStringField(TEXT("role"), Role);
-			Result->SetArrayField(TEXT("results"), StepResults);
-			Result->SetNumberField(TEXT("step_count"), Steps.Num());
-			int32 SuccessCount = 0;
-			int32 ErrorCount = 0;
-			for (const TSharedPtr<FJsonValue>& StepResultValue : StepResults)
+		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+		Result->SetStringField(TEXT("status"), TEXT("ok"));
+		Result->SetStringField(TEXT("plan_id"), PlanId);
+		Result->SetStringField(TEXT("mode"), TEXT("editor"));
+		Result->SetStringField(TEXT("role"), Role);
+		Result->SetArrayField(TEXT("results"), StepResults);
+		Result->SetNumberField(TEXT("step_count"), Steps.Num());
+
+		int32 SuccessCount = 0;
+		int32 ErrorCount = 0;
+		for (const TSharedPtr<FJsonValue>& StepResultValue : StepResults)
+		{
+			if (!StepResultValue.IsValid() || StepResultValue->Type != EJson::Object)
 			{
-				if (!StepResultValue.IsValid() || StepResultValue->Type != EJson::Object)
-				{
-					continue;
-				}
-				const TSharedPtr<FJsonObject> StepResultObj = StepResultValue->AsObject();
-				if (!StepResultObj.IsValid())
-				{
-					continue;
-				}
-				const FString StatusValue = StepResultObj->HasTypedField<EJson::String>(TEXT("status"))
-					? StepResultObj->GetStringField(TEXT("status"))
-					: FString();
-				if (StatusValue == TEXT("success"))
-				{
-					SuccessCount++;
-				}
-				else if (StatusValue == TEXT("error"))
-				{
-					ErrorCount++;
-				}
-				}
-				Result->SetNumberField(TEXT("success_count"), SuccessCount);
-				Result->SetNumberField(TEXT("error_count"), ErrorCount);
+				continue;
+			}
+			const TSharedPtr<FJsonObject> StepResultObj = StepResultValue->AsObject();
+			if (!StepResultObj.IsValid())
+			{
+				continue;
+			}
 
-				for (const TSharedPtr<FJsonValue>& StepResultValue : StepResults)
-				{
-					if (!StepResultValue.IsValid() || StepResultValue->Type != EJson::Object)
-					{
-						continue;
-					}
-					const TSharedPtr<FJsonObject> StepResultObj = StepResultValue->AsObject();
-					if (!StepResultObj.IsValid())
-					{
-						continue;
-					}
+			const FString StatusValue = StepResultObj->HasTypedField<EJson::String>(TEXT("status"))
+				? NovaBridgeCore::NormalizePlanAction(StepResultObj->GetStringField(TEXT("status")))
+				: FString();
+			if (StatusValue == TEXT("success"))
+			{
+				SuccessCount++;
+			}
+			else if (StatusValue == TEXT("error"))
+			{
+				ErrorCount++;
+			}
+		}
+		Result->SetNumberField(TEXT("success_count"), SuccessCount);
+		Result->SetNumberField(TEXT("error_count"), ErrorCount);
 
-					const int32 ResultStepIndex = StepResultObj->HasTypedField<EJson::Number>(TEXT("step"))
-						? static_cast<int32>(StepResultObj->GetNumberField(TEXT("step")))
-						: INDEX_NONE;
-					const FString ResultStatus = StepResultObj->HasTypedField<EJson::String>(TEXT("status"))
-						? StepResultObj->GetStringField(TEXT("status"))
-						: TEXT("error");
-					const FString ResultAction = (ResultStepIndex >= 0 && ResultStepIndex < StepActions.Num() && !StepActions[ResultStepIndex].IsEmpty())
-						? StepActions[ResultStepIndex]
-						: TEXT("unknown");
+		for (const TSharedPtr<FJsonValue>& StepResultValue : StepResults)
+		{
+			if (!StepResultValue.IsValid() || StepResultValue->Type != EJson::Object)
+			{
+				continue;
+			}
+			const TSharedPtr<FJsonObject> StepResultObj = StepResultValue->AsObject();
+			if (!StepResultObj.IsValid())
+			{
+				continue;
+			}
 
-					TSharedPtr<FJsonObject> PlanStepEvent = MakeShared<FJsonObject>();
-					PlanStepEvent->SetStringField(TEXT("type"), ResultStatus.Equals(TEXT("error"), ESearchCase::IgnoreCase) ? TEXT("error") : TEXT("plan_step"));
-					PlanStepEvent->SetStringField(TEXT("mode"), TEXT("editor"));
-					PlanStepEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
-					PlanStepEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
-					PlanStepEvent->SetStringField(TEXT("action"), ResultAction);
-					PlanStepEvent->SetStringField(TEXT("status"), ResultStatus);
-					PlanStepEvent->SetStringField(TEXT("plan_id"), PlanId);
-					PlanStepEvent->SetNumberField(TEXT("step"), ResultStepIndex);
-					if (StepResultObj->HasTypedField<EJson::String>(TEXT("message")))
-					{
-						PlanStepEvent->SetStringField(TEXT("message"), StepResultObj->GetStringField(TEXT("message")));
-					}
-					if (StepResultObj->HasTypedField<EJson::String>(TEXT("object_id")))
-					{
-						PlanStepEvent->SetStringField(TEXT("object_id"), StepResultObj->GetStringField(TEXT("object_id")));
-					}
-					QueueEventObject(PlanStepEvent);
-				}
+			const int32 ResultStepIndex = StepResultObj->HasTypedField<EJson::Number>(TEXT("step"))
+				? static_cast<int32>(StepResultObj->GetNumberField(TEXT("step")))
+				: INDEX_NONE;
+			const FString ResultStatus = StepResultObj->HasTypedField<EJson::String>(TEXT("status"))
+				? StepResultObj->GetStringField(TEXT("status"))
+				: TEXT("error");
+			const FString ResultAction = (ResultStepIndex >= 0 && ResultStepIndex < StepActions.Num() && !StepActions[ResultStepIndex].IsEmpty())
+				? StepActions[ResultStepIndex]
+				: TEXT("unknown");
 
-				TSharedPtr<FJsonObject> PlanCompleteEvent = MakeShared<FJsonObject>();
-				PlanCompleteEvent->SetStringField(TEXT("type"), TEXT("plan_complete"));
-				PlanCompleteEvent->SetStringField(TEXT("mode"), TEXT("editor"));
-				PlanCompleteEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
-				PlanCompleteEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
-				PlanCompleteEvent->SetStringField(TEXT("action"), TEXT("executePlan.complete"));
-				PlanCompleteEvent->SetStringField(TEXT("status"), ErrorCount == 0 ? TEXT("success") : TEXT("partial"));
-				PlanCompleteEvent->SetStringField(TEXT("plan_id"), PlanId);
-				PlanCompleteEvent->SetStringField(TEXT("role"), Role);
-				PlanCompleteEvent->SetNumberField(TEXT("step_count"), Steps.Num());
-				PlanCompleteEvent->SetNumberField(TEXT("success_count"), SuccessCount);
-				PlanCompleteEvent->SetNumberField(TEXT("error_count"), ErrorCount);
-				QueueEventObject(PlanCompleteEvent);
+			TSharedPtr<FJsonObject> PlanStepEvent = MakeShared<FJsonObject>();
+			PlanStepEvent->SetStringField(TEXT("type"), ResultStatus.Equals(TEXT("error"), ESearchCase::IgnoreCase) ? TEXT("error") : TEXT("plan_step"));
+			PlanStepEvent->SetStringField(TEXT("mode"), TEXT("editor"));
+			PlanStepEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
+			PlanStepEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
+			PlanStepEvent->SetStringField(TEXT("action"), ResultAction);
+			PlanStepEvent->SetStringField(TEXT("status"), ResultStatus);
+			PlanStepEvent->SetStringField(TEXT("plan_id"), PlanId);
+			PlanStepEvent->SetNumberField(TEXT("step"), ResultStepIndex);
+			if (StepResultObj->HasTypedField<EJson::String>(TEXT("message")))
+			{
+				PlanStepEvent->SetStringField(TEXT("message"), StepResultObj->GetStringField(TEXT("message")));
+			}
+			if (StepResultObj->HasTypedField<EJson::String>(TEXT("object_id")))
+			{
+				PlanStepEvent->SetStringField(TEXT("object_id"), StepResultObj->GetStringField(TEXT("object_id")));
+			}
+			QueueEventObject(PlanStepEvent);
+		}
 
-				PushAuditEntry(TEXT("/nova/executePlan"), TEXT("executePlan.complete"), Role, TEXT("success"),
-					FString::Printf(TEXT("Plan %s complete: %d success, %d error"), *PlanId, SuccessCount, ErrorCount));
-				SendJsonResponse(OnComplete, Result);
-		});
+		TSharedPtr<FJsonObject> PlanCompleteEvent = MakeShared<FJsonObject>();
+		PlanCompleteEvent->SetStringField(TEXT("type"), TEXT("plan_complete"));
+		PlanCompleteEvent->SetStringField(TEXT("mode"), TEXT("editor"));
+		PlanCompleteEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
+		PlanCompleteEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
+		PlanCompleteEvent->SetStringField(TEXT("action"), TEXT("executePlan.complete"));
+		PlanCompleteEvent->SetStringField(TEXT("status"), ErrorCount == 0 ? TEXT("success") : TEXT("partial"));
+		PlanCompleteEvent->SetStringField(TEXT("plan_id"), PlanId);
+		PlanCompleteEvent->SetStringField(TEXT("role"), Role);
+		PlanCompleteEvent->SetNumberField(TEXT("step_count"), Steps.Num());
+		PlanCompleteEvent->SetNumberField(TEXT("success_count"), SuccessCount);
+		PlanCompleteEvent->SetNumberField(TEXT("error_count"), ErrorCount);
+		QueueEventObject(PlanCompleteEvent);
+
+		PushAuditEntry(TEXT("/nova/executePlan"), TEXT("executePlan.complete"), Role, TEXT("success"),
+			FString::Printf(TEXT("Plan %s complete: %d success, %d error"), *PlanId, SuccessCount, ErrorCount));
+		SendJsonResponse(OnComplete, Result);
+	});
 	return true;
 }
 

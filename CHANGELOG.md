@@ -32,6 +32,7 @@
 - Fixed deferred event-stream bug: event WebSocket delivery is now gated until subscription ACK (`status=ok`) in editor and runtime modules.
 - Added shared plan command-dispatch primitives in `NovaBridgeCore` (`NovaBridgePlanDispatch`) and wired runtime `executePlan` to use core step extraction + action dispatch.
 - Editor `executePlan` step parsing now also uses shared core extraction (`NovaBridgePlanDispatch::ExtractPlanStep`) for consistent step-shape enforcement.
+- Editor `executePlan` now routes command handlers through shared core dispatch (`NovaBridgePlanDispatch::FPlanCommandRouter`) for spawn/delete/set/screenshot steps.
 - Added explicit permission snapshots to `GET /nova/caps` for editor/runtime (limits, allowed actions, spawn policy, and event subscription gating requirement).
 - NovaBridge Studio now uses `/nova/caps` `permissions` for local plan preflight and blocks disallowed steps before execution.
 - NovaBridge Studio now surfaces policy snapshots in Connect and shows policy-block reasons inline in Plan Preview (execute disabled when blocked).
