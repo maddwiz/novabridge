@@ -2,6 +2,11 @@
 
 Text-to-3D sidecar service (Meshy-first) for prompt -> model generation.
 
+## Support Status
+
+This server is **experimental** and not part of the supported core NovaBridge plugin surface.
+It is provided as an example/prototype and may change without compatibility guarantees.
+
 ## Install
 
 ```bash
@@ -40,4 +45,3 @@ Default URL: `http://localhost:30014`
   "import_to_ue5": true
 }
 ```
-

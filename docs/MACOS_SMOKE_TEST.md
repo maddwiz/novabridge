@@ -17,7 +17,7 @@ Fast path (automated executePlan validation):
    - `POST /nova/scene/spawn` works.
    - `POST /nova/asset/import` works with OBJ.
    - `GET /nova/viewport/screenshot?format=raw` returns PNG.
-6. Package with `scripts/package_release.sh v0.9.0`.
+6. Package with `scripts/package_release.sh v0.9.5-dev`.
 7. Re-test using the packaged plugin zip contents on a second clean project.
 8. Mark macOS as validated in `docs/RELEASE_CHECKLIST.md`.
 

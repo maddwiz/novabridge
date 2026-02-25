@@ -82,6 +82,19 @@
 - NovaBridge Studio Connect now includes explicit runtime pairing UI placeholders for the future `/nova/runtime/pair` flow (v0.2 stub).
 - Added NovaBridge Studio unit tests via `vitest` covering plan schema validation, policy preflight checks, and provider JSON extraction/prompt helpers.
 - Added lightweight GitHub Actions workflow `.github/workflows/qa-fast.yml` to run Python SDK/MCP tests plus NovaBridge Studio tests/build on push/PR.
+- Expanded self-hosted plugin build workflow with optional Linux x64 job (`scripts/ci/build_plugin_linux.sh`) plus Linux runner bootstrap helper (`scripts/ci/setup_runner_linux.sh`) and updated CI runbooks.
+- Added assistant sidecar (`assistant-server/`) with:
+  - `command_catalog.js` risk classification
+  - `assistant_engine.js` capability + scene-aware plan generation
+  - browser Studio UI served at `/nova/studio`
+  - execute gateway endpoint with high-risk confirmation guard
+- Added Python SDK integration test using a local mock HTTP server to verify end-to-end header propagation across JSON and raw screenshot request paths.
+- Updated OpenClaw Blender bridge to remove machine-specific default binary paths and prefer `NOVABRIDGE_BLENDER_PATH`/`PATH`.
+- Added explicit closed-source contribution policy (`CONTRIBUTING.md`).
+- Aligned packaging/support defaults and customer quick-start docs to `v0.9.5-dev` where `0.9.0` defaults remained.
+- Added dedicated documentation for OpenClaw environment-based customer configuration (`extensions/openclaw/README.md`).
+- Added explicit experimental support-status notices in sidecar READMEs and centralized policy in `docs/EXPERIMENTAL_SIDECARS.md`.
+- Extended fast QA workflow to include assistant-server syntax checks.
 - Added `novabridge-studio` v0.1 scaffold (Tauri + React + TypeScript) with Connect, Build, Settings, provider adapters, and execute fallback flow.
 - Enforced localhost-only runtime request policy (`Host` must be loopback).
 - Added runtime `executePlan` per-minute rate limiting and pairing-code rotation on successful pair.

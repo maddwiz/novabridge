@@ -16,7 +16,7 @@
 
 ## Current Release Tier
 
-- `v0.9.0` Early Access
+- `v0.9.5-dev` Early Access
 - Validated platforms: Linux ARM64, Windows Win64, macOS
 - In validation: Linux x86_64
 

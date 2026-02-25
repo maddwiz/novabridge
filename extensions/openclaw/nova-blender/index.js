@@ -7,11 +7,8 @@ const https = require('https');
 const { Type } = require('@sinclair/typebox');
 
 const BLENDER_BIN = process.env.NOVABRIDGE_BLENDER_PATH
-  || (process.platform === 'win32'
-    ? 'C:\\Program Files\\Blender Foundation\\Blender 4.0\\blender.exe'
-    : process.platform === 'darwin'
-      ? '/Applications/Blender.app/Contents/MacOS/Blender'
-      : '/usr/bin/blender');
+  || process.env.BLENDER_BIN
+  || 'blender';
 const EXPORT_DIR = process.env.NOVABRIDGE_EXPORT_DIR || path.join(os.tmpdir(), 'novabridge-exports');
 const SCRIPT_DIR_CANDIDATES = [
   process.env.NOVABRIDGE_SCRIPTS_DIR,

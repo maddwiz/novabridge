@@ -13,12 +13,21 @@ on:
         required: false
         default: false
         type: boolean
+      build_linux:
+        description: "Run Linux build job"
+        required: false
+        default: false
+        type: boolean
       ue_root_mac:
         description: "Optional UE root override for macOS runner"
         required: false
         type: string
       ue_root_win:
         description: "Optional UE root override for Windows runner"
+        required: false
+        type: string
+      ue_root_linux:
+        description: "Optional UE root override for Linux runner"
         required: false
         type: string
   push:
@@ -77,4 +86,30 @@ jobs:
           path: |
             ${{ runner.temp }}/artifacts-win/*.zip
             ${{ runner.temp }}/artifacts-win/**/manifest.txt
+          if-no-files-found: error
+
+  build-linux:
+    name: Build Linux Plugin
+    if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.build_linux != 'false') || (github.event_name != 'workflow_dispatch' && vars.ENABLE_SELF_HOSTED_LINUX_BUILDS == 'true') }}
+    runs-on: [self-hosted, Linux, X64, unreal]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Plugin (Linux)
+        shell: bash
+        env:
+          UE_ROOT_INPUT: ${{ github.event.inputs.ue_root_linux || vars.UE_ROOT_LINUX || '' }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/ci/build_plugin_linux.sh
+          ./scripts/ci/build_plugin_linux.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/artifacts-linux" "$UE_ROOT_INPUT"
+
+      - name: Upload Artifact (Linux)
+        uses: actions/upload-artifact@v4
+        with:
+          name: NovaBridge-Linux
+          path: |
+            ${{ runner.temp }}/artifacts-linux/*.zip
+            ${{ runner.temp }}/artifacts-linux/**/manifest.txt
           if-no-files-found: error

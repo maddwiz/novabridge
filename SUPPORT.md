@@ -15,5 +15,5 @@
 
 ## Early Access Disclosure
 
-- NovaBridge `v0.9.0` is an Early Access release.
+- NovaBridge `v0.9.5-dev` is an Early Access release.
 - Features and compatibility may change between releases.

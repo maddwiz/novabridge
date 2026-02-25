@@ -2,6 +2,11 @@
 
 Sidecar service for speech-to-text and natural-language command execution against NovaBridge.
 
+## Support Status
+
+This server is **experimental** and not part of the supported core NovaBridge plugin surface.
+It is provided as an example/prototype and may change without compatibility guarantees.
+
 ## Install
 
 ```bash
@@ -37,4 +42,3 @@ Default port: `30012`
 - `POST /voice/command`
   - json: `{"text":"spawn 3 point lights"}`
   - or audio input
-

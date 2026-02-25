@@ -2,6 +2,11 @@
 
 Bidirectional transform sync bridge between Blender addon and NovaBridge UE5 API.
 
+## Support Status
+
+This server is **experimental** and not part of the supported core NovaBridge plugin surface.
+It is provided as an example/prototype and may change without compatibility guarantees.
+
 ## Run
 
 ```bash

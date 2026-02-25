@@ -1,4 +1,4 @@
-# Runner Setup (Mac + Windows)
+# Runner Setup (Mac + Windows + Linux)
 
 Use this to connect your MacBook and Windows machine (or cloud Windows VM) as GitHub self-hosted runners.
 
@@ -12,6 +12,8 @@ Set repo variables in GitHub:
 - `ENABLE_SELF_HOSTED_BUILDS=true`
 - `UE_ROOT_MAC=/path/to/UnrealEngine` (optional if passed via workflow input)
 - `UE_ROOT_WIN=C:\Path\To\UnrealEngine` (optional if passed via workflow input)
+- `ENABLE_SELF_HOSTED_LINUX_BUILDS=true` (optional; enables Linux push-triggered job)
+- `UE_ROOT_LINUX=/path/to/UnrealEngine` (optional if passed via workflow input)
 
 ## Get Registration Token
 
@@ -52,6 +54,20 @@ Default labels applied:
 
 - `self-hosted,Windows,X64,unreal`
 
+## Linux Machine / VM (Optional)
+
+```bash
+cd /path/to/novabridge
+./scripts/ci/setup_runner_linux.sh \
+  --repo-url https://github.com/maddwiz/novabridge \
+  --token <LINUX_REGISTRATION_TOKEN> \
+  --ue-root /opt/UnrealEngine
+```
+
+Default labels applied:
+
+- `self-hosted,Linux,X64,unreal`
+
 ## Trigger Build
 
 After both runners are online:
@@ -59,11 +75,13 @@ After both runners are online:
 1. GitHub -> `Actions` -> `Build Plugin (Self-Hosted)`.
 2. Click `Run workflow`.
 3. (Optional) pass `ue_root_mac` / `ue_root_win` for one-off overrides.
+4. (Optional) enable `build_linux` and/or pass `ue_root_linux`.
 
 Artifacts:
 
 - `NovaBridge-Mac`
 - `NovaBridge-Win64`
+- `NovaBridge-Linux` (if Linux build job enabled)
 
 ## Virtual Machines
 

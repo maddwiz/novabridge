@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NovaBridge Studio (Assistant)</title>
+    <link rel="stylesheet" href="/nova/studio/style.css" />
+  </head>
+  <body>
+    <div class="bg-glow"></div>
+    <main class="layout">
+      <header class="panel">
+        <h1>NovaBridge Assistant Studio</h1>
+        <p>Natural-language planning over NovaBridge caps + scene context.</p>
+        <div class="status-row">
+          <span id="healthDot" class="dot dot-off"></span>
+          <span id="healthText">Checking assistant health...</span>
+        </div>
+      </header>
+
+      <section class="panel panel-main">
+        <label for="prompt">Prompt</label>
+        <textarea id="prompt" rows="6" placeholder="Build a neon city block, add cinematic lights, then capture a screenshot."></textarea>
+        <div class="button-row">
+          <button id="planBtn">Generate Plan</button>
+          <button id="execBtn" disabled>Execute Plan</button>
+        </div>
+        <div class="meta">
+          <span id="planSource">source: n/a</span>
+          <span id="planRisk">risk: n/a</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Plan JSON</h2>
+        <pre id="planJson">{}</pre>
+      </section>
+
+      <section class="panel">
+        <h2>Activity</h2>
+        <pre id="activity">ready</pre>
+      </section>
+    </main>
+    <script src="/nova/studio/app.js"></script>
+  </body>
+</html>

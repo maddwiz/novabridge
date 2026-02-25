@@ -7,12 +7,14 @@ on:
       - "python-sdk/**"
       - "mcp-server/**"
       - "novabridge-studio/**"
+      - "assistant-server/**"
       - ".github/workflows/qa-fast.yml"
   pull_request:
     paths:
       - "python-sdk/**"
       - "mcp-server/**"
       - "novabridge-studio/**"
+      - "assistant-server/**"
       - ".github/workflows/qa-fast.yml"
   workflow_dispatch:
 
@@ -60,3 +62,21 @@ jobs:
 
       - name: Build studio
         run: npm run build
+
+  assistant-server-check:
+    name: Assistant Server Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Syntax check assistant server
+        run: |
+          node --check assistant-server/command_catalog.js
+          node --check assistant-server/assistant_engine.js
+          node --check assistant-server/server.js

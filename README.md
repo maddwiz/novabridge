@@ -181,7 +181,7 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 
 The `extensions/openclaw/nova-blender` bridge now supports environment-based configuration:
 
-- `NOVABRIDGE_BLENDER_PATH` (default platform path)
+- `NOVABRIDGE_BLENDER_PATH` (optional; default resolves `blender` from `PATH`)
 - `NOVABRIDGE_EXPORT_DIR` (default OS temp dir `novabridge-exports`)
 - `NOVABRIDGE_SCRIPTS_DIR` (default auto-detected from extension `scripts/` or repo blender scripts)
 - `NOVABRIDGE_OUTPUT_DIR` (default `<NOVABRIDGE_EXPORT_DIR>/output`)
@@ -201,6 +201,7 @@ The `extensions/openclaw/nova-blender` bridge now supports environment-based con
 - Demo video script: [demo/VIDEO_SCRIPT.md](demo/VIDEO_SCRIPT.md)
 - Landing page starter: [site/index.html](site/index.html)
 - NovaBridge Studio desktop scaffold: [novabridge-studio](novabridge-studio)
+- NovaBridge Assistant server + browser studio (`/nova/studio`): [assistant-server](assistant-server)
 
 ## Experimental Sidecars
 
@@ -209,6 +210,7 @@ These helper servers are included as experimental examples and are not part of t
 - `ai-gen-server/`
 - `voice-server/`
 - `livelink-server/`
+- `assistant-server/`
 
 Treat them as optional prototypes unless explicitly promoted to supported modules in release notes.
 
@@ -225,6 +227,7 @@ Treat them as optional prototypes unless explicitly promoted to supported module
 - Lemon Squeezy listing copy draft: [docs/LEMON_SQUEEZY_LISTING_COPY.md](docs/LEMON_SQUEEZY_LISTING_COPY.md)
 - Self-hosted CI runbook: [docs/CI_SELF_HOSTED.md](docs/CI_SELF_HOSTED.md)
 - Runner bootstrap: [docs/RUNNER_SETUP.md](docs/RUNNER_SETUP.md)
+- Experimental sidecars policy: [docs/EXPERIMENTAL_SIDECARS.md](docs/EXPERIMENTAL_SIDECARS.md)
 
 ## Packaging
 
@@ -246,3 +249,4 @@ Output is written to `dist/NovaBridge-v0.9.5-dev.zip`.
 ## License
 
 Proprietary - All rights reserved. See [LICENSE](LICENSE).
+Contribution expectations are documented in [CONTRIBUTING.md](CONTRIBUTING.md).

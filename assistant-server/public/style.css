@@ -1,0 +1,165 @@
+:root {
+  color-scheme: dark;
+  --bg: #050914;
+  --panel: rgba(14, 22, 45, 0.75);
+  --text: #eaf2ff;
+  --muted: #9db1d5;
+  --accent-a: #4dc8ff;
+  --accent-b: #6a7dff;
+  --danger: #ff5f70;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: radial-gradient(circle at 12% 18%, rgba(74, 95, 255, 0.26), transparent 32%),
+    radial-gradient(circle at 82% 12%, rgba(45, 203, 255, 0.2), transparent 36%),
+    linear-gradient(160deg, #050914 0%, #060d1d 60%, #04070f 100%);
+  color: var(--text);
+}
+
+.bg-glow {
+  pointer-events: none;
+  position: fixed;
+  inset: -20%;
+  background: conic-gradient(
+    from 120deg,
+    rgba(113, 140, 255, 0.12),
+    rgba(71, 194, 255, 0.08),
+    transparent 60%
+  );
+  filter: blur(42px);
+}
+
+.layout {
+  position: relative;
+  z-index: 1;
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.panel {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--panel);
+  border-radius: 14px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 14px 32px rgba(4, 8, 20, 0.45);
+  padding: 16px;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 1.4rem;
+}
+
+h2 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.status-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.dot-on {
+  background: #5cff8d;
+  box-shadow: 0 0 12px rgba(92, 255, 141, 0.7);
+}
+
+.dot-off {
+  background: #4a5870;
+}
+
+.dot-bad {
+  background: var(--danger);
+  box-shadow: 0 0 12px rgba(255, 95, 112, 0.6);
+}
+
+label {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+textarea {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(7, 12, 28, 0.85);
+  color: var(--text);
+  padding: 10px;
+  resize: vertical;
+  font: inherit;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--accent-a);
+}
+
+.button-row {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+}
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: white;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--accent-b), var(--accent-a));
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.meta {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+pre {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  border-radius: 10px;
+  background: rgba(4, 9, 24, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 12px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}

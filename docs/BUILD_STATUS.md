@@ -38,6 +38,22 @@
 - Trigger:
   - Push/PR changes touching Python integrations, Studio, or the workflow file.
 
+## Assistant + SDK Integration Validation
+
+- Date: 2026-02-25
+- Commands:
+  - `python3 -m unittest discover -s python-sdk/tests -p 'test_*.py'`
+  - `python3 -m unittest discover -s mcp-server/tests -p 'test_*.py'`
+  - `node --check assistant-server/command_catalog.js`
+  - `node --check assistant-server/assistant_engine.js`
+  - `node --check assistant-server/server.js`
+- Result:
+  - `Succeeded`
+- Notes:
+  - Python SDK suite now includes mock-server integration coverage for auth/role/runtime-token header propagation.
+  - Assistant server syntax checks are clean and now covered in CI fast checks.
+  - Added Linux self-hosted plugin build workflow support (`build_plugin_linux.sh`) and Linux runner bootstrap script.
+
 ## macOS Sequencer-Render Handler Split Validation
 
 - Date: 2026-02-25
