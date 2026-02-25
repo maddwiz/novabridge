@@ -164,6 +164,7 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 - Runtime event WebSocket lifecycle/subscription handlers now live in `NovaBridgeRuntimeEventHandlers.cpp` (`/nova/events` metadata, WS startup/shutdown, queue pump).
 - Runtime `executePlan`/`undo` handlers and runtime actor/property helpers now live in `NovaBridgeRuntimeExecutePlanHandlers.cpp`.
 - Runtime control-plane handlers now live in `NovaBridgeRuntimeControlHandlers.cpp` (`/nova/health`, `/nova/caps`, `/nova/audit`, `/nova/runtime/pair` and capability/permission snapshots).
+- Runtime event/audit/undo state helpers now live in `NovaBridgeRuntimeState.cpp` (event queue normalization, audit trail push, undo stack push/pop).
 - `GET /nova/optimize/stats` spotlight counting now uses `USpotLightComponent` detection (component-based, no class-name string matching).
 - Python SDK raw screenshot path now includes auth/runtime headers and shared HTTP error handling (`NovaBridge._request_bytes`).
 - Added baseline automated tests for Python integrations (`python-sdk/tests` and `mcp-server/tests`) and core execute-plan schema automation coverage (`NovaBridgePlanSchemaTests`).
