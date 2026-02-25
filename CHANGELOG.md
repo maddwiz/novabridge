@@ -54,6 +54,7 @@
 - Promoted `LogNovaBridge` from file-static to shared module log category (`DECLARE_LOG_CATEGORY_EXTERN` + `DEFINE_LOG_CATEGORY`) so extracted handler units keep unified logging.
 - Split control-plane handlers into `NovaBridgeControlHandlers.cpp` (`/nova/health`, `/nova/project/info`, `/nova/caps`, `/nova/events`, `/nova/audit`, `/nova/undo`) and kept `executePlan` in module for now.
 - Split `POST /nova/executePlan` handler into `NovaBridgeExecutePlanHandlers.cpp`; `NovaBridgeModule.cpp` now contains shared module/policy wiring only and is reduced to `1835` lines.
+- Split websocket/event stream infrastructure into `NovaBridgeWebSocketHandlers.cpp` (`Start/StopWebSocketServer`, event subscription handshake, stream ticker/frame pump); `NovaBridgeModule.cpp` reduced further to `1316` lines.
 - Exposed shared internal editor helper contracts (role/policy lookups, audit/event snapshots, capability registration) through `NovaBridgeEditorInternals.h` to support multi-unit control-plane decomposition.
 - Fixed Python SDK raw screenshot path to include auth/runtime headers and shared error handling (`NovaBridge._request_bytes`).
 - Added Python SDK unit tests for request header propagation and raw screenshot auth path (`python-sdk/tests/test_novabridge_client.py`).

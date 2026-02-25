@@ -25,7 +25,7 @@ Optional Blender path:
 
 - HTTP server runs in UE module.
 - Route handlers marshal editor work to UE game thread with `AsyncTask`.
-- Editor handler implementations are being decomposed into focused translation units (for example, `NovaBridgeOptimizeHandlers.cpp`, `NovaBridgeSequencerHandlers.cpp`, `NovaBridgeSceneHandlers.cpp`, `NovaBridgeBlueprintBuildHandlers.cpp`, `NovaBridgeStreamHandlers.cpp`, `NovaBridgeMaterialHandlers.cpp`, `NovaBridgeAssetHandlers.cpp`, `NovaBridgeMeshHandlers.cpp`, `NovaBridgeViewportHandlers.cpp`, `NovaBridgePcgHandlers.cpp`) instead of one monolithic module file.
+- Editor handler implementations are being decomposed into focused translation units (for example, `NovaBridgeOptimizeHandlers.cpp`, `NovaBridgeSequencerHandlers.cpp`, `NovaBridgeSceneHandlers.cpp`, `NovaBridgeBlueprintBuildHandlers.cpp`, `NovaBridgeStreamHandlers.cpp`, `NovaBridgeMaterialHandlers.cpp`, `NovaBridgeAssetHandlers.cpp`, `NovaBridgeMeshHandlers.cpp`, `NovaBridgeViewportHandlers.cpp`, `NovaBridgePcgHandlers.cpp`, `NovaBridgeWebSocketHandlers.cpp`) instead of one monolithic module file.
 - Control-plane handlers are split into dedicated units: `NovaBridgeControlHandlers.cpp` and `NovaBridgeExecutePlanHandlers.cpp`.
 - Shared editor-only helper declarations that need to span multiple extracted handler units now live in `NovaBridgeEditorInternals.h` (audit/undo/role/policy utilities).
 - Scene screenshots use a dedicated `SceneCapture2D` actor (`NovaBridge_SceneCapture`).
