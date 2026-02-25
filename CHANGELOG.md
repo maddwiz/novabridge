@@ -42,6 +42,8 @@
 - Split editor optimization endpoints into `NovaBridgeOptimizeHandlers.cpp` to reduce `NovaBridgeModule.cpp` size and isolate optimize-route maintenance.
 - Split editor sequencer endpoints into `NovaBridgeSequencerHandlers.cpp` to further decompose the main editor module.
 - Split editor scene read/transform endpoints into `NovaBridgeSceneHandlers.cpp` (`/nova/scene/list`, `/nova/scene/get`, `/nova/scene/transform`) to continue reducing `NovaBridgeModule.cpp`.
+- Split editor blueprint/build endpoints into `NovaBridgeBlueprintBuildHandlers.cpp` (`/nova/blueprint/*`, `/nova/build/lighting`, `/nova/exec`).
+- Split editor stream endpoints into `NovaBridgeStreamHandlers.cpp` (`/nova/stream/start`, `/nova/stream/stop`, `/nova/stream/config`, `/nova/stream/status`).
 - Fixed Python SDK raw screenshot path to include auth/runtime headers and shared error handling (`NovaBridge._request_bytes`).
 - Added Python SDK unit tests for request header propagation and raw screenshot auth path (`python-sdk/tests/test_novabridge_client.py`).
 - Added MCP server unit tests for wrapper error handling and spawn argument forwarding (`mcp-server/tests/test_novabridge_mcp.py`).
