@@ -138,7 +138,7 @@ static void NovaBridgeSetPlaybackTime(ULevelSequencePlayer* Player, float TimeSe
 
 static FGuid NovaBridgeFindBinding(ULevelSequence* Sequence, AActor* Actor, UWorld* World)
 {
-#if ENGINE_MAJOR_VERSION > 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 7)
+#if ENGINE_MAJOR_VERSION > 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 6)
 	FMovieSceneSequencePlaybackSettings Settings;
 	ALevelSequenceActor* SequenceActor = nullptr;
 	ULevelSequencePlayer* Player = ULevelSequencePlayer::CreateLevelSequencePlayer(World, Sequence, Settings, SequenceActor);
@@ -2828,7 +2828,7 @@ bool FNovaBridgeModule::HandleAssetList(const FHttpServerRequest& Request, const
 		{
 			TSharedPtr<FJsonObject> AssetObj = MakeShareable(new FJsonObject);
 			AssetObj->SetStringField(TEXT("name"), Asset.AssetName.ToString());
-			AssetObj->SetStringField(TEXT("path"), Asset.ObjectPath.ToString());
+			AssetObj->SetStringField(TEXT("path"), Asset.GetObjectPathString());
 			AssetObj->SetStringField(TEXT("class"), Asset.AssetClassPath.GetAssetName().ToString());
 			AssetObj->SetStringField(TEXT("package"), Asset.PackageName.ToString());
 			AssetArray.Add(MakeShareable(new FJsonValueObject(AssetObj)));
@@ -3014,7 +3014,7 @@ bool FNovaBridgeModule::HandleAssetInfo(const FHttpServerRequest& Request, const
 
 		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
 		Result->SetStringField(TEXT("name"), AssetData.AssetName.ToString());
-		Result->SetStringField(TEXT("path"), AssetData.ObjectPath.ToString());
+		Result->SetStringField(TEXT("path"), AssetData.GetObjectPathString());
 		Result->SetStringField(TEXT("class"), AssetData.AssetClassPath.GetAssetName().ToString());
 		Result->SetStringField(TEXT("package"), AssetData.PackageName.ToString());
 
