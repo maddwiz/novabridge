@@ -17,6 +17,7 @@ import { loadSettingsState, saveSettingsState } from "../features/settings/setti
 import { promptTemplates } from "../features/planner/templates";
 import { generatePlan } from "../features/planner/plannerApi";
 import { PlanPreview } from "../features/planner/PlanPreview";
+import { validatePlanAgainstPermissions } from "../features/planner/planPolicy";
 import { executePlan } from "../features/executor/executorApi";
 import { ActivityStream } from "../features/executor/ActivityStream";
 import { ProvidersPanel } from "../features/settings/ProvidersPanel";
@@ -70,7 +71,8 @@ export function App() {
         connected: health.status === "ok",
         mode,
         version: health.version,
-        caps: caps?.capabilities ?? prev.caps
+        caps: caps?.capabilities ?? prev.caps,
+        permissions: caps?.permissions ?? prev.permissions
       }));
       pushLog(makeLog("info", "/nova/health", `Connected in ${mode} mode`));
       showToast("Connected", "info");
@@ -94,7 +96,14 @@ export function App() {
     setBusy(true);
     try {
       const mode = connectState.mode === "runtime" ? "runtime" : "editor";
-      const capsText = JSON.stringify(connectState.caps ?? [], null, 2);
+      const capsText = JSON.stringify(
+        {
+          capabilities: connectState.caps ?? [],
+          permissions: connectState.permissions ?? null
+        },
+        null,
+        2
+      );
       const plan = await generatePlan({
         prompt,
         mode,
@@ -117,6 +126,14 @@ export function App() {
   const onExecutePlan = async () => {
     const plan = plannerState.plan;
     if (!plan) return;
+
+    const policyErrors = validatePlanAgainstPermissions(plan, connectState.permissions);
+    if (policyErrors.length > 0) {
+      const summary = policyErrors[0];
+      pushLog(makeLog("error", "/nova/executePlan", summary));
+      showToast(summary, "error");
+      return;
+    }
 
     setBusy(true);
     try {

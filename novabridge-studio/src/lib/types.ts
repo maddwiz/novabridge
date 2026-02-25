@@ -23,10 +23,33 @@ export type Capability = {
   [k: string]: unknown;
 };
 
+export type PermissionSnapshot = {
+  mode?: "editor" | "runtime";
+  role?: string;
+  spawn?: {
+    allowed?: boolean;
+    classes_unrestricted?: boolean;
+    allowedClasses?: string[];
+    max_spawn_per_plan?: number;
+    max_requests_per_minute?: number;
+    [k: string]: unknown;
+  };
+  executePlan?: {
+    allowed?: boolean;
+    allowed_actions?: string[];
+    max_steps?: number;
+    max_requests_per_minute?: number;
+    [k: string]: unknown;
+  };
+  route_rate_limits_per_minute?: Record<string, number>;
+  [k: string]: unknown;
+};
+
 export type CapsResponse = {
   status: string;
   mode?: "editor" | "runtime";
   capabilities?: Capability[];
+  permissions?: PermissionSnapshot;
 };
 
 export type HealthResponse = {

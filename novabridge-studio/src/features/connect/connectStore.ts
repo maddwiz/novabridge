@@ -1,5 +1,5 @@
 import { loadJson, saveJson } from "../../lib/storage";
-import type { Capability, Mode } from "../../lib/types";
+import type { Capability, Mode, PermissionSnapshot } from "../../lib/types";
 
 const KEY = "novabridge-studio-connect";
 
@@ -9,6 +9,7 @@ export type ConnectState = {
   mode: Mode;
   version?: string;
   caps?: Capability[];
+  permissions?: PermissionSnapshot;
 };
 
 const defaults: ConnectState = {

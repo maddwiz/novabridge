@@ -33,6 +33,7 @@
 - Added shared plan command-dispatch primitives in `NovaBridgeCore` (`NovaBridgePlanDispatch`) and wired runtime `executePlan` to use core step extraction + action dispatch.
 - Editor `executePlan` step parsing now also uses shared core extraction (`NovaBridgePlanDispatch::ExtractPlanStep`) for consistent step-shape enforcement.
 - Added explicit permission snapshots to `GET /nova/caps` for editor/runtime (limits, allowed actions, spawn policy, and event subscription gating requirement).
+- NovaBridge Studio now uses `/nova/caps` `permissions` for local plan preflight and blocks disallowed steps before execution.
 - Added `novabridge-studio` v0.1 scaffold (Tauri + React + TypeScript) with Connect, Build, Settings, provider adapters, and execute fallback flow.
 - Enforced localhost-only runtime request policy (`Host` must be loopback).
 - Added runtime `executePlan` per-minute rate limiting and pairing-code rotation on successful pair.

@@ -8,6 +8,7 @@ NovaBridge Studio is a desktop control surface for NovaBridge (UE5 plugin).
 - Lets you choose an AI provider (OpenAI, Anthropic, Ollama, Custom)
 - Generates a strict JSON plan from a prompt
 - Previews plan steps before execution
+- Performs permission preflight using `/nova/caps` `permissions` (when available) to block disallowed actions before execution
 - Executes via `POST /nova/executePlan`
 - Falls back to endpoint calls if `executePlan` is not available:
   - `POST /nova/scene/spawn`
