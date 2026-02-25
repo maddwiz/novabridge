@@ -139,6 +139,7 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 - Editor `executePlan` step parsing now routes through the shared core step extractor (`NovaBridgeCore::ExtractPlanStep`).
 - Editor `executePlan` now also dispatches actions through the shared core command router (`NovaBridgeCore::FPlanCommandRouter`).
 - Editor and Runtime `executePlan` now use shared core event builders (`NovaBridgeCore::BuildPlanStepEvent` / `BuildPlanCompleteEvent`) so emitted plan event payloads stay aligned.
+- Editor and Runtime `executePlan` spawn/delete typed events now also use shared core builders (`BuildSpawnEvent` / `BuildDeleteEvent`) for consistent payload shape.
 - `GET /nova/caps` now returns explicit `permissions` snapshots for editor/runtime policy introspection.
 - Resolved deferred event-stream bug: WebSocket clients no longer receive pre-subscription events before `status=ok`.
 

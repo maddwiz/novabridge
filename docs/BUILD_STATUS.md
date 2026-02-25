@@ -269,6 +269,34 @@ Runtime checks (port `31040`, events port `31042`):
   - `/tmp/novabridge-smoke-20260224-195531/artifacts/plan-events-shared-refresh2/runtime-pair.json`
   - `/tmp/novabridge-smoke-20260224-195531/artifacts/plan-events-shared-refresh2/runtime-execute-summary.json`
 
+### macOS Shared Action-Event Builders Validation
+
+- Date: 2026-02-25
+- Run root:
+  - `/tmp/novabridge-smoke-20260224-195531`
+- Build command:
+  - `"/Users/Shared/Epic Games/UE_5.6/Engine/Build/BatchFiles/Mac/Build.sh" UnrealEditor Mac Development -Project="/tmp/novabridge-smoke-20260224-195531/NovaBridgeDefault/NovaBridgeDefault.uproject" -WaitMutex -NoHotReloadFromIDE`
+- Result:
+  - `Succeeded`
+- Notes:
+  - Added shared typed action event builders in `NovaBridgeCore` (`BuildSpawnEvent`, `BuildDeleteEvent`).
+  - Editor and Runtime `executePlan` now route spawn/delete event payload creation through shared core helpers.
+
+Editor checks (port `31110`, events port `31112`):
+- `POST /nova/executePlan` with `spawn` + `delete` returned:
+  - `status=ok`, `success_count=2`, `error_count=0`
+- Artifacts:
+  - `/tmp/novabridge-smoke-20260224-195531/artifacts/action-events-shared-1/editor-health.json`
+  - `/tmp/novabridge-smoke-20260224-195531/artifacts/action-events-shared-1/editor-execute-summary.json`
+
+Runtime checks (port `31120`, events port `31122`):
+- Pairing + token flow succeeded (`POST /nova/runtime/pair`).
+- `POST /nova/executePlan` with `spawn` + `delete` returned:
+  - `status=ok`, `success_count=2`, `error_count=0`
+- Artifacts:
+  - `/tmp/novabridge-smoke-20260224-195531/artifacts/action-events-shared-1/runtime-pair.json`
+  - `/tmp/novabridge-smoke-20260224-195531/artifacts/action-events-shared-1/runtime-execute-summary.json`
+
 ### NovaBridge Studio Scaffold Validation
 
 - Date: 2026-02-25

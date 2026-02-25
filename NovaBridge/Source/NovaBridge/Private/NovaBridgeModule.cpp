@@ -2435,19 +2435,15 @@ bool FNovaBridgeModule::HandleExecutePlan(const FHttpServerRequest& Request, con
 			StepResult->SetStringField(TEXT("label"), NewActor->GetActorLabel());
 			StepResult->SetStringField(TEXT("class"), ClassName);
 
-			TSharedPtr<FJsonObject> SpawnEvent = MakeShared<FJsonObject>();
-			SpawnEvent->SetStringField(TEXT("type"), TEXT("spawn"));
-			SpawnEvent->SetStringField(TEXT("mode"), TEXT("editor"));
-			SpawnEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
-			SpawnEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
-			SpawnEvent->SetStringField(TEXT("action"), Step.Action);
-			SpawnEvent->SetStringField(TEXT("status"), TEXT("success"));
-			SpawnEvent->SetStringField(TEXT("plan_id"), PlanId);
-			SpawnEvent->SetNumberField(TEXT("step"), Step.StepIndex);
-			SpawnEvent->SetStringField(TEXT("object_id"), NewActor->GetName());
-			SpawnEvent->SetStringField(TEXT("actor_name"), NewActor->GetName());
-			SpawnEvent->SetStringField(TEXT("actor_label"), NewActor->GetActorLabel());
-			SpawnEvent->SetStringField(TEXT("class"), ClassName);
+			const TSharedPtr<FJsonObject> SpawnEvent = NovaBridgeCore::BuildSpawnEvent(
+				TEXT("editor"),
+				PlanId,
+				Step.StepIndex,
+				Step.Action,
+				NewActor->GetName(),
+				ClassName,
+				NewActor->GetName(),
+				NewActor->GetActorLabel());
 			QueueEventObject(SpawnEvent);
 
 			PushAuditEntry(
@@ -2499,16 +2495,12 @@ bool FNovaBridgeModule::HandleExecutePlan(const FHttpServerRequest& Request, con
 				TEXT("success"),
 				FString::Printf(TEXT("Deleted actor %s"), *ActorName));
 
-			TSharedPtr<FJsonObject> DeleteEvent = MakeShared<FJsonObject>();
-			DeleteEvent->SetStringField(TEXT("type"), TEXT("delete"));
-			DeleteEvent->SetStringField(TEXT("mode"), TEXT("editor"));
-			DeleteEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
-			DeleteEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
-			DeleteEvent->SetStringField(TEXT("action"), Step.Action);
-			DeleteEvent->SetStringField(TEXT("status"), TEXT("success"));
-			DeleteEvent->SetStringField(TEXT("plan_id"), PlanId);
-			DeleteEvent->SetNumberField(TEXT("step"), Step.StepIndex);
-			DeleteEvent->SetStringField(TEXT("actor_name"), ActorName);
+			const TSharedPtr<FJsonObject> DeleteEvent = NovaBridgeCore::BuildDeleteEvent(
+				TEXT("editor"),
+				PlanId,
+				Step.StepIndex,
+				Step.Action,
+				ActorName);
 			QueueEventObject(DeleteEvent);
 
 			PushAuditEntry(
