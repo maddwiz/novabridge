@@ -41,6 +41,15 @@ export function ConnectPanel({ baseUrl, connected, mode, permissions, onBaseUrlC
           <div>Spawn/min: {permissions.spawn?.max_requests_per_minute ?? "n/a"}</div>
         </div>
       ) : null}
+
+      <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-[var(--muted)]">
+        <div className="mb-1 text-[var(--text)]">Runtime Pairing (v0.2 stub)</div>
+        <div className="mb-2">UI reserved for `POST /nova/runtime/pair` token exchange in a later release.</div>
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          <Input value="" readOnly placeholder="Pairing code (coming soon)" />
+          <Input value="" readOnly placeholder="Runtime token (coming soon)" />
+        </div>
+      </div>
     </Card>
   );
 }

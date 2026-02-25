@@ -16,6 +16,11 @@ export function ProvidersPanel({ settings, onChange }: ProvidersPanelProps) {
   return (
     <Card className="space-y-3">
       <div className="text-sm text-[var(--muted)]">Provider Settings</div>
+      <Input
+        placeholder="NovaBridge API Key (optional)"
+        value={settings.novaApiKey}
+        onChange={(e) => set("novaApiKey", e.target.value)}
+      />
       <Select value={settings.provider} onChange={(e) => set("provider", e.target.value as SettingsState["provider"])}>
         <option value="openai">OpenAI</option>
         <option value="anthropic">Anthropic</option>

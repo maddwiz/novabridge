@@ -3,7 +3,8 @@ export class HttpError extends Error {
   bodyText: string;
 
   constructor(status: number, bodyText: string) {
-    super(`HTTP ${status}`);
+    const suffix = bodyText?.trim() ? `: ${bodyText.trim().slice(0, 220)}` : "";
+    super(`HTTP ${status}${suffix}`);
     this.status = status;
     this.bodyText = bodyText;
   }

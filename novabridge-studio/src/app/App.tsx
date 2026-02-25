@@ -21,7 +21,7 @@ import { validatePlanAgainstPermissions } from "../features/planner/planPolicy";
 import { executePlan } from "../features/executor/executorApi";
 import { ActivityStream } from "../features/executor/ActivityStream";
 import { ProvidersPanel } from "../features/settings/ProvidersPanel";
-import { nowIso, summarizePrompt } from "../lib/format";
+import { normalizeBaseUrl, nowIso, summarizePrompt } from "../lib/format";
 import type { ActivityLog, Mode } from "../lib/types";
 
 function makeLog(level: "info" | "error", route: string, message: string, status?: number): ActivityLog {
@@ -65,13 +65,20 @@ export function App() {
   };
 
   const onConnect = async () => {
+    const baseUrl = normalizeBaseUrl(connectState.baseUrl);
+    if (!baseUrl) {
+      showToast("Base URL is empty", "error");
+      return;
+    }
+
     setBusy(true);
     try {
-      const health = await fetchHealth(connectState.baseUrl);
-      const caps = await fetchCaps(connectState.baseUrl);
+      const health = await fetchHealth(baseUrl, settingsState.novaApiKey);
+      const caps = await fetchCaps(baseUrl, settingsState.novaApiKey);
       const mode: Mode = caps?.mode ?? health.mode ?? "unknown";
       setConnectState((prev) => ({
         ...prev,
+        baseUrl,
         connected: health.status === "ok",
         mode,
         version: health.version,
@@ -138,11 +145,23 @@ export function App() {
       return;
     }
 
+    const baseUrl = normalizeBaseUrl(connectState.baseUrl);
+    if (!baseUrl) {
+      showToast("Base URL is empty", "error");
+      return;
+    }
+
     setBusy(true);
     try {
-      const result = await executePlan(connectState.baseUrl, plan);
+      const result = await executePlan(baseUrl, plan, settingsState.novaApiKey);
       setExecutorState((prev) => ({ ...prev, lastPlan: plan, lastRun: result }));
-      pushLog(makeLog("info", "/nova/executePlan", "Plan executed"));
+      const run = result;
+      const summary = `${run.success_count}/${run.step_count} steps succeeded${run.fallback ? " (fallback mode)" : ""}`;
+      pushLog(makeLog(run.error_count > 0 ? "error" : "info", "/nova/executePlan", summary));
+      run.results.forEach((step) => {
+        const route = `/nova/executePlan step ${step.step + 1} (${step.action})`;
+        pushLog(makeLog(step.status === "error" ? "error" : "info", route, step.message));
+      });
       showToast("Execution complete", "info");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Execute failed";

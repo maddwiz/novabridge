@@ -16,7 +16,8 @@ const defaults: PlannerState = {
 };
 
 export function loadPlannerState(): PlannerState {
-  return loadJson(KEY, defaults);
+  const loaded = loadJson<Partial<PlannerState>>(KEY, {});
+  return { ...defaults, ...loaded };
 }
 
 export function savePlannerState(state: PlannerState): void {

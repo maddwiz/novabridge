@@ -13,11 +13,11 @@ export async function generatePlan(input: {
   settings: SettingsState;
 }): Promise<Plan> {
   if (import.meta.env.DEV && input.settings.useMockProvider) {
-    return {
+    return parsePlan({
       plan_id: "mock",
       mode: input.mode,
       steps: [{ action: "spawn", params: { type: "PointLight", label: "LaunchSmokeLight" } }]
-    };
+    });
   }
 
   let plan: Plan;

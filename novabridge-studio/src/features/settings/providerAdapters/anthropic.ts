@@ -1,5 +1,11 @@
 import type { Plan } from "../../../lib/types";
-import { extractJsonPlan, type ProviderAdapter, type ProviderInput } from "./custom";
+import {
+  buildPlannerSystemPrompt,
+  buildPlannerUserPrompt,
+  extractJsonPlan,
+  type ProviderAdapter,
+  type ProviderInput
+} from "./custom";
 
 export function makeAnthropicAdapter(apiKey: string, model: string): ProviderAdapter {
   return {
@@ -18,12 +24,11 @@ export function makeAnthropicAdapter(apiKey: string, model: string): ProviderAda
         body: JSON.stringify({
           model,
           max_tokens: 1000,
-          system:
-            "You are a planner. Output valid JSON only. No prose. Schema: {plan_id:string,mode:'editor'|'runtime',steps:[{action:'spawn'|'delete'|'set'|'screenshot',params:object}]}",
+          system: buildPlannerSystemPrompt(),
           messages: [
             {
               role: "user",
-              content: `mode=${input.mode}\ncapabilities=${input.capsText}\nprompt=${input.prompt}`
+              content: buildPlannerUserPrompt(input)
             }
           ]
         })

@@ -19,7 +19,8 @@ const defaults: ConnectState = {
 };
 
 export function loadConnectState(): ConnectState {
-  return loadJson(KEY, defaults);
+  const loaded = loadJson<Partial<ConnectState>>(KEY, {});
+  return { ...defaults, ...loaded };
 }
 
 export function saveConnectState(state: ConnectState): void {

@@ -66,3 +66,23 @@ export type ActivityLog = {
   status?: number;
   message: string;
 };
+
+export type ExecutePlanStepResult = {
+  step: number;
+  action: string;
+  status: "success" | "error";
+  message: string;
+  object_id?: string;
+};
+
+export type ExecutePlanResponse = {
+  status: string;
+  plan_id?: string;
+  mode?: "editor" | "runtime";
+  role?: string;
+  results: ExecutePlanStepResult[];
+  step_count: number;
+  success_count: number;
+  error_count: number;
+  fallback?: boolean;
+};

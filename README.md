@@ -172,6 +172,7 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 - Added baseline automated tests for Python integrations (`python-sdk/tests` and `mcp-server/tests`) and core execute-plan schema automation coverage (`NovaBridgePlanSchemaTests`).
 - `GET /nova/caps` now returns explicit `permissions` snapshots for editor/runtime policy introspection.
 - Resolved deferred event-stream bug: WebSocket clients no longer receive pre-subscription events before `status=ok`.
+- NovaBridge Studio now supports optional NovaBridge API key forwarding (`X-API-Key`), stricter plan schema validation, richer execute fallback mapping (`set-property` + transform-aware spawn), and per-step execution logging.
 
 ## Blender Extension Configuration
 

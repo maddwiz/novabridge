@@ -1,5 +1,11 @@
 import type { Plan } from "../../../lib/types";
-import { extractJsonPlan, type ProviderAdapter, type ProviderInput } from "./custom";
+import {
+  buildPlannerSystemPrompt,
+  buildPlannerUserPrompt,
+  extractJsonPlan,
+  type ProviderAdapter,
+  type ProviderInput
+} from "./custom";
 
 export function makeOpenAIAdapter(apiKey: string, model: string): ProviderAdapter {
   return {
@@ -19,12 +25,11 @@ export function makeOpenAIAdapter(apiKey: string, model: string): ProviderAdapte
           messages: [
             {
               role: "system",
-              content:
-                "You are a planner. Output valid JSON only. No prose. Schema: {plan_id:string,mode:'editor'|'runtime',steps:[{action:'spawn'|'delete'|'set'|'screenshot',params:object}]}"
+              content: buildPlannerSystemPrompt()
             },
             {
               role: "user",
-              content: `mode=${input.mode}\ncapabilities=${input.capsText}\nprompt=${input.prompt}`
+              content: buildPlannerUserPrompt(input)
             }
           ],
           temperature: 0.2

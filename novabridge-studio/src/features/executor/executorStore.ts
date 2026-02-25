@@ -1,12 +1,12 @@
 import { loadJson, saveJson } from "../../lib/storage";
-import type { ActivityLog, Plan } from "../../lib/types";
+import type { ActivityLog, ExecutePlanResponse, Plan } from "../../lib/types";
 
 const KEY = "novabridge-studio-executor";
 
 export type ExecutorState = {
   activity: ActivityLog[];
   lastPlan: Plan | null;
-  lastRun: unknown;
+  lastRun: ExecutePlanResponse | null;
 };
 
 const defaults: ExecutorState = {
@@ -16,7 +16,8 @@ const defaults: ExecutorState = {
 };
 
 export function loadExecutorState(): ExecutorState {
-  return loadJson(KEY, defaults);
+  const loaded = loadJson<Partial<ExecutorState>>(KEY, {});
+  return { ...defaults, ...loaded };
 }
 
 export function saveExecutorState(state: ExecutorState): void {

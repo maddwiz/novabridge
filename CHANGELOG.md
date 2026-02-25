@@ -74,6 +74,11 @@
 - Added explicit permission snapshots to `GET /nova/caps` for editor/runtime (limits, allowed actions, spawn policy, and event subscription gating requirement).
 - NovaBridge Studio now uses `/nova/caps` `permissions` for local plan preflight and blocks disallowed steps before execution.
 - NovaBridge Studio now surfaces policy snapshots in Connect and shows policy-block reasons inline in Plan Preview (execute disabled when blocked).
+- NovaBridge Studio planner validation is now strict per-step schema (typed action params including transform tuples), reducing malformed plan execution.
+- NovaBridge Studio provider adapters now share a grounded planner system prompt, include capabilities/policy context uniformly, and use safer JSON extraction from provider output.
+- NovaBridge Studio execution now supports optional NovaBridge API key forwarding (`X-API-Key`) for health/caps/execute/fallback requests.
+- NovaBridge Studio fallback execution now maps `set` actions to `/nova/scene/set-property`, supports spawn transform fields, and logs per-step execution outcomes in the activity stream.
+- NovaBridge Studio Connect now includes explicit runtime pairing UI placeholders for the future `/nova/runtime/pair` flow (v0.2 stub).
 - Added `novabridge-studio` v0.1 scaffold (Tauri + React + TypeScript) with Connect, Build, Settings, provider adapters, and execute fallback flow.
 - Enforced localhost-only runtime request policy (`Host` must be loopback).
 - Added runtime `executePlan` per-minute rate limiting and pairing-code rotation on successful pair.

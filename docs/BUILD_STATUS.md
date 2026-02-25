@@ -8,6 +8,21 @@
   - macOS native validation completed on `MacBookPro17,1` (Apple M1, 8 GB RAM), macOS `15.6.1` (`24G90`), Xcode `26.2` (`17C52`), Unreal Engine `5.6.1-44394996`.
   - Windows Win64 native validation completed on `DESKTOP-QNVIB5M`, Unreal Engine `5.7.3` (`C:\Program Files\Epic Games\UE_5.7`), Visual Studio Build Tools 2022 (`17.14.27`), MSVC `14.44.35207`, Windows SDK `10.0.26100.0`.
 
+## NovaBridge Studio Hardening Validation (macOS)
+
+- Date: 2026-02-25
+- Working directory:
+  - `/Users/desmondpottle/Documents/New project/novabridge/novabridge-studio`
+- Commands:
+  - `npm run build`
+  - `npm run tauri -- --version`
+- Result:
+  - `Succeeded`
+- Notes:
+  - TypeScript + Vite production build completed (`dist/assets/index-Djwfm5Eg.js`).
+  - Confirmed Tauri CLI availability (`tauri-cli 2.10.0`).
+  - Validated studio hardening changes: strict plan validation, provider JSON extraction improvements, API key forwarding, fallback mapping expansion, and per-step execute logging.
+
 ## macOS Sequencer-Render Handler Split Validation
 
 - Date: 2026-02-25

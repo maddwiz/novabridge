@@ -5,6 +5,7 @@ const KEY = "novabridge-studio-settings";
 export type ProviderId = "openai" | "anthropic" | "ollama" | "custom";
 
 export type SettingsState = {
+  novaApiKey: string;
   provider: ProviderId;
   openaiKey: string;
   openaiModel: string;
@@ -19,6 +20,7 @@ export type SettingsState = {
 };
 
 const defaults: SettingsState = {
+  novaApiKey: "",
   provider: "openai",
   openaiKey: "",
   openaiModel: "gpt-4o-mini",
@@ -33,7 +35,8 @@ const defaults: SettingsState = {
 };
 
 export function loadSettingsState(): SettingsState {
-  return loadJson(KEY, defaults);
+  const loaded = loadJson<Partial<SettingsState>>(KEY, {});
+  return { ...defaults, ...loaded };
 }
 
 export function saveSettingsState(state: SettingsState): void {
