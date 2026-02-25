@@ -8,6 +8,8 @@
 #include "Dom/JsonObject.h"
 #include "Containers/Ticker.h"
 
+DECLARE_LOG_CATEGORY_EXTERN(LogNovaBridge, Log, All);
+
 class IHttpRouter;
 class ASceneCapture2D;
 class UTextureRenderTarget2D;

@@ -46,6 +46,10 @@
 - Split editor stream endpoints into `NovaBridgeStreamHandlers.cpp` (`/nova/stream/start`, `/nova/stream/stop`, `/nova/stream/config`, `/nova/stream/status`).
 - Split editor material endpoints into `NovaBridgeMaterialHandlers.cpp` (`/nova/material/*`) to continue decomposing the editor module.
 - Split editor asset endpoints into `NovaBridgeAssetHandlers.cpp` (`/nova/asset/*` including OBJ/FBX import flow).
+- Split editor mesh endpoints into `NovaBridgeMeshHandlers.cpp` (`/nova/mesh/create`, `/nova/mesh/get`, `/nova/mesh/primitive`).
+- Split editor viewport/capture lifecycle endpoints into `NovaBridgeViewportHandlers.cpp` (`/nova/viewport/*` plus capture setup/cleanup helpers used by stream + screenshot flows).
+- Split editor PCG endpoints into `NovaBridgePcgHandlers.cpp` (`/nova/pcg/*`) to continue reducing `NovaBridgeModule.cpp`.
+- Promoted `LogNovaBridge` from file-static to shared module log category (`DECLARE_LOG_CATEGORY_EXTERN` + `DEFINE_LOG_CATEGORY`) so extracted handler units keep unified logging.
 - Fixed Python SDK raw screenshot path to include auth/runtime headers and shared error handling (`NovaBridge._request_bytes`).
 - Added Python SDK unit tests for request header propagation and raw screenshot auth path (`python-sdk/tests/test_novabridge_client.py`).
 - Added MCP server unit tests for wrapper error handling and spawn argument forwarding (`mcp-server/tests/test_novabridge_mcp.py`).
