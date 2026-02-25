@@ -30,6 +30,7 @@ Optional Blender path:
 - Editor capability discovery is role-scoped to the resolved caller role.
 - Structured multi-step execution is exposed via `POST /nova/executePlan`.
 - `executePlan` schema validation and action support registry are shared in `NovaBridgeCore`.
+- Editor `executePlan` step parsing reuses shared core extraction (`NovaBridgePlanDispatch::ExtractPlanStep`).
 - Runtime `executePlan` command routing uses a shared core dispatcher (`NovaBridgePlanDispatch`) for step extraction + action handler dispatch.
 - Reversible operation tracking is exposed via `POST /nova/undo`.
 - In-memory audit trail is exposed via `GET /nova/audit`.

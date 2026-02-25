@@ -2,6 +2,7 @@
 #include "NovaBridgeCapabilityRegistry.h"
 #include "NovaBridgeCoreTypes.h"
 #include "NovaBridgePolicy.h"
+#include "NovaBridgePlanDispatch.h"
 #include "NovaBridgePlanSchema.h"
 #include "HttpServerModule.h"
 #include "IHttpRouter.h"
@@ -2266,30 +2267,22 @@ bool FNovaBridgeModule::HandleExecutePlan(const FHttpServerRequest& Request, con
 
 			for (int32 StepIndex = 0; StepIndex < Steps.Num(); ++StepIndex)
 			{
-				const TSharedPtr<FJsonValue>& StepValue = Steps[StepIndex];
-				if (!StepValue.IsValid() || StepValue->Type != EJson::Object)
+				NovaBridgeCore::FPlanStepContext StepContext;
+				TSharedPtr<FJsonObject> ParseErrorResult;
+				if (!NovaBridgeCore::ExtractPlanStep(Steps[StepIndex], StepIndex, StepContext, ParseErrorResult))
 				{
 					StepActions[StepIndex] = TEXT("unknown");
 					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), TEXT("Step must be an object")))));
+						ParseErrorResult.IsValid()
+							? ParseErrorResult
+							: MakePlanStepResult(StepIndex, TEXT("error"), TEXT("Invalid plan step")))));
 					continue;
 				}
 
-				const TSharedPtr<FJsonObject> StepObj = StepValue->AsObject();
-				if (!StepObj.IsValid() || !StepObj->HasTypedField<EJson::String>(TEXT("action")))
-				{
-					StepActions[StepIndex] = TEXT("unknown");
-					StepResults.Add(MakeShareable(new FJsonValueObject(
-						MakePlanStepResult(StepIndex, TEXT("error"), TEXT("Missing step action")))));
-					continue;
-				}
-
-				FString Action = StepObj->GetStringField(TEXT("action"));
-				Action.TrimStartAndEndInline();
-				Action.ToLowerInline();
+				const FString& Action = StepContext.Action;
 				StepActions[StepIndex] = Action;
-				const TSharedPtr<FJsonObject> Params = StepObj->HasTypedField<EJson::Object>(TEXT("params"))
-					? StepObj->GetObjectField(TEXT("params"))
+				const TSharedPtr<FJsonObject> Params = StepContext.Params.IsValid()
+					? StepContext.Params
 					: MakeShareable(new FJsonObject);
 
 			if (!IsPlanActionAllowedForRole(Role, Action))

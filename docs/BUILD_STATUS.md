@@ -184,6 +184,19 @@ Runtime checks (port `30820`, events port `30822`):
 - Artifact root:
   - `/tmp/novabridge-smoke-20260224-195531/artifacts/runtime-command-router`
 
+### macOS Editor Shared Step-Extraction Validation
+
+- Date: 2026-02-25
+- Run root:
+  - `/tmp/novabridge-smoke-20260224-195531`
+- Build command:
+  - `"/Users/Shared/Epic Games/UE_5.6/Engine/Build/BatchFiles/Mac/Build.sh" UnrealEditor Mac Development -Project="/tmp/novabridge-smoke-20260224-195531/NovaBridgeDefault/NovaBridgeDefault.uproject" -WaitMutex -NoHotReloadFromIDE`
+- Result:
+  - `Succeeded`
+- Notes:
+  - Rebuild included `NovaBridgeModule.cpp` changes wiring editor `executePlan` step parsing to `NovaBridgeCore::ExtractPlanStep`.
+  - Runtime and core modules also recompiled cleanly in the same pass.
+
 ### NovaBridge Studio Scaffold Validation
 
 - Date: 2026-02-25
