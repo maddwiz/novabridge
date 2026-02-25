@@ -147,6 +147,7 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 - Editor and Runtime `executePlan` now use shared core event builders (`NovaBridgeCore::BuildPlanStepEvent` / `BuildPlanCompleteEvent`) so emitted plan event payloads stay aligned.
 - Editor and Runtime `executePlan` spawn/delete typed events now also use shared core builders (`BuildSpawnEvent` / `BuildDeleteEvent`) for consistent payload shape.
 - Shared HTTP/event parsing helpers now live in `NovaBridgeCore` (`NovaBridgeHttpUtils`) and are reused by Editor + Runtime modules.
+- Editor optimization handlers (`/nova/optimize/*`) are now isolated in `NovaBridgeOptimizeHandlers.cpp` to reduce the main module size and simplify maintenance.
 - `GET /nova/optimize/stats` spotlight counting now uses `USpotLightComponent` detection (component-based, no class-name string matching).
 - Python SDK raw screenshot path now includes auth/runtime headers and shared HTTP error handling (`NovaBridge._request_bytes`).
 - `GET /nova/caps` now returns explicit `permissions` snapshots for editor/runtime policy introspection.
