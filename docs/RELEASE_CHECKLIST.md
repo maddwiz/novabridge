@@ -11,6 +11,7 @@
 - [x] `POST /nova/asset/import` with OBJ + `scale` succeeds
 - [x] `POST /nova/scene/set-property` alias path works for common components
 - [x] Optional API key mode validated (`401` without key, `200` with key)
+- [x] Automated macOS execute-plan smoke script passes (`scripts/mac_executeplan_smoke.sh`)
 
 ## Platform Validation
 

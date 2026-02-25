@@ -35,6 +35,7 @@
 - Editor `executePlan` now routes command handlers through shared core dispatch (`NovaBridgePlanDispatch::FPlanCommandRouter`) for spawn/delete/set/screenshot steps.
 - Added shared plan event-object builders in `NovaBridgeCore` (`NovaBridgePlanEvents`) and wired editor/runtime `executePlan` event emission through the shared helpers.
 - Added shared typed action event builders in `NovaBridgeCore` (`BuildSpawnEvent`, `BuildDeleteEvent`) and wired editor/runtime execute-plan spawn/delete events through them.
+- Added macOS automation script `scripts/mac_executeplan_smoke.sh` for one-command build + editor/runtime execute-plan smoke validation (including runtime pairing flow and JSON artifacts).
 - Added explicit permission snapshots to `GET /nova/caps` for editor/runtime (limits, allowed actions, spawn policy, and event subscription gating requirement).
 - NovaBridge Studio now uses `/nova/caps` `permissions` for local plan preflight and blocks disallowed steps before execution.
 - NovaBridge Studio now surfaces policy snapshots in Connect and shows policy-block reasons inline in Plan Preview (execute disabled when blocked).

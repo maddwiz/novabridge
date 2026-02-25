@@ -9,6 +9,16 @@
 5. `GET /nova/viewport/screenshot?format=raw` returns PNG bytes.
 6. `POST /nova/scene/delete` removes test actor.
 
+## Automated macOS ExecutePlan Smoke
+
+1. Run:
+   - `./scripts/mac_executeplan_smoke.sh`
+2. Confirm output `status: "ok"` in:
+   - `/tmp/novabridge-smoke-<timestamp>/artifacts/executeplan-smoke/run-summary.json`
+3. Confirm both editor and runtime summaries report:
+   - `success_count: 2`
+   - `error_count: 0`
+
 ## CORS
 
 1. `OPTIONS` to any route returns:
@@ -21,4 +31,3 @@
 1. Launch with `NOVABRIDGE_API_KEY` or `-NovaBridgeApiKey=<key>`.
 2. Verify unauthorized request returns HTTP `401`.
 3. Verify request with `X-API-Key` succeeds.
-

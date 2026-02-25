@@ -2,6 +2,12 @@
 
 Run on a real Mac before claiming production macOS support.
 
+Fast path (automated executePlan validation):
+
+- `./scripts/mac_executeplan_smoke.sh`
+- Artifacts written under `/tmp/novabridge-smoke-<timestamp>/artifacts/executeplan-smoke`
+- Detailed status is written to `run-summary.json` in that artifact directory.
+
 1. Install UE 5.3-5.5 and Xcode command line tools.
 2. Create a fresh blank UE project.
 3. Copy `NovaBridge/` into `Plugins/NovaBridge/`.

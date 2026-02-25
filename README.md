@@ -40,6 +40,12 @@ Port override: change `-NovaBridgePort=30010` to any open port, then use that sa
 For headless startup without an existing project, use `NovaBridgeDefault/NovaBridgeDefault.uproject`.
 When running from this repo source tree, copy `NovaBridge/` into that project's `Plugins/` folder first.
 
+macOS one-command executePlan smoke (build + editor/runtime validation + artifacts):
+
+```bash
+./scripts/mac_executeplan_smoke.sh
+```
+
 ## Runtime Mode (Experimental)
 
 Enable runtime server in packaged/game processes only when needed:

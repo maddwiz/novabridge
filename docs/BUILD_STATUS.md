@@ -297,6 +297,28 @@ Runtime checks (port `31120`, events port `31122`):
   - `/tmp/novabridge-smoke-20260224-195531/artifacts/action-events-shared-1/runtime-pair.json`
   - `/tmp/novabridge-smoke-20260224-195531/artifacts/action-events-shared-1/runtime-execute-summary.json`
 
+### macOS Automated ExecutePlan Smoke Script Validation
+
+- Date: 2026-02-25
+- Command:
+  - `./scripts/mac_executeplan_smoke.sh`
+- Project:
+  - `/Users/desmondpottle/Documents/New project/novabridge/NovaBridgeDefault/NovaBridgeDefault.uproject`
+- Result:
+  - `status=ok` from generated run summary.
+- Script coverage:
+  - sync source plugin into project `Plugins/NovaBridge`
+  - build `UnrealEditor Mac Development`
+  - editor `/nova/executePlan` (`spawn` + `delete`)
+  - runtime pairing (`POST /nova/runtime/pair`) + token-gated `/nova/executePlan` (`spawn` + `delete`)
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260224-215730/artifacts/executeplan-smoke`
+- Key artifacts:
+  - `/tmp/novabridge-smoke-20260224-215730/artifacts/executeplan-smoke/run-summary.json`
+  - `/tmp/novabridge-smoke-20260224-215730/artifacts/executeplan-smoke/editor-execute-summary.json`
+  - `/tmp/novabridge-smoke-20260224-215730/artifacts/executeplan-smoke/runtime-pair.json`
+  - `/tmp/novabridge-smoke-20260224-215730/artifacts/executeplan-smoke/runtime-execute-summary.json`
+
 ### NovaBridge Studio Scaffold Validation
 
 - Date: 2026-02-25

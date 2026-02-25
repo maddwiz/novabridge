@@ -59,6 +59,25 @@ curl -H "X-API-Key: replace-with-secret" http://localhost:30010/nova/health
 - Native macOS smoke and release packaging validated on 2026-02-18.
 - Evidence and exact command history are in `docs/BUILD_STATUS.md`.
 
+## Automated ExecutePlan Smoke
+
+Run one command to:
+- sync plugin into project
+- build UnrealEditor target
+- validate editor `/nova/executePlan` (`spawn` + `delete`)
+- validate runtime pairing + token + `/nova/executePlan`
+- write JSON artifacts under `/tmp/novabridge-smoke-<timestamp>/artifacts/executeplan-smoke`
+
+```bash
+./scripts/mac_executeplan_smoke.sh
+```
+
+Optional overrides:
+- `NOVABRIDGE_PROJECT=/path/to/YourProject.uproject`
+- `UE_EDITOR_BIN=/path/to/UnrealEditor`
+- `UE_MAC_BUILD_SCRIPT=/path/to/Build.sh`
+- `NOVABRIDGE_BUILD=0` (skip build when binaries are already valid for the target project)
+
 ## Blender Path
 
 Default expected binary:
