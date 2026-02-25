@@ -26,6 +26,18 @@
   - Studio now compiles with live `/nova/events` discovery + WebSocket subscription flow (ACK-gated `subscribe`).
   - Validated studio hardening changes: strict plan validation, provider JSON extraction improvements, API key forwarding, fallback mapping expansion, and per-step execute logging.
 
+## CI Automation Update
+
+- Date: 2026-02-25
+- Added:
+  - `.github/workflows/qa-fast.yml`
+- Scope:
+  - Python SDK tests (`python-sdk/tests`)
+  - MCP server tests (`mcp-server/tests`)
+  - NovaBridge Studio tests/build (`novabridge-studio`)
+- Trigger:
+  - Push/PR changes touching Python integrations, Studio, or the workflow file.
+
 ## macOS Sequencer-Render Handler Split Validation
 
 - Date: 2026-02-25

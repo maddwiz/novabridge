@@ -81,6 +81,7 @@
 - NovaBridge Studio now discovers `/nova/events` and maintains a WebSocket subscription (`subscribe` ACK flow) to surface live spawn/delete/plan/error events in Activity.
 - NovaBridge Studio Connect now includes explicit runtime pairing UI placeholders for the future `/nova/runtime/pair` flow (v0.2 stub).
 - Added NovaBridge Studio unit tests via `vitest` covering plan schema validation, policy preflight checks, and provider JSON extraction/prompt helpers.
+- Added lightweight GitHub Actions workflow `.github/workflows/qa-fast.yml` to run Python SDK/MCP tests plus NovaBridge Studio tests/build on push/PR.
 - Added `novabridge-studio` v0.1 scaffold (Tauri + React + TypeScript) with Connect, Build, Settings, provider adapters, and execute fallback flow.
 - Enforced localhost-only runtime request policy (`Host` must be loopback).
 - Added runtime `executePlan` per-minute rate limiting and pairing-code rotation on successful pair.
