@@ -134,7 +134,8 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 - Runtime `executePlan` spawn now respects optional `label` as requested actor/object name (enables follow-up delete by that name).
 - Editor `executePlan` spawn/delete now emit typed `spawn`/`delete` events for filtered WebSocket clients.
 - Shared plan action/schema registry now lives in `NovaBridgeCore` and is enforced by both Editor and Runtime `executePlan`.
-- Deferred event-stream bug fix: WebSocket clients no longer receive pre-subscription events before `status=ok`.
+- Runtime `executePlan` step parsing and action dispatch now route through a shared core command-dispatch layer (`NovaBridgeCore`).
+- Resolved deferred event-stream bug: WebSocket clients no longer receive pre-subscription events before `status=ok`.
 
 ## Blender Extension Configuration
 

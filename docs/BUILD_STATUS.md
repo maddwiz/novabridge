@@ -167,6 +167,23 @@ Editor checks (port `30730`, events port `30732`):
 - Artifact root:
   - `/tmp/novabridge-smoke-20260224-195531/artifacts/caps-role-filter-2`
 
+### macOS Runtime Command-Dispatch Refactor Validation
+
+- Date: 2026-02-25
+- Run root:
+  - `/tmp/novabridge-smoke-20260224-195531`
+
+Runtime checks (port `30820`, events port `30822`):
+- Pairing + token flow succeeded (`POST /nova/runtime/pair`).
+- `POST /nova/executePlan` with steps:
+  - `spawn` (`PointLight`, label `RuntimeRouterLight`)
+  - `set` (location update)
+  - `delete` (cleanup)
+- Result: `success_count=3`, `error_count=0`.
+- Confirms runtime execute-plan behavior after shared core command-dispatch integration.
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260224-195531/artifacts/runtime-command-router`
+
 ### NovaBridge Studio Scaffold Validation
 
 - Date: 2026-02-25

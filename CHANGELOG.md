@@ -30,6 +30,7 @@
 - Added shared action metadata in `GET /nova/caps` `executePlan` capability (`actions`, `max_steps`) sourced from core plan-action registry.
 - `GET /nova/caps` now filters editor capabilities by resolved role (`admin`, `automation`, `read_only`).
 - Fixed deferred event-stream bug: event WebSocket delivery is now gated until subscription ACK (`status=ok`) in editor and runtime modules.
+- Added shared plan command-dispatch primitives in `NovaBridgeCore` (`NovaBridgePlanDispatch`) and wired runtime `executePlan` to use core step extraction + action dispatch.
 - Added `novabridge-studio` v0.1 scaffold (Tauri + React + TypeScript) with Connect, Build, Settings, provider adapters, and execute fallback flow.
 - Enforced localhost-only runtime request policy (`Host` must be loopback).
 - Added runtime `executePlan` per-minute rate limiting and pairing-code rotation on successful pair.
