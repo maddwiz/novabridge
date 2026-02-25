@@ -82,6 +82,11 @@
 - NovaBridge Studio Connect now includes explicit runtime pairing UI placeholders for the future `/nova/runtime/pair` flow (v0.2 stub).
 - Added NovaBridge Studio unit tests via `vitest` covering plan schema validation, policy preflight checks, and provider JSON extraction/prompt helpers.
 - Added lightweight GitHub Actions workflow `.github/workflows/qa-fast.yml` to run Python SDK/MCP tests plus NovaBridge Studio tests/build on push/PR.
+- Added `scripts/ci/validate_novabridge_cpp.py` static guard checks for Linux-safe module boundaries:
+  - blocks editor-only module dependencies in `NovaBridgeCore`/`NovaBridgeRuntime`
+  - blocks editor-only includes in core/runtime source trees
+  - validates editor/runtime route-binding uniqueness and handler declaration coverage
+- Extended fast QA workflow to run C++ static guard checks when `NovaBridge/**` changes.
 - Expanded self-hosted plugin build workflow with optional Linux x64 job (`scripts/ci/build_plugin_linux.sh`) plus Linux runner bootstrap helper (`scripts/ci/setup_runner_linux.sh`) and updated CI runbooks.
 - Added assistant sidecar (`assistant-server/`) with:
   - `command_catalog.js` risk classification

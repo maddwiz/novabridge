@@ -35,6 +35,7 @@
 - Added:
   - `.github/workflows/qa-fast.yml`
 - Scope:
+  - NovaBridge C++ static guard checks (`scripts/ci/validate_novabridge_cpp.py`)
   - Python SDK tests (`python-sdk/tests`)
   - MCP server tests (`mcp-server/tests`)
   - NovaBridge Studio tests/build (`novabridge-studio`)
@@ -43,6 +44,20 @@
 - Follow-up fix:
   - Removed strict `setup-node` lockfile cache path in Studio QA job to prevent unresolved-path failures on GitHub-hosted runners.
   - Added tracked Studio lockfile (`novabridge-studio/package-lock.json`) and moved Studio CI install to `npm ci` with npm cache keyed to that lockfile.
+  - Expanded workflow path filters to include `NovaBridge/**` plus the new C++ guard script.
+
+## NovaBridge C++ Static Guard Validation
+
+- Date: 2026-02-25
+- Command:
+  - `python3 scripts/ci/validate_novabridge_cpp.py`
+- Result:
+  - `Succeeded`
+- Notes:
+  - Parsed editor route bindings: `58`
+  - Parsed runtime route bindings: `7`
+  - Guard enforces no editor-only module deps/includes in `NovaBridgeCore` and `NovaBridgeRuntime`.
+  - Guard verifies route binding uniqueness and handler declarations for editor/runtime HTTP servers.
 
 ## Assistant + SDK Integration Validation
 

@@ -4,21 +4,35 @@ on:
   push:
     branches: ["main"]
     paths:
+      - "NovaBridge/**"
       - "python-sdk/**"
       - "mcp-server/**"
       - "novabridge-studio/**"
       - "assistant-server/**"
+      - "scripts/ci/validate_novabridge_cpp.py"
       - ".github/workflows/qa-fast.yml"
   pull_request:
     paths:
+      - "NovaBridge/**"
       - "python-sdk/**"
       - "mcp-server/**"
       - "novabridge-studio/**"
       - "assistant-server/**"
+      - "scripts/ci/validate_novabridge_cpp.py"
       - ".github/workflows/qa-fast.yml"
   workflow_dispatch:
 
 jobs:
+  cpp-static-guards:
+    name: C++ Static Guardrails
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run NovaBridge C++ static checks
+        run: python3 scripts/ci/validate_novabridge_cpp.py
+
   python-tests:
     name: Python SDK + MCP Tests
     runs-on: ubuntu-latest
