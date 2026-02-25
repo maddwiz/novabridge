@@ -149,6 +149,7 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 - Shared HTTP/event parsing helpers now live in `NovaBridgeCore` (`NovaBridgeHttpUtils`) and are reused by Editor + Runtime modules.
 - Editor optimization handlers (`/nova/optimize/*`) are now isolated in `NovaBridgeOptimizeHandlers.cpp` to reduce the main module size and simplify maintenance.
 - Editor sequencer handlers (`/nova/sequencer/*`) are now isolated in `NovaBridgeSequencerHandlers.cpp` to continue breaking down the previous monolithic module.
+- Sequencer render endpoint (`POST /nova/sequencer/render`) is now isolated in `NovaBridgeSequencerRenderHandlers.cpp`, keeping capture/render dependencies separate from core sequencer editing handlers.
 - Editor scene read/transform handlers (`/nova/scene/list`, `/nova/scene/get`, `/nova/scene/transform`) are now isolated in `NovaBridgeSceneHandlers.cpp`.
 - Editor blueprint/build handlers (`/nova/blueprint/*`, `/nova/build/lighting`, `/nova/exec`) are now isolated in `NovaBridgeBlueprintBuildHandlers.cpp`.
 - Editor stream handlers (`/nova/stream/*`) are now isolated in `NovaBridgeStreamHandlers.cpp`.

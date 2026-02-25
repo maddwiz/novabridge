@@ -8,6 +8,26 @@
   - macOS native validation completed on `MacBookPro17,1` (Apple M1, 8 GB RAM), macOS `15.6.1` (`24G90`), Xcode `26.2` (`17C52`), Unreal Engine `5.6.1-44394996`.
   - Windows Win64 native validation completed on `DESKTOP-QNVIB5M`, Unreal Engine `5.7.3` (`C:\Program Files\Epic Games\UE_5.7`), Visual Studio Build Tools 2022 (`17.14.27`), MSVC `14.44.35207`, Windows SDK `10.0.26100.0`.
 
+## macOS Sequencer-Render Handler Split Validation
+
+- Date: 2026-02-25
+- Command:
+  - `NOVABRIDGE_BUILD=1 ./scripts/mac_executeplan_smoke.sh`
+- Source project:
+  - `/Users/desmondpottle/Documents/New project/novabridge/NovaBridgeDefault/NovaBridgeDefault.uproject`
+- Result:
+  - `Succeeded` (build + editor/runtime execute-plan smoke)
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260225-102319/artifacts/executeplan-smoke`
+- Notes:
+  - Added `NovaBridgeSequencerRenderHandlers.cpp` and moved `POST /nova/sequencer/render` there.
+  - Kept shared playback helper (`NovaBridgeSetPlaybackTime`) in `NovaBridgeSequencerHandlers.cpp` and exposed it through `NovaBridgeEditorInternals.h`.
+  - `NovaBridgeSequencerHandlers.cpp` reduced to `524` lines; render-specific file is `122` lines.
+  - `run-summary.json` reported editor `success_count=2/error_count=0` and runtime `success_count=2/error_count=0`.
+  - Python test refresh passed:
+    - `python3 -m unittest discover -s python-sdk/tests -p 'test_*.py'` (`Ran 2 tests ... OK`)
+    - `python3 -m unittest discover -s mcp-server/tests -p 'test_*.py'` (`Ran 2 tests ... OK`)
+
 ## macOS HTTP-Server Split Validation
 
 - Date: 2026-02-25

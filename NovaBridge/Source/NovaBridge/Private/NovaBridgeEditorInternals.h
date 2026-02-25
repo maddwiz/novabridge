@@ -7,6 +7,7 @@
 
 class AActor;
 class UClass;
+class ULevelSequencePlayer;
 
 struct FNovaBridgeUndoEntry
 {
@@ -57,5 +58,6 @@ AActor* FindActorByName(const FString& Name);
 TSharedPtr<FJsonObject> ActorToJson(AActor* Actor);
 UClass* ResolveActorClassByName(const FString& InClassName);
 bool SetActorPropertyValue(AActor* Actor, const FString& PropertyName, const FString& Value, FString& OutError);
+void NovaBridgeSetPlaybackTime(ULevelSequencePlayer* Player, float TimeSeconds, bool bScrub);
 
 void RegisterEditorCapabilities(uint32 InEventWsPort);

@@ -25,7 +25,7 @@ Optional Blender path:
 
 - HTTP server runs in UE module.
 - Route handlers marshal editor work to UE game thread with `AsyncTask`.
-- Editor handler implementations are decomposed into focused translation units (for example, `NovaBridgeOptimizeHandlers.cpp`, `NovaBridgeSequencerHandlers.cpp`, `NovaBridgeSceneHandlers.cpp`, `NovaBridgeBlueprintBuildHandlers.cpp`, `NovaBridgeStreamHandlers.cpp`, `NovaBridgeMaterialHandlers.cpp`, `NovaBridgeAssetHandlers.cpp`, `NovaBridgeMeshHandlers.cpp`, `NovaBridgeViewportHandlers.cpp`, `NovaBridgePcgHandlers.cpp`, `NovaBridgeWebSocketHandlers.cpp`, `NovaBridgeHttpServer.cpp`) instead of one monolithic module file.
+- Editor handler implementations are decomposed into focused translation units (for example, `NovaBridgeOptimizeHandlers.cpp`, `NovaBridgeSequencerHandlers.cpp`, `NovaBridgeSequencerRenderHandlers.cpp`, `NovaBridgeSceneHandlers.cpp`, `NovaBridgeBlueprintBuildHandlers.cpp`, `NovaBridgeStreamHandlers.cpp`, `NovaBridgeMaterialHandlers.cpp`, `NovaBridgeAssetHandlers.cpp`, `NovaBridgeMeshHandlers.cpp`, `NovaBridgeViewportHandlers.cpp`, `NovaBridgePcgHandlers.cpp`, `NovaBridgeWebSocketHandlers.cpp`, `NovaBridgeHttpServer.cpp`) instead of one monolithic module file.
 - `NovaBridgeModule.cpp` is now lifecycle-only (module startup/shutdown and subsystem bootstrap orchestration).
 - Shared editor actor/property utility helpers are split into `NovaBridgeEditorUtilityHelpers.cpp` and reused through `NovaBridgeEditorInternals.h`.
 - Shared editor policy/control state helpers are split into `NovaBridgeEditorPolicyState.cpp` and reused through `NovaBridgeEditorInternals.h`.
