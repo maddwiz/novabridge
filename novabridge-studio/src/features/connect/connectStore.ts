@@ -10,6 +10,7 @@ export type ConnectState = {
   version?: string;
   caps?: Capability[];
   permissions?: PermissionSnapshot;
+  eventsWsUrl?: string;
 };
 
 const defaults: ConnectState = {

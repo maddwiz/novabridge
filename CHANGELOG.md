@@ -78,6 +78,7 @@
 - NovaBridge Studio provider adapters now share a grounded planner system prompt, include capabilities/policy context uniformly, and use safer JSON extraction from provider output.
 - NovaBridge Studio execution now supports optional NovaBridge API key forwarding (`X-API-Key`) for health/caps/execute/fallback requests.
 - NovaBridge Studio fallback execution now maps `set` actions to `/nova/scene/set-property`, supports spawn transform fields, and logs per-step execution outcomes in the activity stream.
+- NovaBridge Studio now discovers `/nova/events` and maintains a WebSocket subscription (`subscribe` ACK flow) to surface live spawn/delete/plan/error events in Activity.
 - NovaBridge Studio Connect now includes explicit runtime pairing UI placeholders for the future `/nova/runtime/pair` flow (v0.2 stub).
 - Added NovaBridge Studio unit tests via `vitest` covering plan schema validation, policy preflight checks, and provider JSON extraction/prompt helpers.
 - Added `novabridge-studio` v0.1 scaffold (Tauri + React + TypeScript) with Connect, Build, Settings, provider adapters, and execute fallback flow.

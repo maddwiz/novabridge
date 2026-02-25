@@ -58,6 +58,16 @@ export type HealthResponse = {
   version?: string;
 };
 
+export type EventsResponse = {
+  status?: string;
+  ws_url?: string;
+  ws_port?: number;
+  clients?: number;
+  pending_events?: number;
+  supported_types?: string[];
+  [k: string]: unknown;
+};
+
 export type ActivityLog = {
   id: string;
   ts: string;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { DEFAULT_ROUTE, type AppRoute } from "./routes";
 import { Shell } from "../ui/components/Shell";
@@ -9,7 +9,7 @@ import { Button } from "../ui/components/Button";
 import { TextArea } from "../ui/components/TextArea";
 import { Toast } from "../ui/components/Toast";
 import { ConnectPanel } from "../features/connect/ConnectPanel";
-import { fetchCaps, fetchHealth } from "../features/connect/connectApi";
+import { fetchCaps, fetchEvents, fetchHealth } from "../features/connect/connectApi";
 import { loadConnectState, saveConnectState } from "../features/connect/connectStore";
 import { loadPlannerState, savePlannerState } from "../features/planner/plannerStore";
 import { loadExecutorState, saveExecutorState } from "../features/executor/executorStore";
@@ -35,6 +35,52 @@ function makeLog(level: "info" | "error", route: string, message: string, status
   };
 }
 
+type EventSocketState = "idle" | "connecting" | "connected" | "error";
+
+function summarizeEventPayload(payload: Record<string, unknown>): { level: "info" | "error"; route: string; message: string } {
+  const type = typeof payload.type === "string" ? payload.type : "event";
+
+  if (type === "spawn") {
+    const label = typeof payload.actor_label === "string" ? payload.actor_label : "actor";
+    const actorClass = typeof payload.class === "string" ? payload.class : "UnknownClass";
+    return { level: "info", route: "/nova/events/spawn", message: `Spawned ${label} (${actorClass})` };
+  }
+
+  if (type === "delete") {
+    const actor = typeof payload.actor_name === "string" ? payload.actor_name : "actor";
+    return { level: "info", route: "/nova/events/delete", message: `Deleted ${actor}` };
+  }
+
+  if (type === "plan_step") {
+    const action = typeof payload.action === "string" ? payload.action : "step";
+    const status = typeof payload.status === "string" ? payload.status : "ok";
+    const message = typeof payload.message === "string" ? payload.message : `${action} ${status}`;
+    return {
+      level: status === "error" ? "error" : "info",
+      route: `/nova/events/plan_step/${action}`,
+      message
+    };
+  }
+
+  if (type === "plan_complete") {
+    const planId = typeof payload.plan_id === "string" ? payload.plan_id : "plan";
+    const success = typeof payload.success_count === "number" ? payload.success_count : 0;
+    const errors = typeof payload.error_count === "number" ? payload.error_count : 0;
+    return { level: errors > 0 ? "error" : "info", route: "/nova/events/plan_complete", message: `${planId}: ${success} success / ${errors} error` };
+  }
+
+  const message = typeof payload.message === "string"
+    ? payload.message
+    : typeof payload.action === "string"
+      ? payload.action
+      : "Event received";
+  return {
+    level: type === "error" ? "error" : "info",
+    route: `/nova/events/${type}`,
+    message
+  };
+}
+
 export function App() {
   const [route, setRoute] = useState<AppRoute>(DEFAULT_ROUTE);
   const [connectState, setConnectState] = useState(loadConnectState);
@@ -43,6 +89,7 @@ export function App() {
   const [settingsState, setSettingsState] = useState(loadSettingsState);
   const [toast, setToast] = useState<{ message: string; kind: "info" | "error" } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [eventSocketState, setEventSocketState] = useState<EventSocketState>("idle");
 
   useEffect(() => saveConnectState(connectState), [connectState]);
   useEffect(() => savePlannerState(plannerState), [plannerState]);
@@ -55,14 +102,81 @@ export function App() {
     return validatePlanAgainstPermissions(plannerState.plan, connectState.permissions);
   }, [plannerState.plan, connectState.permissions]);
 
-  const pushLog = (entry: ActivityLog) => {
+  const pushLog = useCallback((entry: ActivityLog) => {
     setExecutorState((prev) => ({ ...prev, activity: [entry, ...prev.activity].slice(0, 200) }));
-  };
+  }, []);
 
   const showToast = (message: string, kind: "info" | "error" = "info") => {
     setToast({ message, kind });
     window.setTimeout(() => setToast(null), 2800);
   };
+
+  useEffect(() => {
+    if (!connectState.connected || !connectState.eventsWsUrl) {
+      setEventSocketState("idle");
+      return;
+    }
+
+    let closedByCleanup = false;
+    let receivedSubscriptionAck = false;
+    setEventSocketState("connecting");
+
+    const ws = new WebSocket(connectState.eventsWsUrl);
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        action: "subscribe",
+        types: ["spawn", "delete", "plan_step", "plan_complete", "error", "audit"]
+      }));
+    };
+
+    ws.onmessage = (event) => {
+      let payload: unknown;
+      try {
+        payload = JSON.parse(event.data as string);
+      } catch {
+        pushLog(makeLog("error", "/nova/events", "Received non-JSON WebSocket payload"));
+        return;
+      }
+
+      if (typeof payload !== "object" || payload === null) {
+        return;
+      }
+
+      const eventObj = payload as Record<string, unknown>;
+      if (eventObj.type === "subscription") {
+        if (eventObj.status === "ok") {
+          receivedSubscriptionAck = true;
+          setEventSocketState("connected");
+          pushLog(makeLog("info", "/nova/events", "Event subscription active"));
+        } else {
+          setEventSocketState("error");
+          pushLog(makeLog("error", "/nova/events", "Event subscription rejected"));
+        }
+        return;
+      }
+
+      const summary = summarizeEventPayload(eventObj);
+      pushLog(makeLog(summary.level, summary.route, summary.message));
+    };
+
+    ws.onerror = () => {
+      setEventSocketState("error");
+      pushLog(makeLog("error", "/nova/events", "Event WebSocket error"));
+    };
+
+    ws.onclose = () => {
+      if (closedByCleanup) return;
+      setEventSocketState("idle");
+      if (receivedSubscriptionAck) {
+        pushLog(makeLog("info", "/nova/events", "Event WebSocket closed"));
+      }
+    };
+
+    return () => {
+      closedByCleanup = true;
+      ws.close();
+    };
+  }, [connectState.connected, connectState.eventsWsUrl, pushLog]);
 
   const onConnect = async () => {
     const baseUrl = normalizeBaseUrl(connectState.baseUrl);
@@ -75,6 +189,7 @@ export function App() {
     try {
       const health = await fetchHealth(baseUrl, settingsState.novaApiKey);
       const caps = await fetchCaps(baseUrl, settingsState.novaApiKey);
+      const events = await fetchEvents(baseUrl, settingsState.novaApiKey);
       const mode: Mode = caps?.mode ?? health.mode ?? "unknown";
       setConnectState((prev) => ({
         ...prev,
@@ -83,12 +198,17 @@ export function App() {
         mode,
         version: health.version,
         caps: caps?.capabilities ?? prev.caps,
-        permissions: caps?.permissions ?? prev.permissions
+        permissions: caps?.permissions ?? prev.permissions,
+        eventsWsUrl: typeof events?.ws_url === "string" ? events.ws_url : undefined
       }));
       pushLog(makeLog("info", "/nova/health", `Connected in ${mode} mode`));
+      if (typeof events?.ws_url === "string") {
+        pushLog(makeLog("info", "/nova/events", `Discovered event socket: ${events.ws_url}`));
+      }
       showToast("Connected", "info");
     } catch (error) {
-      setConnectState((prev) => ({ ...prev, connected: false, mode: "unknown", permissions: undefined }));
+      setConnectState((prev) => ({ ...prev, connected: false, mode: "unknown", permissions: undefined, eventsWsUrl: undefined }));
+      setEventSocketState("idle");
       const message = error instanceof Error ? error.message : "Connect failed";
       pushLog(makeLog("error", "/nova/health", message));
       showToast(message, "error");
@@ -244,7 +364,14 @@ export function App() {
           </motion.div>
         </main>
 
-        <ActivityStream logs={executorState.activity} mode={connectState.mode} baseUrl={connectState.baseUrl} routeCount={routeCount} />
+        <ActivityStream
+          logs={executorState.activity}
+          mode={connectState.mode}
+          baseUrl={connectState.baseUrl}
+          routeCount={routeCount}
+          eventsWsUrl={connectState.eventsWsUrl}
+          eventSocketState={eventSocketState}
+        />
       </div>
 
       <Toast message={toast?.message ?? ""} kind={toast?.kind ?? "info"} />

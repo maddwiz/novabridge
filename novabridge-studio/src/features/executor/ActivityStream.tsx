@@ -6,9 +6,11 @@ type ActivityStreamProps = {
   mode: string;
   baseUrl: string;
   routeCount?: number;
+  eventsWsUrl?: string;
+  eventSocketState?: "idle" | "connecting" | "connected" | "error";
 };
 
-export function ActivityStream({ logs, mode, baseUrl, routeCount }: ActivityStreamProps) {
+export function ActivityStream({ logs, mode, baseUrl, routeCount, eventsWsUrl, eventSocketState = "idle" }: ActivityStreamProps) {
   return (
     <Card className="flex h-full flex-col gap-3 overflow-hidden">
       <div className="text-sm text-[var(--muted)]">Activity</div>
@@ -16,6 +18,8 @@ export function ActivityStream({ logs, mode, baseUrl, routeCount }: ActivityStre
         <div>URL: {baseUrl}</div>
         <div>Mode: {mode}</div>
         <div>Routes: {routeCount ?? "n/a"}</div>
+        <div>Events: {eventsWsUrl ?? "n/a"}</div>
+        <div>Event Socket: {eventSocketState}</div>
       </div>
       <div className="panel-scroll flex-1 space-y-2 overflow-auto rounded-xl border border-white/10 bg-black/40 p-2">
         {logs.length === 0 ? <div className="text-[var(--muted)]">No activity yet.</div> : null}

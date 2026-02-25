@@ -13,6 +13,7 @@ NovaBridge Studio is a desktop control surface for NovaBridge (UE5 plugin).
 - Shows current policy snapshot in Connect and inline policy-block reasons in Plan Preview
 - Executes via `POST /nova/executePlan`
 - Shows per-step execution outcomes in the activity stream
+- Subscribes to `/nova/events` WebSocket (when available) for live spawn/delete/plan/error feed
 - Falls back to endpoint calls if `executePlan` is not available:
   - `POST /nova/scene/spawn`
   - `POST /nova/scene/delete`
@@ -25,6 +26,7 @@ NovaBridge Studio is a desktop control surface for NovaBridge (UE5 plugin).
 
 - `GET /nova/health`
 - `GET /nova/caps` (optional but recommended)
+- `GET /nova/events` (optional, enables live activity stream)
 - `POST /nova/executePlan` (preferred)
 
 Fallback-compatible:

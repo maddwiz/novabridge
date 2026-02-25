@@ -23,6 +23,7 @@
   - Vitest suite passed (`3` files / `10` tests): schema validation, policy preflight, provider adapter parsing/prompt helpers.
   - TypeScript + Vite production build completed (`dist/assets/index-Djwfm5Eg.js`).
   - Confirmed Tauri CLI availability (`tauri-cli 2.10.0`).
+  - Studio now compiles with live `/nova/events` discovery + WebSocket subscription flow (ACK-gated `subscribe`).
   - Validated studio hardening changes: strict plan validation, provider JSON extraction improvements, API key forwarding, fallback mapping expansion, and per-step execute logging.
 
 ## macOS Sequencer-Render Handler Split Validation
