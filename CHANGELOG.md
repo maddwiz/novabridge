@@ -49,6 +49,8 @@
 - Split editor mesh endpoints into `NovaBridgeMeshHandlers.cpp` (`/nova/mesh/create`, `/nova/mesh/get`, `/nova/mesh/primitive`).
 - Split editor viewport/capture lifecycle endpoints into `NovaBridgeViewportHandlers.cpp` (`/nova/viewport/*` plus capture setup/cleanup helpers used by stream + screenshot flows).
 - Split editor PCG endpoints into `NovaBridgePcgHandlers.cpp` (`/nova/pcg/*`) to continue reducing `NovaBridgeModule.cpp`.
+- Split scene mutation endpoints (`/nova/scene/spawn`, `/nova/scene/delete`, `/nova/scene/set-property`) into `NovaBridgeSceneHandlers.cpp` so all scene endpoints live in one translation unit.
+- Added private shared helper header `NovaBridgeEditorInternals.h` for scene/audit/policy utilities reused across extracted editor handler files.
 - Promoted `LogNovaBridge` from file-static to shared module log category (`DECLARE_LOG_CATEGORY_EXTERN` + `DEFINE_LOG_CATEGORY`) so extracted handler units keep unified logging.
 - Fixed Python SDK raw screenshot path to include auth/runtime headers and shared error handling (`NovaBridge._request_bytes`).
 - Added Python SDK unit tests for request header propagation and raw screenshot auth path (`python-sdk/tests/test_novabridge_client.py`).

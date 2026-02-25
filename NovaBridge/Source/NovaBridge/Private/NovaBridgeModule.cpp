@@ -6,6 +6,7 @@
 #include "NovaBridgePlanDispatch.h"
 #include "NovaBridgePlanEvents.h"
 #include "NovaBridgePlanSchema.h"
+#include "NovaBridgeEditorInternals.h"
 #include "HttpServerModule.h"
 #include "IHttpRouter.h"
 #include "HttpPath.h"
@@ -168,13 +169,6 @@ struct FNovaBridgeRateBucket
 	int32 Count = 0;
 };
 
-struct FNovaBridgeUndoEntry
-{
-	FString Action;
-	FString ActorName;
-	FString ActorLabel;
-};
-
 struct FNovaBridgeAuditEntry
 {
 	FString TimestampUtc;
@@ -210,7 +204,7 @@ static FString NormalizeRoleName(const FString& RawRole)
 	return NovaBridgeCore::NormalizeRoleName(RawRole);
 }
 
-static FString ResolveRoleFromRequest(const FHttpServerRequest& Request)
+FString ResolveRoleFromRequest(const FHttpServerRequest& Request)
 {
 	FString CandidateRole = GetHeaderValueCaseInsensitive(Request, TEXT("X-NovaBridge-Role"));
 	if (CandidateRole.IsEmpty() && Request.QueryParams.Contains(TEXT("role")))
@@ -341,7 +335,7 @@ static bool ConsumeRateLimit(const FString& BucketKey, int32 LimitPerMinute, FSt
 	return true;
 }
 
-static void PushUndoEntry(const FNovaBridgeUndoEntry& Entry)
+void PushUndoEntry(const FNovaBridgeUndoEntry& Entry)
 {
 	FScopeLock Lock(&NovaBridgeUndoMutex);
 	NovaBridgeUndoStack.Add(Entry);
@@ -351,7 +345,7 @@ static void PushUndoEntry(const FNovaBridgeUndoEntry& Entry)
 	}
 }
 
-static bool PopUndoEntry(FNovaBridgeUndoEntry& OutEntry)
+bool PopUndoEntry(FNovaBridgeUndoEntry& OutEntry)
 {
 	FScopeLock Lock(&NovaBridgeUndoMutex);
 	if (NovaBridgeUndoStack.Num() == 0)
@@ -478,7 +472,7 @@ static bool ParseEventSubscriptionPayload(const FString& Message, TSet<FString>&
 	return true;
 }
 
-static void QueueEventObject(const TSharedPtr<FJsonObject>& EventObj)
+void QueueEventObject(const TSharedPtr<FJsonObject>& EventObj)
 {
 	if (!EventObj.IsValid())
 	{
@@ -517,7 +511,7 @@ static void QueueEventObject(const TSharedPtr<FJsonObject>& EventObj)
 	}
 }
 
-static void PushAuditEntry(const FString& Route, const FString& Action, const FString& Role, const FString& Status, const FString& Message)
+void PushAuditEntry(const FString& Route, const FString& Action, const FString& Role, const FString& Status, const FString& Message)
 {
 	FNovaBridgeAuditEntry Entry;
 	Entry.TimestampUtc = FDateTime::UtcNow().ToIso8601();
@@ -546,7 +540,7 @@ static void PushAuditEntry(const FString& Route, const FString& Action, const FS
 	QueueEventObject(EventObj);
 }
 
-static bool IsSpawnClassAllowedForRole(const FString& Role, const FString& ClassName)
+bool IsSpawnClassAllowedForRole(const FString& Role, const FString& ClassName)
 {
 	if (Role == TEXT("admin"))
 	{
@@ -555,7 +549,7 @@ static bool IsSpawnClassAllowedForRole(const FString& Role, const FString& Class
 	return NovaBridgeCore::IsClassAllowed(NovaBridgeSpawnClassAllowList(), ClassName);
 }
 
-static bool IsSpawnLocationInBounds(const FVector& Location)
+bool IsSpawnLocationInBounds(const FVector& Location)
 {
 	return NovaBridgeCore::IsSpawnLocationInBounds(Location);
 }
@@ -773,7 +767,7 @@ static bool JsonValueToImportText(const TSharedPtr<FJsonValue>& Value, FString& 
 	}
 }
 
-static UClass* ResolveActorClassByName(const FString& InClassName)
+UClass* ResolveActorClassByName(const FString& InClassName)
 {
 	FString ClassName = InClassName;
 	ClassName.TrimStartAndEndInline();
@@ -869,7 +863,7 @@ static void ParseSpawnTransformFromParams(const TSharedPtr<FJsonObject>& Params,
 	}
 }
 
-static bool SetActorPropertyValue(AActor* Actor, const FString& PropertyName, const FString& Value, FString& OutError)
+bool SetActorPropertyValue(AActor* Actor, const FString& PropertyName, const FString& Value, FString& OutError)
 {
 	if (!Actor)
 	{
@@ -2749,210 +2743,6 @@ bool FNovaBridgeModule::HandleUndo(const FHttpServerRequest& Request, const FHtt
 		SendErrorResponse(OnComplete, FString::Printf(TEXT("Unsupported undo action: %s"), *Entry.Action), 400);
 		PushAuditEntry(TEXT("/nova/undo"), TEXT("undo"), Role, TEXT("error"),
 			FString::Printf(TEXT("Unsupported undo action: %s"), *Entry.Action));
-	});
-	return true;
-}
-
-// ============================================================
-// Scene Handlers
-// ============================================================
-
-bool FNovaBridgeModule::HandleSceneSpawn(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
-{
-	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
-	if (!Body)
-	{
-		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
-		return true;
-	}
-	if (!Body->HasTypedField<EJson::String>(TEXT("class")) || Body->GetStringField(TEXT("class")).IsEmpty())
-	{
-		SendErrorResponse(OnComplete, TEXT("Missing required parameter: 'class'"));
-		return true;
-	}
-
-	FString ClassName = Body->GetStringField(TEXT("class"));
-	double X = Body->HasField(TEXT("x")) ? Body->GetNumberField(TEXT("x")) : 0.0;
-	double Y = Body->HasField(TEXT("y")) ? Body->GetNumberField(TEXT("y")) : 0.0;
-	double Z = Body->HasField(TEXT("z")) ? Body->GetNumberField(TEXT("z")) : 0.0;
-	double Pitch = Body->HasField(TEXT("pitch")) ? Body->GetNumberField(TEXT("pitch")) : 0.0;
-	double Yaw = Body->HasField(TEXT("yaw")) ? Body->GetNumberField(TEXT("yaw")) : 0.0;
-	double Roll = Body->HasField(TEXT("roll")) ? Body->GetNumberField(TEXT("roll")) : 0.0;
-	FString Label = Body->HasField(TEXT("label")) ? Body->GetStringField(TEXT("label")) : TEXT("");
-	const FString Role = ResolveRoleFromRequest(Request);
-	const FVector RequestedLocation(X, Y, Z);
-	if (!IsSpawnClassAllowedForRole(Role, ClassName))
-	{
-		PushAuditEntry(TEXT("/nova/scene/spawn"), TEXT("scene.spawn"), Role, TEXT("denied"),
-			FString::Printf(TEXT("Class not allowed for role: %s"), *ClassName));
-		SendErrorResponse(OnComplete, FString::Printf(TEXT("Class '%s' is not allowed for role '%s'"), *ClassName, *Role), 403);
-		return true;
-	}
-	if (!IsSpawnLocationInBounds(RequestedLocation))
-	{
-		PushAuditEntry(TEXT("/nova/scene/spawn"), TEXT("scene.spawn"), Role, TEXT("denied"), TEXT("Spawn location out of bounds"));
-		SendErrorResponse(OnComplete, TEXT("Spawn location is outside allowed bounds"), 403);
-		return true;
-	}
-
-	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, ClassName, X, Y, Z, Pitch, Yaw, Roll, Label, Role]()
-	{
-		if (!GEditor)
-		{
-			PushAuditEntry(TEXT("/nova/scene/spawn"), TEXT("scene.spawn"), Role, TEXT("error"), TEXT("No editor"));
-			SendErrorResponse(OnComplete, TEXT("No editor"), 500);
-			return;
-		}
-
-		UEditorActorSubsystem* ActorSub = GEditor->GetEditorSubsystem<UEditorActorSubsystem>();
-		if (!ActorSub)
-		{
-			PushAuditEntry(TEXT("/nova/scene/spawn"), TEXT("scene.spawn"), Role, TEXT("error"), TEXT("No EditorActorSubsystem"));
-			SendErrorResponse(OnComplete, TEXT("No EditorActorSubsystem"), 500);
-			return;
-		}
-
-		UClass* ActorClass = ResolveActorClassByName(ClassName);
-
-		if (!ActorClass)
-		{
-			PushAuditEntry(TEXT("/nova/scene/spawn"), TEXT("scene.spawn"), Role, TEXT("error"),
-				FString::Printf(TEXT("Class not found: %s"), *ClassName));
-			SendErrorResponse(OnComplete, FString::Printf(TEXT("Class not found: %s"), *ClassName));
-			return;
-		}
-
-		FVector Location(X, Y, Z);
-		FRotator Rotation(Pitch, Yaw, Roll);
-
-		AActor* NewActor = ActorSub->SpawnActorFromClass(TSubclassOf<AActor>(ActorClass), Location, Rotation);
-		if (!NewActor)
-		{
-			PushAuditEntry(TEXT("/nova/scene/spawn"), TEXT("scene.spawn"), Role, TEXT("error"), TEXT("Failed to spawn actor"));
-			SendErrorResponse(OnComplete, TEXT("Failed to spawn actor"), 500);
-			return;
-		}
-
-		if (!Label.IsEmpty())
-		{
-			NewActor->SetActorLabel(Label);
-		}
-		FNovaBridgeUndoEntry UndoEntry;
-		UndoEntry.Action = TEXT("spawn");
-		UndoEntry.ActorName = NewActor->GetName();
-		UndoEntry.ActorLabel = NewActor->GetActorLabel();
-			PushUndoEntry(UndoEntry);
-			PushAuditEntry(TEXT("/nova/scene/spawn"), TEXT("scene.spawn"), Role, TEXT("success"),
-				FString::Printf(TEXT("Spawned actor '%s' (%s)"), *NewActor->GetActorLabel(), *ClassName));
-			TSharedPtr<FJsonObject> SpawnEvent = MakeShared<FJsonObject>();
-			SpawnEvent->SetStringField(TEXT("type"), TEXT("spawn"));
-			SpawnEvent->SetStringField(TEXT("mode"), TEXT("editor"));
-			SpawnEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
-			SpawnEvent->SetStringField(TEXT("route"), TEXT("/nova/scene/spawn"));
-			SpawnEvent->SetStringField(TEXT("action"), TEXT("scene.spawn"));
-			SpawnEvent->SetStringField(TEXT("role"), Role);
-			SpawnEvent->SetStringField(TEXT("actor_name"), NewActor->GetName());
-			SpawnEvent->SetStringField(TEXT("actor_label"), NewActor->GetActorLabel());
-			SpawnEvent->SetStringField(TEXT("class"), ClassName);
-			QueueEventObject(SpawnEvent);
-
-			SendJsonResponse(OnComplete, ActorToJson(NewActor));
-		});
-	return true;
-}
-
-bool FNovaBridgeModule::HandleSceneDelete(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
-{
-	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
-	if (!Body)
-	{
-		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
-		return true;
-	}
-
-	FString ActorName = Body->GetStringField(TEXT("name"));
-	const FString Role = ResolveRoleFromRequest(Request);
-
-	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, ActorName, Role]()
-	{
-		AActor* Actor = FindActorByName(ActorName);
-		if (!Actor)
-		{
-			PushAuditEntry(TEXT("/nova/scene/delete"), TEXT("scene.delete"), Role, TEXT("error"),
-				FString::Printf(TEXT("Actor not found: %s"), *ActorName));
-			SendErrorResponse(OnComplete, FString::Printf(TEXT("Actor not found: %s"), *ActorName), 404);
-			return;
-		}
-
-		// Protect the NovaBridge scene capture actor from deletion
-		if (Actor->GetActorLabel() == TEXT("NovaBridge_SceneCapture") || Actor->GetName().Contains(TEXT("NovaBridge_SceneCapture")))
-		{
-			PushAuditEntry(TEXT("/nova/scene/delete"), TEXT("scene.delete"), Role, TEXT("denied"),
-				TEXT("Attempted deletion of NovaBridge_SceneCapture"));
-			SendErrorResponse(OnComplete, TEXT("Cannot delete NovaBridge_SceneCapture — it is required for viewport screenshots"));
-			return;
-		}
-
-		UEditorActorSubsystem* ActorSub = GEditor->GetEditorSubsystem<UEditorActorSubsystem>();
-		if (ActorSub)
-		{
-			ActorSub->DestroyActor(Actor);
-		}
-		else
-		{
-			Actor->Destroy();
-		}
-
-			PushAuditEntry(TEXT("/nova/scene/delete"), TEXT("scene.delete"), Role, TEXT("success"),
-				FString::Printf(TEXT("Deleted actor '%s'"), *ActorName));
-			TSharedPtr<FJsonObject> DeleteEvent = MakeShared<FJsonObject>();
-			DeleteEvent->SetStringField(TEXT("type"), TEXT("delete"));
-			DeleteEvent->SetStringField(TEXT("mode"), TEXT("editor"));
-			DeleteEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
-			DeleteEvent->SetStringField(TEXT("route"), TEXT("/nova/scene/delete"));
-			DeleteEvent->SetStringField(TEXT("action"), TEXT("scene.delete"));
-			DeleteEvent->SetStringField(TEXT("role"), Role);
-			DeleteEvent->SetStringField(TEXT("actor_name"), ActorName);
-			QueueEventObject(DeleteEvent);
-			SendOkResponse(OnComplete);
-		});
-	return true;
-}
-
-bool FNovaBridgeModule::HandleSceneSetProperty(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
-{
-	TSharedPtr<FJsonObject> Body = ParseRequestBody(Request);
-	if (!Body)
-	{
-		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
-		return true;
-	}
-
-	FString ActorName = Body->GetStringField(TEXT("name"));
-	FString PropertyName = Body->GetStringField(TEXT("property"));
-	FString Value = Body->GetStringField(TEXT("value"));
-	const FString Role = ResolveRoleFromRequest(Request);
-
-	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, ActorName, PropertyName, Value, Role]()
-	{
-		AActor* Actor = FindActorByName(ActorName);
-		if (!Actor)
-		{
-			SendErrorResponse(OnComplete, FString::Printf(TEXT("Actor not found: %s"), *ActorName), 404);
-			return;
-		}
-		FString PropertyError;
-		if (!SetActorPropertyValue(Actor, PropertyName, Value, PropertyError))
-		{
-			const int32 Code = PropertyError.StartsWith(TEXT("Property not found")) ? 404 : 400;
-			SendErrorResponse(OnComplete, PropertyError, Code);
-			PushAuditEntry(TEXT("/nova/scene/set-property"), TEXT("scene.set-property"), Role, TEXT("error"), PropertyError);
-			return;
-		}
-
-		PushAuditEntry(TEXT("/nova/scene/set-property"), TEXT("scene.set-property"), Role, TEXT("success"),
-			FString::Printf(TEXT("Set %s on %s"), *PropertyName, *ActorName));
-		SendOkResponse(OnComplete);
 	});
 	return true;
 }
