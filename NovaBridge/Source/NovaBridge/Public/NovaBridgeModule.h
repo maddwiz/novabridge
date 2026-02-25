@@ -137,6 +137,7 @@ private:
 	{
 		INetworkingWebSocket* Socket = nullptr;
 		FGuid Id;
+		bool bSubscriptionConfirmed = false;
 		bool bEventTypeFilterEnabled = false;
 		TSet<FString> EventTypes;
 	};

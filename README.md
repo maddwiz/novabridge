@@ -103,6 +103,7 @@ curl -sS -X POST http://127.0.0.1:30010/nova/scene/spawn \
 - `GET /nova/caps` for capability + policy discovery.
 - `GET /nova/events` for event channel discovery (`ws://localhost:30012` by default) with type-aware metadata (`supported_types`, `pending_by_type`) and optional `types` filter query.
 - Event WebSocket now supports per-client subscription control (`{"action":"subscribe","types":[...]}`) with server ACKs and filter metrics (`clients_with_filters`).
+- Event sockets now hold back action/audit traffic until a subscription ACK is received (fixes pre-subscription event leakage).
 - `POST /nova/executePlan` for schema-driven multi-step execution (`spawn`, `delete`, `set`, `screenshot`).
 - `POST /nova/undo` for reversible operations (currently tracked spawn actions).
 - `GET /nova/audit` for structured in-memory execution/audit trail.
@@ -110,7 +111,8 @@ curl -sS -X POST http://127.0.0.1:30010/nova/scene/spawn \
 - Runtime now also exposes token-gated `POST /nova/undo` for spawn undo entries created by runtime `executePlan`.
 - Runtime also exposes token-gated `GET /nova/events` for event socket discovery (`ws://localhost:30022` by default).
 - Event stream now emits typed payloads (`audit`, `spawn`, `delete`, `plan_step`, `plan_complete`, `error`) for both editor and runtime modules.
-- For strict event filtering, subscribe on the socket and wait for `{"type":"subscription","status":"ok"}` before issuing actions that produce events.
+- Event clients must send a subscription command and wait for `{"type":"subscription","status":"ok"}` before they receive event traffic.
+- `POST /nova/executePlan` now applies strict schema validation (unknown or malformed fields return HTTP 400 before execution).
 - Spawn guardrails for non-admin roles:
   - class allow list
   - transform bounds
@@ -130,6 +132,8 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 - MB-Lab export cleanup removes non-character scene objects/ground planes before export.
 - Runtime `executePlan` spawn now respects optional `label` as requested actor/object name (enables follow-up delete by that name).
 - Editor `executePlan` spawn/delete now emit typed `spawn`/`delete` events for filtered WebSocket clients.
+- Shared plan action/schema registry now lives in `NovaBridgeCore` and is enforced by both Editor and Runtime `executePlan`.
+- Deferred event-stream bug fix: WebSocket clients no longer receive pre-subscription events before `status=ok`.
 
 ## Blender Extension Configuration
 
@@ -154,6 +158,7 @@ The `extensions/openclaw/nova-blender` bridge now supports environment-based con
 - Release checklist: [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md)
 - Demo video script: [demo/VIDEO_SCRIPT.md](demo/VIDEO_SCRIPT.md)
 - Landing page starter: [site/index.html](site/index.html)
+- NovaBridge Studio desktop scaffold: [novabridge-studio](novabridge-studio)
 
 ## Setup Guides
 

@@ -81,7 +81,7 @@ Runtime checks (port `30460`, events port `30462`):
   - `/tmp/novabridge-smoke-20260224-190608/artifacts/runtime-validation-5`
 
 Note:
-- If actions are issued before subscription `status=ok`, pre-subscription events may still be observed by that client.
+- As of the 2026-02-25 subscription-gate fix, event delivery is paused until each socket receives subscription `status=ok`.
 
 ### macOS ExecutePlan Event + Runtime Undo Validation
 
@@ -106,6 +106,60 @@ Runtime checks (port `30540`, events port `30542`):
 - Validation result: `runtime_undo_validation=ok`.
 - Artifact root:
   - `/tmp/novabridge-smoke-20260224-190608/artifacts/runtime-validation-7`
+
+### macOS ExecutePlan Schema Validation Refresh
+
+- Date: 2026-02-25
+- Run root:
+  - `/tmp/novabridge-smoke-20260224-190608`
+
+Editor checks (port `30560`):
+- Invalid plan with unknown top-level field rejected with HTTP 400.
+- Error payload: `Schema validation failed: Unknown plan field: unknown_top`.
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260224-190608/artifacts/schema-validation-editor`
+
+Runtime checks (port `30570`, events port `30572`):
+- Invalid runtime plan with unknown spawn param rejected with HTTP 400.
+- Error payload: `Schema validation failed at step 0: Unknown spawn param field: bad_param`.
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260224-190608/artifacts/schema-validation-runtime`
+
+### macOS Event Subscription Gate Fix Validation
+
+- Date: 2026-02-25
+- Run root:
+  - `/tmp/novabridge-smoke-20260224-195531`
+
+Editor checks (port `30610`, events port `30612`):
+- WebSocket `ready` payload now reports:
+  - `subscription_confirmed=false`
+  - `events_paused_until_subscribe=true`
+- Pre-subscription `POST /nova/scene/spawn` executes successfully but emits no event to that socket.
+- After `{"action":"subscribe","types":["spawn","error"]}` and `status=ok`, spawn events are delivered.
+- `GET /nova/events` now includes `clients_pending_subscription`.
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260224-195531/artifacts/subscription-gating-editor`
+
+Runtime checks (port `30620`, events port `30622`):
+- Runtime pairing + token auth validated (`POST /nova/runtime/pair`).
+- WebSocket `ready` payload reports paused delivery until subscribe ACK.
+- Pre-subscription runtime `POST /nova/executePlan` spawn emits no socket event.
+- Post-subscription runtime `POST /nova/executePlan` spawn emits typed `spawn` event.
+- `GET /nova/events` (token-gated) includes `clients_pending_subscription`.
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260224-195531/artifacts/subscription-gating-runtime`
+
+### NovaBridge Studio Scaffold Validation
+
+- Date: 2026-02-25
+- Path:
+  - `/Users/desmondpottle/Documents/New project/novabridge/novabridge-studio`
+- Result:
+  - `npm install` succeeded.
+  - `npm run build` succeeded (`tsc -b && vite build`).
+- Note:
+  - `pnpm` is not installed on this validation host; package scripts still include `pnpm dev`, `pnpm build`, `pnpm tauri dev`, and `pnpm tauri build`.
 
 ## macOS Validation (Completed)
 

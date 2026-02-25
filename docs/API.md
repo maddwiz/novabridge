@@ -39,7 +39,7 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
 - `GET /events`
   - Query: `types` (optional comma-separated type filter for metadata counters)
   - Returns event socket metadata:
-    - `ws_url`, `ws_port`, `clients`, `clients_with_filters`
+    - `ws_url`, `ws_port`, `clients`, `clients_with_filters`, `clients_pending_subscription`
     - `pending_events`, `filtered_pending_events`
     - `supported_types`, `pending_by_type`, `subscription_action`
   - Event stream types:
@@ -55,13 +55,14 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
     - Client can narrow stream by sending `{"action":"subscribe","types":["spawn","error"]}`
     - Server replies `{"type":"subscription","status":"ok","filter_enabled":true,...}`
     - `{"action":"clear"}` / `{"action":"all"}` clears filter for that client
-    - For strict filtering, wait for `status=ok` before issuing event-producing actions
+    - Event delivery is paused until `status=ok` is acknowledged for that socket
 - `GET /audit`
   - Query: `limit` (1-500, default 50)
 - `POST /executePlan`
   - Plan schema:
     - `plan_id` (optional)
     - `steps[]` each with `action` and `params`
+  - Unknown/malformed schema fields are rejected with `400` before step execution.
   - Supported actions:
     - `spawn`
     - `delete`
@@ -82,7 +83,7 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
 - `GET /events`
   - token-gated runtime event socket discovery
   - Query: `types` (optional comma-separated type filter for metadata counters)
-  - returns `ws_url`, `ws_port`, `clients`, `clients_with_filters`, `pending_events`, `filtered_pending_events`, `supported_types`, `pending_by_type`, `subscription_action`
+  - returns `ws_url`, `ws_port`, `clients`, `clients_with_filters`, `clients_pending_subscription`, `pending_events`, `filtered_pending_events`, `supported_types`, `pending_by_type`, `subscription_action`
 - `GET /audit`
   - token-gated in-memory runtime audit trail
   - Query: `limit` (1-500, default 50)
@@ -91,6 +92,7 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
     - `spawn`
     - `delete`
     - `set`
+  - Unknown/malformed schema fields are rejected with `400` before step execution.
   - Runtime `spawn` supports optional `label` (used as requested actor/object name)
 - `POST /undo`
   - token-gated runtime undo endpoint

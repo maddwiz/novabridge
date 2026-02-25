@@ -28,11 +28,12 @@ Optional Blender path:
 - Scene screenshots use a dedicated `SceneCapture2D` actor (`NovaBridge_SceneCapture`).
 - Capability discovery is exposed via `GET /nova/caps`.
 - Structured multi-step execution is exposed via `POST /nova/executePlan`.
+- `executePlan` schema validation and action support registry are shared in `NovaBridgeCore`.
 - Reversible operation tracking is exposed via `POST /nova/undo`.
 - In-memory audit trail is exposed via `GET /nova/audit`.
 - Event WebSocket discovery is exposed via `GET /nova/events` (default socket `ws://localhost:30012`).
 - Event discovery supports optional type-filter metadata (`types=spawn,error`) and reports `supported_types` + `pending_by_type`.
-- Event sockets support per-client subscription control (`subscribe` / `clear`) with explicit ACK messages and filter-aware client counts.
+- Event sockets support per-client subscription control (`subscribe` / `clear`) with explicit ACK messages and filter-aware client counts; delivery is paused until subscription ACK.
 - Runtime control server defaults to `127.0.0.1:30020` and is enabled with `-NovaBridgeRuntime=1`.
 - Runtime request handling enforces localhost host access before auth/dispatch.
 - Runtime pairing endpoint: `POST /nova/runtime/pair`.

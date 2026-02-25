@@ -3,6 +3,7 @@
 #include "NovaBridgeCapabilityRegistry.h"
 #include "NovaBridgeCoreTypes.h"
 #include "NovaBridgePolicy.h"
+#include "NovaBridgePlanSchema.h"
 #include "HttpServerModule.h"
 #include "IHttpRouter.h"
 #include "HttpPath.h"
@@ -330,6 +331,9 @@ static void RegisterRuntimeCapabilities(const int32 MaxSpawnPerPlan, const int32
 	TSharedPtr<FJsonObject> ExecutePlanData = MakeShared<FJsonObject>();
 	ExecutePlanData->SetNumberField(TEXT("max_steps"), MaxPlanSteps);
 	ExecutePlanData->SetNumberField(TEXT("max_requests_per_minute"), MaxExecutePlanPerMinute);
+	ExecutePlanData->SetArrayField(
+		TEXT("actions"),
+		MakeJsonStringArray(NovaBridgeCore::GetSupportedPlanActionsRef(NovaBridgeCore::ENovaBridgePlanMode::Runtime)));
 	RegisterCapability(TEXT("executePlan"), ExecutePlanData);
 
 	TSharedPtr<FJsonObject> UndoData = MakeShared<FJsonObject>();
@@ -874,64 +878,67 @@ void FNovaBridgeRuntimeModule::StartEventWebSocketServer()
 		return;
 	}
 
-		FWebSocketClientConnectedCallBack ConnectedCallback;
-		ConnectedCallback.BindLambda([this](INetworkingWebSocket* Socket)
+	FWebSocketClientConnectedCallBack ConnectedCallback;
+	ConnectedCallback.BindLambda([this](INetworkingWebSocket* Socket)
+	{
+		if (!Socket)
 		{
-			if (!Socket)
+			return;
+		}
+
+		FWsClient Client;
+		Client.Socket = Socket;
+		Client.Id = FGuid::NewGuid();
+		Client.bSubscriptionConfirmed = false;
+		Client.bEventTypeFilterEnabled = false;
+		EventWsClients.Add(MoveTemp(Client));
+
+		FWebSocketPacketReceivedCallBack ReceiveCallback;
+		ReceiveCallback.BindLambda([this, Socket](void* Data, int32 Size)
+		{
+			if (!Data || Size <= 0)
 			{
 				return;
 			}
 
-			FWsClient Client;
-			Client.Socket = Socket;
-			Client.Id = FGuid::NewGuid();
-			Client.bEventTypeFilterEnabled = false;
-			EventWsClients.Add(MoveTemp(Client));
-
-			FWebSocketPacketReceivedCallBack ReceiveCallback;
-			ReceiveCallback.BindLambda([this, Socket](void* Data, int32 Size)
+			const FUTF8ToTCHAR Converted(static_cast<const ANSICHAR*>(Data), Size);
+			const FString Message(Converted.Length(), Converted.Get());
+			TSet<FString> RequestedTypes;
+			bool bEnableFilter = false;
+			FString ParseError;
+			if (!ParseRuntimeSubscriptionPayload(Message, RequestedTypes, bEnableFilter, ParseError))
 			{
-				if (!Data || Size <= 0)
-				{
-					return;
-				}
+				TSharedPtr<FJsonObject> ErrorReply = MakeShared<FJsonObject>();
+				ErrorReply->SetStringField(TEXT("type"), TEXT("subscription"));
+				ErrorReply->SetStringField(TEXT("status"), TEXT("error"));
+				ErrorReply->SetStringField(TEXT("message"), ParseError);
+				ErrorReply->SetArrayField(TEXT("supported_types"), MakeJsonStringArray(SupportedRuntimeEventTypes()));
+				SendSocketJsonMessage(Socket, ErrorReply);
+				return;
+			}
 
-				const FUTF8ToTCHAR Converted(static_cast<const ANSICHAR*>(Data), Size);
-				const FString Message(Converted.Length(), Converted.Get());
-				TSet<FString> RequestedTypes;
-				bool bEnableFilter = false;
-				FString ParseError;
-				if (!ParseRuntimeSubscriptionPayload(Message, RequestedTypes, bEnableFilter, ParseError))
-				{
-					TSharedPtr<FJsonObject> ErrorReply = MakeShared<FJsonObject>();
-					ErrorReply->SetStringField(TEXT("type"), TEXT("subscription"));
-					ErrorReply->SetStringField(TEXT("status"), TEXT("error"));
-					ErrorReply->SetStringField(TEXT("message"), ParseError);
-					ErrorReply->SetArrayField(TEXT("supported_types"), MakeJsonStringArray(SupportedRuntimeEventTypes()));
-					SendSocketJsonMessage(Socket, ErrorReply);
-					return;
-				}
-
-				const int32 ClientIndex = EventWsClients.IndexOfByPredicate([Socket](const FWsClient& InClient)
-				{
-					return InClient.Socket == Socket;
-				});
-				if (ClientIndex == INDEX_NONE)
-				{
-					return;
-				}
-
-				EventWsClients[ClientIndex].bEventTypeFilterEnabled = bEnableFilter;
-				EventWsClients[ClientIndex].EventTypes = MoveTemp(RequestedTypes);
-
-				TSharedPtr<FJsonObject> AckReply = MakeShared<FJsonObject>();
-				AckReply->SetStringField(TEXT("type"), TEXT("subscription"));
-				AckReply->SetStringField(TEXT("status"), TEXT("ok"));
-				AckReply->SetBoolField(TEXT("filter_enabled"), EventWsClients[ClientIndex].bEventTypeFilterEnabled);
-				AckReply->SetArrayField(TEXT("types"), MakeJsonStringArray(EventWsClients[ClientIndex].EventTypes.Array()));
-				SendSocketJsonMessage(Socket, AckReply);
+			const int32 ClientIndex = EventWsClients.IndexOfByPredicate([Socket](const FWsClient& InClient)
+			{
+				return InClient.Socket == Socket;
 			});
-			Socket->SetReceiveCallBack(ReceiveCallback);
+			if (ClientIndex == INDEX_NONE)
+			{
+				return;
+			}
+
+			EventWsClients[ClientIndex].bEventTypeFilterEnabled = bEnableFilter;
+			EventWsClients[ClientIndex].EventTypes = MoveTemp(RequestedTypes);
+			EventWsClients[ClientIndex].bSubscriptionConfirmed = true;
+
+			TSharedPtr<FJsonObject> AckReply = MakeShared<FJsonObject>();
+			AckReply->SetStringField(TEXT("type"), TEXT("subscription"));
+			AckReply->SetStringField(TEXT("status"), TEXT("ok"));
+			AckReply->SetBoolField(TEXT("subscription_confirmed"), true);
+			AckReply->SetBoolField(TEXT("filter_enabled"), EventWsClients[ClientIndex].bEventTypeFilterEnabled);
+			AckReply->SetArrayField(TEXT("types"), MakeJsonStringArray(EventWsClients[ClientIndex].EventTypes.Array()));
+			SendSocketJsonMessage(Socket, AckReply);
+		});
+		Socket->SetReceiveCallBack(ReceiveCallback);
 
 		FWebSocketInfoCallBack CloseCallback;
 		CloseCallback.BindLambda([this, Socket]()
@@ -949,19 +956,21 @@ void FNovaBridgeRuntimeModule::StartEventWebSocketServer()
 				}
 				EventWsClients.RemoveAtSwap(Index);
 			}
-			});
-			Socket->SetSocketClosedCallBack(CloseCallback);
-
-			TSharedPtr<FJsonObject> WelcomeReply = MakeShared<FJsonObject>();
-			WelcomeReply->SetStringField(TEXT("type"), TEXT("subscription"));
-			WelcomeReply->SetStringField(TEXT("status"), TEXT("ready"));
-			WelcomeReply->SetBoolField(TEXT("filter_enabled"), false);
-			WelcomeReply->SetArrayField(TEXT("supported_types"), MakeJsonStringArray(SupportedRuntimeEventTypes()));
-			WelcomeReply->SetStringField(TEXT("hint"), TEXT("{\"action\":\"subscribe\",\"types\":[\"spawn\",\"error\"]}"));
-			SendSocketJsonMessage(Socket, WelcomeReply);
-
-			UE_LOG(LogNovaBridgeRuntime, Log, TEXT("NovaBridgeRuntime events client connected (%d total)"), EventWsClients.Num());
 		});
+		Socket->SetSocketClosedCallBack(CloseCallback);
+
+		TSharedPtr<FJsonObject> WelcomeReply = MakeShared<FJsonObject>();
+		WelcomeReply->SetStringField(TEXT("type"), TEXT("subscription"));
+		WelcomeReply->SetStringField(TEXT("status"), TEXT("ready"));
+		WelcomeReply->SetBoolField(TEXT("subscription_confirmed"), false);
+		WelcomeReply->SetBoolField(TEXT("events_paused_until_subscribe"), true);
+		WelcomeReply->SetBoolField(TEXT("filter_enabled"), false);
+		WelcomeReply->SetArrayField(TEXT("supported_types"), MakeJsonStringArray(SupportedRuntimeEventTypes()));
+		WelcomeReply->SetStringField(TEXT("hint"), TEXT("{\"action\":\"subscribe\",\"types\":[\"spawn\",\"error\"]}"));
+		SendSocketJsonMessage(Socket, WelcomeReply);
+
+		UE_LOG(LogNovaBridgeRuntime, Log, TEXT("NovaBridgeRuntime events client connected (%d total)"), EventWsClients.Num());
+	});
 
 	IWebSocketNetworkingModule* WsModule = FModuleManager::Get().LoadModulePtr<IWebSocketNetworkingModule>(TEXT("WebSocketNetworking"));
 	if (!WsModule)
@@ -1059,18 +1068,22 @@ void FNovaBridgeRuntimeModule::PumpEventSocketQueue()
 		uint8* MutableData = const_cast<uint8*>(Data);
 		const int32 DataLen = Utf8Payload.Length();
 
-		for (int32 ClientIndex = EventWsClients.Num() - 1; ClientIndex >= 0; --ClientIndex)
-		{
-			if (!EventWsClients[ClientIndex].Socket)
+			for (int32 ClientIndex = EventWsClients.Num() - 1; ClientIndex >= 0; --ClientIndex)
 			{
-				EventWsClients.RemoveAtSwap(ClientIndex);
-				continue;
-			}
+				if (!EventWsClients[ClientIndex].Socket)
+				{
+					EventWsClients.RemoveAtSwap(ClientIndex);
+					continue;
+				}
+				if (!EventWsClients[ClientIndex].bSubscriptionConfirmed)
+				{
+					continue;
+				}
 
-			if (EventWsClients[ClientIndex].bEventTypeFilterEnabled
-				&& !EventWsClients[ClientIndex].EventTypes.Contains(PayloadType))
-			{
-				continue;
+				if (EventWsClients[ClientIndex].bEventTypeFilterEnabled
+					&& !EventWsClients[ClientIndex].EventTypes.Contains(PayloadType))
+				{
+					continue;
 			}
 			EventWsClients[ClientIndex].Socket->Send(MutableData, DataLen, false);
 		}
@@ -1347,9 +1360,19 @@ bool FNovaBridgeRuntimeModule::HandleEvents(const FHttpServerRequest& Request, c
 		PendingByType.FindOrAdd(PendingType)++;
 	}
 	int32 ClientsWithFilters = 0;
+	int32 PendingSubscriptionClients = 0;
 	for (const FWsClient& Client : EventWsClients)
 	{
-		if (Client.Socket && Client.bEventTypeFilterEnabled)
+		if (!Client.Socket)
+		{
+			continue;
+		}
+		if (!Client.bSubscriptionConfirmed)
+		{
+			PendingSubscriptionClients++;
+			continue;
+		}
+		if (Client.bEventTypeFilterEnabled)
 		{
 			ClientsWithFilters++;
 		}
@@ -1378,6 +1401,7 @@ bool FNovaBridgeRuntimeModule::HandleEvents(const FHttpServerRequest& Request, c
 	Result->SetNumberField(TEXT("ws_port"), EventWsPort);
 	Result->SetNumberField(TEXT("clients"), EventWsClients.Num());
 	Result->SetNumberField(TEXT("clients_with_filters"), ClientsWithFilters);
+	Result->SetNumberField(TEXT("clients_pending_subscription"), PendingSubscriptionClients);
 	Result->SetNumberField(TEXT("pending_events"), PendingEvents);
 	Result->SetNumberField(TEXT("filtered_pending_events"), FilteredPendingEvents);
 	Result->SetArrayField(TEXT("supported_types"), MakeJsonStringArray(SupportedRuntimeEventTypes()));
@@ -1515,26 +1539,19 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 		SendErrorResponse(OnComplete, TEXT("Invalid JSON body"));
 		return true;
 	}
-	if (!Body->HasTypedField<EJson::Array>(TEXT("steps")))
+
+	NovaBridgeCore::FPlanSchemaError SchemaError;
+	if (!NovaBridgeCore::ValidateExecutePlanSchema(Body, NovaBridgeCore::ENovaBridgePlanMode::Runtime, MaxPlanSteps, SchemaError))
 	{
-		PushAuditEntry(TEXT("/nova/executePlan"), TEXT("executePlan"), TEXT("error"), TEXT("Missing required field: steps"));
-		SendErrorResponse(OnComplete, TEXT("Missing required field: steps"), 400);
+		const FString ValidationMessage = (SchemaError.StepIndex >= 0)
+			? FString::Printf(TEXT("Schema validation failed at step %d: %s"), SchemaError.StepIndex, *SchemaError.Message)
+			: FString::Printf(TEXT("Schema validation failed: %s"), *SchemaError.Message);
+		PushAuditEntry(TEXT("/nova/executePlan"), TEXT("executePlan"), TEXT("error"), ValidationMessage);
+		SendErrorResponse(OnComplete, ValidationMessage, 400);
 		return true;
 	}
 
 	const TArray<TSharedPtr<FJsonValue>> Steps = Body->GetArrayField(TEXT("steps"));
-	if (Steps.Num() == 0)
-	{
-		PushAuditEntry(TEXT("/nova/executePlan"), TEXT("executePlan"), TEXT("error"), TEXT("Plan has no steps"));
-		SendErrorResponse(OnComplete, TEXT("Plan has no steps"), 400);
-		return true;
-	}
-	if (Steps.Num() > MaxPlanSteps)
-	{
-		PushAuditEntry(TEXT("/nova/executePlan"), TEXT("executePlan"), TEXT("error"), TEXT("Plan exceeds max step count"));
-		SendErrorResponse(OnComplete, FString::Printf(TEXT("Plan exceeds max step count (%d)"), MaxPlanSteps), 400);
-		return true;
-	}
 
 	const FString PlanId = Body->HasTypedField<EJson::String>(TEXT("plan_id"))
 		? Body->GetStringField(TEXT("plan_id"))
