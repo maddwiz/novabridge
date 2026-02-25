@@ -8,6 +8,22 @@
   - macOS native validation completed on `MacBookPro17,1` (Apple M1, 8 GB RAM), macOS `15.6.1` (`24G90`), Xcode `26.2` (`17C52`), Unreal Engine `5.6.1-44394996`.
   - Windows Win64 native validation completed on `DESKTOP-QNVIB5M`, Unreal Engine `5.7.3` (`C:\Program Files\Epic Games\UE_5.7`), Visual Studio Build Tools 2022 (`17.14.27`), MSVC `14.44.35207`, Windows SDK `10.0.26100.0`.
 
+## macOS Execute-Plan Handler Split Validation
+
+- Date: 2026-02-25
+- Command:
+  - `NOVABRIDGE_BUILD=1 ./scripts/mac_executeplan_smoke.sh`
+- Source project:
+  - `/Users/desmondpottle/Documents/New project/novabridge/NovaBridgeDefault/NovaBridgeDefault.uproject`
+- Result:
+  - `Succeeded` (build + editor/runtime execute-plan smoke)
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260225-000507/artifacts/executeplan-smoke`
+- Notes:
+  - Added `NovaBridgeExecutePlanHandlers.cpp` and moved `POST /nova/executePlan` there.
+  - `NovaBridgeModule.cpp` line count reduced to `1835`.
+  - `run-summary.json` reported editor `success_count=2/error_count=0` and runtime `success_count=2/error_count=0`.
+
 ## macOS Control-Handler Split Validation
 
 - Date: 2026-02-25
