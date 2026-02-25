@@ -97,6 +97,7 @@
 - Added explicit experimental support-status notices in sidecar READMEs and centralized policy in `docs/EXPERIMENTAL_SIDECARS.md`.
 - Extended fast QA workflow to include assistant-server syntax checks.
 - Fixed QA fast workflow Node setup on Studio job by removing strict unresolved cache lockfile path requirements.
+- Added `novabridge-studio/package-lock.json` to source control and switched Studio QA job to `npm ci` + npm cache keyed on that lockfile for deterministic/faster CI installs.
 - Added `novabridge-studio` v0.1 scaffold (Tauri + React + TypeScript) with Connect, Build, Settings, provider adapters, and execute fallback flow.
 - Enforced localhost-only runtime request policy (`Host` must be loopback).
 - Added runtime `executePlan` per-minute rate limiting and pairing-code rotation on successful pair.

@@ -42,6 +42,7 @@
   - Push/PR changes touching Python integrations, Studio, or the workflow file.
 - Follow-up fix:
   - Removed strict `setup-node` lockfile cache path in Studio QA job to prevent unresolved-path failures on GitHub-hosted runners.
+  - Added tracked Studio lockfile (`novabridge-studio/package-lock.json`) and moved Studio CI install to `npm ci` with npm cache keyed to that lockfile.
 
 ## Assistant + SDK Integration Validation
 
