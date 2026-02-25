@@ -30,7 +30,7 @@ Evidence: `artifacts-win/run-20260221-145844/source-validation-20260221-153146/`
 ## Packaged Plugin Validation
 
 1. Build package:
-   - `pwsh scripts/package_release_win.ps1 -Version v0.9.5-dev`
+   - `pwsh scripts/package_release_win.ps1 -Version 1.0.0`
 2. Create clean test project and install packaged plugin.
 3. Build plugin + editor:
    - `Build.bat UnrealEditor Win64 Development -Project="<...>\\WinSmokePackaged\\NovaBridgeDefault.uproject" -WaitMutex -NoHotReloadFromIDE`

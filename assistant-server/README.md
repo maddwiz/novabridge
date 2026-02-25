@@ -8,6 +8,11 @@ Node.js sidecar that adds:
 - Scene-aware planning using `/nova/scene/list`
 - Capability-aware planning using `/nova/caps`
 
+## Support Status
+
+This server is **experimental** and not part of the supported core NovaBridge plugin surface.
+It is provided as an optional sidecar and may change without compatibility guarantees.
+
 ## Run
 
 ```bash

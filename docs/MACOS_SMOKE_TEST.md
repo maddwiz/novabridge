@@ -1,6 +1,6 @@
 # macOS Validation Checklist
 
-> Active release track is `v0.9.5-dev`.  
+> Active release track is `v1.0.0`.  
 > Historical evidence blocks below include older `v0.9.0` outputs from archived baseline runs.
 
 Run on a real Mac before claiming production macOS support.
@@ -20,7 +20,7 @@ Fast path (automated executePlan validation):
    - `POST /nova/scene/spawn` works.
    - `POST /nova/asset/import` works with OBJ.
    - `GET /nova/viewport/screenshot?format=raw` returns PNG.
-6. Package with `scripts/package_release.sh v0.9.5-dev`.
+6. Package with `scripts/package_release.sh 1.0.0`.
 7. Re-test using the packaged plugin zip contents on a second clean project.
 8. Mark macOS as validated in `docs/RELEASE_CHECKLIST.md`.
 

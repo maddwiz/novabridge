@@ -9,6 +9,7 @@ Customer-facing setup should avoid machine-specific hardcoded paths.
 - `NOVABRIDGE_PORT` (default `30010`)
 - `NOVABRIDGE_API_KEY` (optional)
 - `NOVABRIDGE_SCREENSHOT_DIR` (default OS temp dir)
+- `NOVABRIDGE_VOICE_HOST` (optional; defaults to `NOVABRIDGE_HOST`)
 
 ## Blender Bridge
 

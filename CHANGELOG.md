@@ -13,6 +13,9 @@
 - Added Python SDK packaging (`pyproject.toml`), async client (`novabridge_async.py`), pydantic models (`novabridge_models.py`), installable CLI (`novabridge-cli`), and expanded examples/tests.
 - Expanded MCP server tool surface to include capability discovery, plan execution, undo, runtime pairing, and camera state lookup.
 - Refreshed launch docs for v1.0.0 (`README.md`, `INSTALL.md`, `QUICK_START.md`, `docs/API.md`, `BuyerGuide.md`).
+- Aligned smoke/validation docs to mark `v1.0.0` as the active release track while preserving historical evidence blocks.
+- Added explicit experimental support-status section to `assistant-server/README.md`.
+- Removed remaining hardcoded OpenClaw voice-sidecar host fallback in `extensions/openclaw/nova-ue5-bridge/index.js` by honoring `NOVABRIDGE_VOICE_HOST`/`NOVABRIDGE_HOST`.
 
 - Upgraded control plane to `v0.9.5-dev` semantics.
 - Added capability discovery endpoint: `GET /nova/caps`.
