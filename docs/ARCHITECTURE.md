@@ -52,6 +52,7 @@ Optional Blender path:
 - Runtime HTTP helpers are now isolated in `NovaBridgeRuntimeHttpHelpers.cpp` (CORS + auth + request parsing/response serialization).
 - Runtime event WebSocket handlers are now isolated in `NovaBridgeRuntimeEventHandlers.cpp` (subscription protocol, queue pump, and `/nova/events` metadata endpoint).
 - Runtime execute/undo handlers and runtime actor/property mutation helpers are now isolated in `NovaBridgeRuntimeExecutePlanHandlers.cpp`.
+- Runtime control handlers and capability/permission snapshot builders are now isolated in `NovaBridgeRuntimeControlHandlers.cpp`.
 - Runtime pairing endpoint: `POST /nova/runtime/pair`.
 - Runtime audit trail endpoint: token-gated `GET /nova/audit`.
 - Runtime undo endpoint: token-gated `POST /nova/undo` (spawn entries currently tracked).

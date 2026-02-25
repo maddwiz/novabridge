@@ -49,6 +49,8 @@ private:
 	bool HandlePair(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 	bool HandleExecutePlan(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 	bool HandleUndo(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
+	void RegisterRuntimeCapabilities();
+	TSharedPtr<FJsonObject> BuildRuntimePermissionsSnapshot() const;
 
 private:
 	TSharedPtr<IHttpRouter> HttpRouter;
