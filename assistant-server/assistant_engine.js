@@ -15,6 +15,19 @@ const DEFAULT_PLAN = {
   ]
 };
 
+let fetchImplementation = (...args) => fetch(...args);
+
+function setFetchImplementation(fetchImpl) {
+  if (typeof fetchImpl !== "function") {
+    throw new Error("fetch implementation must be a function");
+  }
+  fetchImplementation = fetchImpl;
+}
+
+function resetFetchImplementation() {
+  fetchImplementation = (...args) => fetch(...args);
+}
+
 function getConfig() {
   const host = process.env.NOVABRIDGE_HOST || "127.0.0.1";
   const port = Number.parseInt(process.env.NOVABRIDGE_PORT || "30010", 10);
@@ -61,7 +74,7 @@ async function novaRequest(method, route, body, config = getConfig()) {
     init.body = JSON.stringify(body);
   }
 
-  const res = await fetch(url, init);
+  const res = await fetchImplementation(url, init);
   const text = await res.text();
   let parsed = {};
   if (text) {
@@ -256,7 +269,7 @@ async function callOpenAiPlan(systemPrompt, userPrompt, config) {
   if (!config.openaiApiKey) {
     throw new Error("Missing OPENAI_API_KEY");
   }
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+  const res = await fetchImplementation("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -283,7 +296,7 @@ async function callAnthropicPlan(systemPrompt, userPrompt, config) {
   if (!config.anthropicApiKey) {
     throw new Error("Missing ANTHROPIC_API_KEY");
   }
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetchImplementation("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -306,7 +319,7 @@ async function callAnthropicPlan(systemPrompt, userPrompt, config) {
 }
 
 async function callOllamaPlan(systemPrompt, userPrompt, config) {
-  const res = await fetch(`${config.ollamaHost}/api/chat`, {
+  const res = await fetchImplementation(`${config.ollamaHost}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -335,7 +348,7 @@ async function callCustomPlan(systemPrompt, userPrompt, config) {
   if (config.customHeaderKey) {
     headers[config.customHeaderKey] = config.customHeaderValue;
   }
-  const res = await fetch(config.customUrl, {
+  const res = await fetchImplementation(config.customUrl, {
     method: "POST",
     headers,
     body: JSON.stringify({
@@ -473,5 +486,18 @@ module.exports = {
   generatePlan,
   executePlan,
   getCatalogSnapshot,
-  getHealthSnapshot
+  getHealthSnapshot,
+  __internal: {
+    getConfig,
+    getNovaBaseUrl,
+    buildNovaHeaders,
+    safeJsonParse,
+    extractFirstJsonObject,
+    makeMockPlan,
+    normalizePlanShape,
+    buildPlannerSystemPrompt,
+    buildPlannerUserPrompt,
+    setFetchImplementation,
+    resetFetchImplementation
+  }
 };

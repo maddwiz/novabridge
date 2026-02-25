@@ -75,6 +75,21 @@
   - Assistant server syntax checks are clean and now covered in CI fast checks.
   - Added Linux self-hosted plugin build workflow support (`build_plugin_linux.sh`) and Linux runner bootstrap script.
 
+## Assistant Server Test Validation
+
+- Date: 2026-02-25
+- Commands:
+  - `node --test assistant-server/tests/*.test.js`
+  - `node --check assistant-server/command_catalog.js`
+  - `node --check assistant-server/assistant_engine.js`
+  - `node --check assistant-server/server.js`
+- Result:
+  - `Succeeded`
+- Notes:
+  - Added deterministic assistant unit/integration tests for risk catalog behavior, planner JSON extraction/fallback, and high-risk execute gating.
+  - Assistant server HTTP bootstrap now exports injectable server/request-handler constructors to enable fast local and CI test coverage.
+  - `qa-fast.yml` assistant job now runs tests plus syntax checks.
+
 ## macOS Sequencer-Render Handler Split Validation
 
 - Date: 2026-02-25

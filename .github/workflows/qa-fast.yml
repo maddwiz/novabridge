@@ -78,7 +78,7 @@ jobs:
         run: npm run build
 
   assistant-server-check:
-    name: Assistant Server Syntax Check
+    name: Assistant Server Tests + Syntax
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -88,6 +88,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+
+      - name: Run assistant server tests
+        run: node --test assistant-server/tests/*.test.js
 
       - name: Syntax check assistant server
         run: |

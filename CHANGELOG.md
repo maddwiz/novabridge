@@ -93,6 +93,11 @@
   - `assistant_engine.js` capability + scene-aware plan generation
   - browser Studio UI served at `/nova/studio`
   - execute gateway endpoint with high-risk confirmation guard
+- Added assistant server automated tests (`assistant-server/tests`) covering:
+  - command catalog/risk classification behavior
+  - planner JSON extraction + mock fallback + execute request formatting
+  - execute guardrail enforcement (`allow_high_risk`) and health endpoint behavior
+- Refactored assistant HTTP entrypoint to export injectable server/request-handler constructors for deterministic tests while preserving default runtime behavior.
 - Added Python SDK integration test using a local mock HTTP server to verify end-to-end header propagation across JSON and raw screenshot request paths.
 - Updated OpenClaw Blender bridge to remove machine-specific default binary paths and prefer `NOVABRIDGE_BLENDER_PATH`/`PATH`.
 - Added explicit closed-source contribution policy (`CONTRIBUTING.md`).

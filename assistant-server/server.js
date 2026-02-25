@@ -14,6 +14,12 @@ const {
 const PORT_RAW = Number.parseInt(process.env.NOVABRIDGE_ASSISTANT_PORT || "30016", 10);
 const PORT = Number.isFinite(PORT_RAW) && PORT_RAW > 0 ? PORT_RAW : 30016;
 const STATIC_DIR = path.join(__dirname, "public");
+const DEFAULT_DEPS = {
+  generatePlan,
+  executePlan,
+  getCatalogSnapshot,
+  getHealthSnapshot
+};
 
 function writeJson(res, statusCode, payload) {
   const body = Buffer.from(JSON.stringify(payload, null, 2));
@@ -83,107 +89,129 @@ function guessContentType(filePath) {
   return "application/octet-stream";
 }
 
-async function handleRequest(req, res) {
-  if (!req.url) {
-    writeJson(res, 400, { status: "error", error: "Missing URL" });
-    return;
-  }
-
-  if (req.method === "OPTIONS") {
-    res.writeHead(204, {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Content-Type, X-API-Key",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
-    });
-    res.end();
-    return;
-  }
-
-  const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
-  const pathname = url.pathname;
-
-  if (pathname === "/") {
-    res.writeHead(302, { Location: "/nova/studio" });
-    res.end();
-    return;
-  }
-
-  const studioPath = resolveStudioPath(pathname);
-  if (studioPath) {
-    if (!fs.existsSync(studioPath) || !fs.statSync(studioPath).isFile()) {
-      writeText(res, 404, "Not found");
-      return;
-    }
-    const file = fs.readFileSync(studioPath);
-    writeText(res, 200, file, guessContentType(studioPath));
-    return;
-  }
-
-  try {
-    if (pathname === "/assistant/health" && req.method === "GET") {
-      const payload = await getHealthSnapshot();
-      writeJson(res, 200, payload);
+function createRequestHandler(deps = DEFAULT_DEPS) {
+  return async function handleRequest(req, res) {
+    if (!req.url) {
+      writeJson(res, 400, { status: "error", error: "Missing URL" });
       return;
     }
 
-    if (pathname === "/assistant/catalog" && req.method === "GET") {
-      const payload = await getCatalogSnapshot();
-      writeJson(res, 200, payload);
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type, X-API-Key",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
+      });
+      res.end();
       return;
     }
 
-    if (pathname === "/assistant/plan" && req.method === "POST") {
-      const body = await readRequestJson(req);
-      const prompt = typeof body.prompt === "string" ? body.prompt : "";
-      const mode = body.mode === "runtime" ? "runtime" : "editor";
-      if (!prompt.trim()) {
-        writeJson(res, 400, { status: "error", error: "Missing prompt" });
+    const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    const pathname = url.pathname;
+
+    if (pathname === "/") {
+      res.writeHead(302, { Location: "/nova/studio" });
+      res.end();
+      return;
+    }
+
+    const studioPath = resolveStudioPath(pathname);
+    if (studioPath) {
+      if (!fs.existsSync(studioPath) || !fs.statSync(studioPath).isFile()) {
+        writeText(res, 404, "Not found");
         return;
       }
-      const payload = await generatePlan({ prompt, mode });
-      writeJson(res, 200, payload);
+      const file = fs.readFileSync(studioPath);
+      writeText(res, 200, file, guessContentType(studioPath));
       return;
     }
 
-    if (pathname === "/assistant/execute" && req.method === "POST") {
-      const body = await readRequestJson(req);
-      const plan = body.plan && typeof body.plan === "object" ? body.plan : null;
-      if (!plan) {
-        writeJson(res, 400, { status: "error", error: "Missing plan object" });
+    try {
+      if (pathname === "/assistant/health" && req.method === "GET") {
+        const payload = await deps.getHealthSnapshot();
+        writeJson(res, 200, payload);
         return;
       }
 
-      const allowHighRisk = body.allow_high_risk === true;
-      const risk = body.risk && typeof body.risk === "object" ? body.risk : null;
-      if (!allowHighRisk && risk && risk.highest_risk === "high") {
-        writeJson(res, 409, {
-          status: "blocked",
-          error: "High-risk plan requires allow_high_risk=true",
-          risk
-        });
+      if (pathname === "/assistant/catalog" && req.method === "GET") {
+        const payload = await deps.getCatalogSnapshot();
+        writeJson(res, 200, payload);
         return;
       }
 
-      const payload = await executePlan(plan);
-      writeJson(res, 200, payload);
-      return;
-    }
+      if (pathname === "/assistant/plan" && req.method === "POST") {
+        const body = await readRequestJson(req);
+        const prompt = typeof body.prompt === "string" ? body.prompt : "";
+        const mode = body.mode === "runtime" ? "runtime" : "editor";
+        if (!prompt.trim()) {
+          writeJson(res, 400, { status: "error", error: "Missing prompt" });
+          return;
+        }
+        const payload = await deps.generatePlan({ prompt, mode });
+        writeJson(res, 200, payload);
+        return;
+      }
 
-    writeJson(res, 404, { status: "error", error: "Not found" });
-  } catch (error) {
-    writeJson(res, 500, {
-      status: "error",
-      error: error instanceof Error ? error.message : String(error)
-    });
-  }
+      if (pathname === "/assistant/execute" && req.method === "POST") {
+        const body = await readRequestJson(req);
+        const plan = body.plan && typeof body.plan === "object" ? body.plan : null;
+        if (!plan) {
+          writeJson(res, 400, { status: "error", error: "Missing plan object" });
+          return;
+        }
+
+        const allowHighRisk = body.allow_high_risk === true;
+        const risk = body.risk && typeof body.risk === "object" ? body.risk : null;
+        if (!allowHighRisk && risk && risk.highest_risk === "high") {
+          writeJson(res, 409, {
+            status: "blocked",
+            error: "High-risk plan requires allow_high_risk=true",
+            risk
+          });
+          return;
+        }
+
+        const payload = await deps.executePlan(plan);
+        writeJson(res, 200, payload);
+        return;
+      }
+
+      writeJson(res, 404, { status: "error", error: "Not found" });
+    } catch (error) {
+      writeJson(res, 500, {
+        status: "error",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  };
 }
 
-const server = http.createServer((req, res) => {
-  handleRequest(req, res);
-});
+function createServer(deps = DEFAULT_DEPS) {
+  const handler = createRequestHandler(deps);
+  return http.createServer((req, res) => {
+    handler(req, res);
+  });
+}
 
-server.listen(PORT, "127.0.0.1", () => {
-  process.stdout.write(
-    `[assistant-server] listening on http://127.0.0.1:${PORT} (studio: /nova/studio)\n`
-  );
-});
+function startServer(port = PORT, host = "127.0.0.1", deps = DEFAULT_DEPS) {
+  const server = createServer(deps);
+  server.listen(port, host, () => {
+    process.stdout.write(
+      `[assistant-server] listening on http://${host}:${port} (studio: /nova/studio)\n`
+    );
+  });
+  return server;
+}
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = {
+  createRequestHandler,
+  createServer,
+  startServer,
+  readRequestJson,
+  resolveStudioPath,
+  guessContentType
+};

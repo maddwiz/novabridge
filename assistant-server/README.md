@@ -39,3 +39,12 @@ If provider config is missing, planner falls back to `mock` mode.
 - `POST /assistant/plan`
 - `POST /assistant/execute`
 - `GET /nova/studio`
+
+## Validation
+
+```bash
+node --test assistant-server/tests/*.test.js
+node --check assistant-server/command_catalog.js
+node --check assistant-server/assistant_engine.js
+node --check assistant-server/server.js
+```
