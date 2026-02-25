@@ -96,6 +96,7 @@
 - Added dedicated documentation for OpenClaw environment-based customer configuration (`extensions/openclaw/README.md`).
 - Added explicit experimental support-status notices in sidecar READMEs and centralized policy in `docs/EXPERIMENTAL_SIDECARS.md`.
 - Extended fast QA workflow to include assistant-server syntax checks.
+- Fixed QA fast workflow Node setup on Studio job by removing strict unresolved cache lockfile path requirements.
 - Added `novabridge-studio` v0.1 scaffold (Tauri + React + TypeScript) with Connect, Build, Settings, provider adapters, and execute fallback flow.
 - Enforced localhost-only runtime request policy (`Host` must be loopback).
 - Added runtime `executePlan` per-minute rate limiting and pairing-code rotation on successful pair.

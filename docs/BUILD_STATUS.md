@@ -40,6 +40,8 @@
   - NovaBridge Studio tests/build (`novabridge-studio`)
 - Trigger:
   - Push/PR changes touching Python integrations, Studio, or the workflow file.
+- Follow-up fix:
+  - Removed strict `setup-node` lockfile cache path in Studio QA job to prevent unresolved-path failures on GitHub-hosted runners.
 
 ## Assistant + SDK Integration Validation
 
