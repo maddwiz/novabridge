@@ -9,7 +9,7 @@ on:
       version:
         description: "Release version (without v prefix)"
         required: false
-        default: "1.0.0"
+        default: "1.0.1"
       publish_docker:
         description: "Build and push ghcr.io image"
         required: false

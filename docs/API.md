@@ -1,4 +1,4 @@
-# NovaBridge HTTP API (v1.0.0)
+# NovaBridge HTTP API (v1.0.1)
 
 Editor base URL:
 - `http://127.0.0.1:30010/nova`

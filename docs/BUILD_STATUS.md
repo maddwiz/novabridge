@@ -1,6 +1,6 @@
 # Build Status
 
-> Current active version track: `v1.0.0`.  
+> Current active version track: `v1.0.1`.  
 > Historical validation snapshots in this file may reference `v0.9.5-dev`/`v0.9.0` from pre-launch runs.
 
 ## Last Updated

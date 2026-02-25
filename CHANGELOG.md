@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.0.1 - 2026-02-25
+
+- Bumped plugin/package version metadata to `v1.0.1` (`.uplugin`, core version constant, packaging defaults, and launch docs).
+- Added external validation handoff docs for:
+  - Windows Codex: `docs/HANDOFF_WINDOWS_CODEX_VALIDATION.md`
+  - NVIDIA Spark Codex (Linux/NVIDIA): `docs/HANDOFF_NVIDIA_SPARK_CODEX_VALIDATION.md`
+- Added explicit experimental support-status section to `assistant-server/README.md`.
+- Removed remaining hardcoded OpenClaw voice-sidecar host fallback in `extensions/openclaw/nova-ue5-bridge/index.js` by honoring `NOVABRIDGE_VOICE_HOST`/`NOVABRIDGE_HOST`.
+- Aligned smoke/validation docs to mark `v1.0.1` as the active release track while preserving historical evidence blocks.
+- No API contract changes from `v1.0.0`; this is a launch-polish and cross-platform validation handoff patch release.
+
 ## v1.0.0 - 2026-02-25
 
 - Released `v1.0.0` ship-ready track and aligned plugin/runtime version strings.

@@ -16,7 +16,7 @@
 
 ## Current Release Tier
 
-- **`v1.0.0` Ship-Ready**
+- **`v1.0.1` Ship-Ready**
 - Validated platforms: macOS, Windows Win64, Linux (x64 + ARM64 build workflows)
 
 ## Not Included
