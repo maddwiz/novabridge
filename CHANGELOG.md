@@ -19,6 +19,9 @@
 - Added runtime server endpoints (experimental): `POST /nova/runtime/pair`, token-gated `/nova/health`, `/nova/caps`, `/nova/executePlan`.
 - Added runtime token-gated audit endpoint: `GET /nova/audit`.
 - Added runtime token-gated events discovery endpoint: `GET /nova/events` with runtime event WebSocket stream.
+- Expanded `/nova/events` metadata with `supported_types`, `pending_by_type`, `filtered_pending_events`, and optional `types` query filter.
+- Added typed event emission for editor/runtime event streams (`audit`, `spawn`, `delete`, `plan_step`, `plan_complete`, `error`).
+- Runtime `executePlan` `spawn` now supports optional `label` as requested actor/object name.
 - Enforced localhost-only runtime request policy (`Host` must be loopback).
 - Added runtime `executePlan` per-minute rate limiting and pairing-code rotation on successful pair.
 - Fixed UE `< 5.7` sequencer scrub fallback to avoid recursion regressions (`NovaBridgeSetPlaybackTime` now uses explicit playback params on pre-5.7).

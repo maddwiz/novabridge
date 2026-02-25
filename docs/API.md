@@ -37,15 +37,18 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
 - `GET /project/info`
 - `GET /caps`
 - `GET /events`
-  - Returns event socket metadata (`ws_url`, `ws_port`, `clients`, `pending_events`)
-  - Event payloads are JSON with:
-    - `type` (`audit`)
-    - `timestamp_utc`
-    - `route`
-    - `action`
-    - `role`
-    - `status`
-    - `message`
+  - Query: `types` (optional comma-separated type filter for metadata counters)
+  - Returns event socket metadata:
+    - `ws_url`, `ws_port`, `clients`
+    - `pending_events`, `filtered_pending_events`
+    - `supported_types`, `pending_by_type`
+  - Event stream types:
+    - `audit`
+    - `spawn`
+    - `delete`
+    - `plan_step`
+    - `plan_complete`
+    - `error`
 - `GET /audit`
   - Query: `limit` (1-500, default 50)
 - `POST /executePlan`
@@ -71,7 +74,8 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
   - runtime-safe capability subset
 - `GET /events`
   - token-gated runtime event socket discovery
-  - returns `ws_url`, `ws_port`, `clients`, `pending_events`
+  - Query: `types` (optional comma-separated type filter for metadata counters)
+  - returns `ws_url`, `ws_port`, `clients`, `pending_events`, `filtered_pending_events`, `supported_types`, `pending_by_type`
 - `GET /audit`
   - token-gated in-memory runtime audit trail
   - Query: `limit` (1-500, default 50)
@@ -80,6 +84,7 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
     - `spawn`
     - `delete`
     - `set`
+  - Runtime `spawn` supports optional `label` (used as requested actor/object name)
 
 ### Scene
 
@@ -188,6 +193,10 @@ curl -s http://localhost:30010/nova/events
 ```
 
 ```bash
+curl -s "http://localhost:30010/nova/events?types=spawn,error"
+```
+
+```bash
 curl -s -X POST http://localhost:30010/nova/asset/import \
   -H "Content-Type: application/json" \
   -d '{"file_path":"/tmp/model.obj","asset_name":"ModelA","destination":"/Game","scale":100}'
@@ -259,7 +268,8 @@ curl -s -X POST http://localhost:30020/nova/executePlan \
   -d '{
     "plan_id":"runtime-plan",
     "steps":[
-      {"action":"spawn","params":{"type":"PointLight","x":0,"y":0,"z":220}}
+      {"action":"spawn","params":{"type":"PointLight","label":"RuntimePlanLight","x":0,"y":0,"z":220}},
+      {"action":"delete","params":{"name":"RuntimePlanLight"}}
     ]
   }'
 ```

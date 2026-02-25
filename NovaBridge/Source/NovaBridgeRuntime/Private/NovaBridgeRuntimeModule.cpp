@@ -71,6 +71,70 @@ static FString GetHeaderValueCaseInsensitive(const FHttpServerRequest& Request, 
 	return FString();
 }
 
+static FString NormalizeEventType(const FString& InType)
+{
+	FString Type = InType;
+	Type.TrimStartAndEndInline();
+	Type.ToLowerInline();
+	return Type;
+}
+
+static TArray<TSharedPtr<FJsonValue>> MakeJsonStringArray(const TArray<FString>& Values)
+{
+	TArray<TSharedPtr<FJsonValue>> JsonArray;
+	JsonArray.Reserve(Values.Num());
+	for (const FString& Value : Values)
+	{
+		JsonArray.Add(MakeShared<FJsonValueString>(Value));
+	}
+	return JsonArray;
+}
+
+static TArray<FString> ParseEventTypeFilter(const FHttpServerRequest& Request)
+{
+	FString RawTypes;
+	if (Request.QueryParams.Contains(TEXT("types")))
+	{
+		RawTypes = Request.QueryParams[TEXT("types")];
+	}
+	else if (Request.QueryParams.Contains(TEXT("type")))
+	{
+		RawTypes = Request.QueryParams[TEXT("type")];
+	}
+
+	TArray<FString> FilterTypes;
+	if (RawTypes.IsEmpty())
+	{
+		return FilterTypes;
+	}
+
+	TArray<FString> Parts;
+	RawTypes.ParseIntoArray(Parts, TEXT(","), true);
+	for (FString& Part : Parts)
+	{
+		const FString Normalized = NormalizeEventType(Part);
+		if (!Normalized.IsEmpty() && !FilterTypes.Contains(Normalized))
+		{
+			FilterTypes.Add(Normalized);
+		}
+	}
+	return FilterTypes;
+}
+
+static const TArray<FString>& SupportedRuntimeEventTypes()
+{
+	static const TArray<FString> Types =
+	{
+		TEXT("audit"),
+		TEXT("spawn"),
+		TEXT("delete"),
+		TEXT("plan_step"),
+		TEXT("plan_complete"),
+		TEXT("error")
+	};
+	return Types;
+}
+
 static FString NormalizeHostOnly(FString RawHost)
 {
 	RawHost.TrimStartAndEndInline();
@@ -174,6 +238,8 @@ static void RegisterRuntimeCapabilities(const int32 MaxSpawnPerPlan, const int32
 	TSharedPtr<FJsonObject> EventsData = MakeShared<FJsonObject>();
 	EventsData->SetStringField(TEXT("endpoint"), TEXT("/nova/events"));
 	EventsData->SetStringField(TEXT("ws_url"), FString::Printf(TEXT("ws://localhost:%d"), InEventWsPort));
+	EventsData->SetArrayField(TEXT("supported_types"), MakeJsonStringArray(SupportedRuntimeEventTypes()));
+	EventsData->SetStringField(TEXT("filter_query_param"), TEXT("types"));
 	RegisterCapability(TEXT("events"), EventsData);
 }
 
@@ -531,6 +597,11 @@ void FNovaBridgeRuntimeModule::StartHttpServer()
 		FScopeLock AuditLock(&RuntimeAuditMutex);
 		RuntimeAuditTrail.Empty();
 	}
+	{
+		FScopeLock EventLock(&RuntimeEventQueueMutex);
+		RuntimePendingEventPayloads.Empty();
+		RuntimePendingEventTypes.Empty();
+	}
 
 	int32 ParsedPort = 0;
 	if (FParse::Value(FCommandLine::Get(), TEXT("NovaBridgeRuntimePort="), ParsedPort))
@@ -790,6 +861,7 @@ void FNovaBridgeRuntimeModule::StopEventWebSocketServer()
 
 	FScopeLock EventLock(&RuntimeEventQueueMutex);
 	RuntimePendingEventPayloads.Empty();
+	RuntimePendingEventTypes.Empty();
 }
 
 void FNovaBridgeRuntimeModule::PumpEventSocketQueue()
@@ -809,6 +881,7 @@ void FNovaBridgeRuntimeModule::PumpEventSocketQueue()
 		}
 		PendingPayloads = MoveTemp(RuntimePendingEventPayloads);
 		RuntimePendingEventPayloads.Reset();
+		RuntimePendingEventTypes.Reset();
 	}
 
 	for (const FString& Payload : PendingPayloads)
@@ -904,6 +977,43 @@ bool FNovaBridgeRuntimeModule::IsLocalHostRequest(const FHttpServerRequest& Requ
 	return false;
 }
 
+void FNovaBridgeRuntimeModule::QueueRuntimeEvent(const TSharedPtr<FJsonObject>& EventObj)
+{
+	if (!EventObj.IsValid())
+	{
+		return;
+	}
+	if (!EventObj->HasTypedField<EJson::String>(TEXT("type")))
+	{
+		EventObj->SetStringField(TEXT("type"), TEXT("audit"));
+	}
+	if (!EventObj->HasTypedField<EJson::String>(TEXT("mode")))
+	{
+		EventObj->SetStringField(TEXT("mode"), RuntimeModeName);
+	}
+	if (!EventObj->HasTypedField<EJson::String>(TEXT("timestamp_utc")))
+	{
+		EventObj->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
+	}
+
+	const FString EventType = NormalizeEventType(EventObj->GetStringField(TEXT("type")));
+	FString SerializedEvent;
+	{
+		TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&SerializedEvent);
+		FJsonSerializer::Serialize(EventObj.ToSharedRef(), Writer);
+	}
+
+	FScopeLock EventLock(&RuntimeEventQueueMutex);
+	RuntimePendingEventPayloads.Add(MoveTemp(SerializedEvent));
+	RuntimePendingEventTypes.Add(EventType);
+	if (RuntimePendingEventPayloads.Num() > RuntimePendingEventsLimit)
+	{
+		const int32 RemoveCount = RuntimePendingEventPayloads.Num() - RuntimePendingEventsLimit;
+		RuntimePendingEventPayloads.RemoveAt(0, RemoveCount, EAllowShrinking::No);
+		RuntimePendingEventTypes.RemoveAt(0, RemoveCount, EAllowShrinking::No);
+	}
+}
+
 void FNovaBridgeRuntimeModule::PushAuditEntry(const FString& Route, const FString& Action, const FString& Status, const FString& Message)
 {
 	FRuntimeAuditEntry Entry;
@@ -922,26 +1032,13 @@ void FNovaBridgeRuntimeModule::PushAuditEntry(const FString& Route, const FStrin
 
 	TSharedPtr<FJsonObject> EventObj = MakeShareable(new FJsonObject);
 	EventObj->SetStringField(TEXT("type"), TEXT("audit"));
+	EventObj->SetStringField(TEXT("mode"), RuntimeModeName);
 	EventObj->SetStringField(TEXT("timestamp_utc"), Entry.TimestampUtc);
 	EventObj->SetStringField(TEXT("route"), Entry.Route);
 	EventObj->SetStringField(TEXT("action"), Entry.Action);
 	EventObj->SetStringField(TEXT("status"), Entry.Status);
 	EventObj->SetStringField(TEXT("message"), Entry.Message);
-
-	FString SerializedEvent;
-	{
-		TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&SerializedEvent);
-		FJsonSerializer::Serialize(EventObj.ToSharedRef(), Writer);
-	}
-
-	{
-		FScopeLock EventLock(&RuntimeEventQueueMutex);
-		RuntimePendingEventPayloads.Add(MoveTemp(SerializedEvent));
-		if (RuntimePendingEventPayloads.Num() > RuntimePendingEventsLimit)
-		{
-			RuntimePendingEventPayloads.RemoveAt(0, RuntimePendingEventPayloads.Num() - RuntimePendingEventsLimit, EAllowShrinking::No);
-		}
-	}
+	QueueRuntimeEvent(EventObj);
 }
 
 bool FNovaBridgeRuntimeModule::IsAuthorizedRuntimeToken(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) const
@@ -1031,12 +1128,36 @@ bool FNovaBridgeRuntimeModule::HandleCapabilities(const FHttpServerRequest& Requ
 
 bool FNovaBridgeRuntimeModule::HandleEvents(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
 {
-	(void)Request;
-	const int32 PendingEvents = [&]()
+	const TArray<FString> FilterTypes = ParseEventTypeFilter(Request);
+	int32 PendingEvents = 0;
+	int32 FilteredPendingEvents = 0;
+	TArray<FString> PendingTypesSnapshot;
 	{
 		FScopeLock Lock(&RuntimeEventQueueMutex);
-		return RuntimePendingEventPayloads.Num();
-	}();
+		PendingEvents = RuntimePendingEventPayloads.Num();
+		PendingTypesSnapshot = RuntimePendingEventTypes;
+	}
+
+	TMap<FString, int32> PendingByType;
+	for (const FString& PendingType : PendingTypesSnapshot)
+	{
+		PendingByType.FindOrAdd(PendingType)++;
+	}
+
+	if (FilterTypes.Num() == 0)
+	{
+		FilteredPendingEvents = PendingEvents;
+	}
+	else
+	{
+		for (const FString& PendingType : PendingTypesSnapshot)
+		{
+			if (FilterTypes.Contains(PendingType))
+			{
+				FilteredPendingEvents++;
+			}
+		}
+	}
 
 	TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
 	Result->SetStringField(TEXT("status"), TEXT("ok"));
@@ -1046,6 +1167,19 @@ bool FNovaBridgeRuntimeModule::HandleEvents(const FHttpServerRequest& Request, c
 	Result->SetNumberField(TEXT("ws_port"), EventWsPort);
 	Result->SetNumberField(TEXT("clients"), EventWsClients.Num());
 	Result->SetNumberField(TEXT("pending_events"), PendingEvents);
+	Result->SetNumberField(TEXT("filtered_pending_events"), FilteredPendingEvents);
+	Result->SetArrayField(TEXT("supported_types"), MakeJsonStringArray(SupportedRuntimeEventTypes()));
+	if (FilterTypes.Num() > 0)
+	{
+		Result->SetArrayField(TEXT("filter_types"), MakeJsonStringArray(FilterTypes));
+	}
+
+	TSharedPtr<FJsonObject> PendingByTypeObj = MakeShared<FJsonObject>();
+	for (const TPair<FString, int32>& Pair : PendingByType)
+	{
+		PendingByTypeObj->SetNumberField(Pair.Key, Pair.Value);
+	}
+	Result->SetObjectField(TEXT("pending_by_type"), PendingByTypeObj);
 #if NOVABRIDGE_WITH_WEBSOCKET_NETWORKING
 	Result->SetBoolField(TEXT("websocket_available"), true);
 #else
@@ -1193,9 +1327,9 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 		? Body->GetStringField(TEXT("plan_id"))
 		: FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
 
-	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, Steps, PlanId]()
-	{
-		UWorld* World = ResolveRuntimeWorld();
+		AsyncTask(ENamedThreads::GameThread, [this, OnComplete, Steps, PlanId]()
+		{
+			UWorld* World = ResolveRuntimeWorld();
 		if (!World)
 		{
 			PushAuditEntry(TEXT("/nova/executePlan"), TEXT("executePlan"), TEXT("error"), TEXT("No runtime world is available"));
@@ -1203,11 +1337,13 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 			return;
 		}
 
-		TArray<TSharedPtr<FJsonValue>> StepResults;
-		StepResults.Reserve(Steps.Num());
-		int32 SpawnCount = 0;
-		int32 SuccessCount = 0;
-		int32 ErrorCount = 0;
+			TArray<TSharedPtr<FJsonValue>> StepResults;
+			StepResults.Reserve(Steps.Num());
+			TArray<FString> StepActions;
+			StepActions.SetNum(Steps.Num());
+			int32 SpawnCount = 0;
+			int32 SuccessCount = 0;
+			int32 ErrorCount = 0;
 
 		for (int32 StepIndex = 0; StepIndex < Steps.Num(); ++StepIndex)
 		{
@@ -1220,28 +1356,31 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 				StepResults.Add(MakeShareable(new FJsonValueObject(StepResult)));
 			};
 
-			const TSharedPtr<FJsonValue>& StepValue = Steps[StepIndex];
-			if (!StepValue.IsValid() || StepValue->Type != EJson::Object)
-			{
-				AddStepResult(StepIndex, TEXT("error"), TEXT("Step must be an object"));
-				ErrorCount++;
-				continue;
+				const TSharedPtr<FJsonValue>& StepValue = Steps[StepIndex];
+				if (!StepValue.IsValid() || StepValue->Type != EJson::Object)
+				{
+					StepActions[StepIndex] = TEXT("unknown");
+					AddStepResult(StepIndex, TEXT("error"), TEXT("Step must be an object"));
+					ErrorCount++;
+					continue;
+				}
+
+				const TSharedPtr<FJsonObject> StepObj = StepValue->AsObject();
+				if (!StepObj.IsValid() || !StepObj->HasTypedField<EJson::String>(TEXT("action")))
+				{
+					StepActions[StepIndex] = TEXT("unknown");
+					AddStepResult(StepIndex, TEXT("error"), TEXT("Missing step action"));
+					ErrorCount++;
+					continue;
 			}
 
-			const TSharedPtr<FJsonObject> StepObj = StepValue->AsObject();
-			if (!StepObj.IsValid() || !StepObj->HasTypedField<EJson::String>(TEXT("action")))
-			{
-				AddStepResult(StepIndex, TEXT("error"), TEXT("Missing step action"));
-				ErrorCount++;
-				continue;
-			}
-
-			FString Action = StepObj->GetStringField(TEXT("action"));
-			Action.TrimStartAndEndInline();
-			Action.ToLowerInline();
-			const TSharedPtr<FJsonObject> Params = StepObj->HasTypedField<EJson::Object>(TEXT("params"))
-				? StepObj->GetObjectField(TEXT("params"))
-				: MakeShareable(new FJsonObject);
+				FString Action = StepObj->GetStringField(TEXT("action"));
+				Action.TrimStartAndEndInline();
+				Action.ToLowerInline();
+				StepActions[StepIndex] = Action;
+				const TSharedPtr<FJsonObject> Params = StepObj->HasTypedField<EJson::Object>(TEXT("params"))
+					? StepObj->GetObjectField(TEXT("params"))
+					: MakeShareable(new FJsonObject);
 
 			if (Action == TEXT("spawn"))
 			{
@@ -1285,32 +1424,67 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 					continue;
 				}
 
-				UClass* ActorClass = ResolveRuntimeActorClass(ClassName);
-				if (!ActorClass)
-				{
-					AddStepResult(StepIndex, TEXT("error"), FString::Printf(TEXT("Class not found: %s"), *ClassName));
-					ErrorCount++;
-					continue;
-				}
+					UClass* ActorClass = ResolveRuntimeActorClass(ClassName);
+					if (!ActorClass)
+					{
+						AddStepResult(StepIndex, TEXT("error"), FString::Printf(TEXT("Class not found: %s"), *ClassName));
+						ErrorCount++;
+						continue;
+					}
 
-				AActor* NewActor = World->SpawnActor<AActor>(ActorClass, SpawnLocation, SpawnRotation);
-				if (!NewActor)
-				{
-					AddStepResult(StepIndex, TEXT("error"), TEXT("Failed to spawn actor"));
-					ErrorCount++;
-					continue;
+					FString RequestedName = Params->HasTypedField<EJson::String>(TEXT("label")) ? Params->GetStringField(TEXT("label")) : FString();
+					RequestedName.TrimStartAndEndInline();
+
+					FActorSpawnParameters SpawnParams;
+					if (!RequestedName.IsEmpty())
+					{
+						SpawnParams.Name = FName(*RequestedName);
+					}
+
+					AActor* NewActor = World->SpawnActor<AActor>(ActorClass, SpawnLocation, SpawnRotation, SpawnParams);
+					if (!NewActor && !RequestedName.IsEmpty())
+					{
+						SpawnParams.Name = NAME_None;
+						NewActor = World->SpawnActor<AActor>(ActorClass, SpawnLocation, SpawnRotation, SpawnParams);
+					}
+					if (!NewActor)
+					{
+						AddStepResult(StepIndex, TEXT("error"), TEXT("Failed to spawn actor"));
+						ErrorCount++;
+						continue;
 				}
 
 				TSharedPtr<FJsonObject> StepResult = MakeShareable(new FJsonObject);
 				StepResult->SetNumberField(TEXT("step"), StepIndex);
-				StepResult->SetStringField(TEXT("status"), TEXT("success"));
-				StepResult->SetStringField(TEXT("message"), TEXT("Spawned actor"));
-				StepResult->SetStringField(TEXT("object_id"), NewActor->GetName());
-				StepResults.Add(MakeShareable(new FJsonValueObject(StepResult)));
-				SpawnCount++;
-				SuccessCount++;
-				continue;
-			}
+					StepResult->SetStringField(TEXT("status"), TEXT("success"));
+					StepResult->SetStringField(TEXT("message"), TEXT("Spawned actor"));
+					StepResult->SetStringField(TEXT("object_id"), NewActor->GetName());
+					if (!RequestedName.IsEmpty())
+					{
+						StepResult->SetStringField(TEXT("requested_name"), RequestedName);
+					}
+					StepResults.Add(MakeShareable(new FJsonValueObject(StepResult)));
+
+					TSharedPtr<FJsonObject> SpawnEvent = MakeShared<FJsonObject>();
+					SpawnEvent->SetStringField(TEXT("type"), TEXT("spawn"));
+					SpawnEvent->SetStringField(TEXT("mode"), RuntimeModeName);
+					SpawnEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
+					SpawnEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
+					SpawnEvent->SetStringField(TEXT("action"), Action);
+					SpawnEvent->SetStringField(TEXT("status"), TEXT("success"));
+					SpawnEvent->SetStringField(TEXT("plan_id"), PlanId);
+					SpawnEvent->SetNumberField(TEXT("step"), StepIndex);
+					SpawnEvent->SetStringField(TEXT("object_id"), NewActor->GetName());
+					SpawnEvent->SetStringField(TEXT("class"), ClassName);
+					if (!RequestedName.IsEmpty())
+					{
+						SpawnEvent->SetStringField(TEXT("requested_name"), RequestedName);
+					}
+					QueueRuntimeEvent(SpawnEvent);
+					SpawnCount++;
+					SuccessCount++;
+					continue;
+				}
 
 			if (Action == TEXT("delete"))
 			{
@@ -1334,11 +1508,22 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 					continue;
 				}
 
-				Actor->Destroy();
-				AddStepResult(StepIndex, TEXT("success"), FString::Printf(TEXT("Deleted actor %s"), *ActorName));
-				SuccessCount++;
-				continue;
-			}
+					Actor->Destroy();
+					AddStepResult(StepIndex, TEXT("success"), FString::Printf(TEXT("Deleted actor %s"), *ActorName));
+					TSharedPtr<FJsonObject> DeleteEvent = MakeShared<FJsonObject>();
+					DeleteEvent->SetStringField(TEXT("type"), TEXT("delete"));
+					DeleteEvent->SetStringField(TEXT("mode"), RuntimeModeName);
+					DeleteEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
+					DeleteEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
+					DeleteEvent->SetStringField(TEXT("action"), Action);
+					DeleteEvent->SetStringField(TEXT("status"), TEXT("success"));
+					DeleteEvent->SetStringField(TEXT("plan_id"), PlanId);
+					DeleteEvent->SetNumberField(TEXT("step"), StepIndex);
+					DeleteEvent->SetStringField(TEXT("actor_name"), ActorName);
+					QueueRuntimeEvent(DeleteEvent);
+					SuccessCount++;
+					continue;
+				}
 
 			if (Action == TEXT("set"))
 			{
@@ -1462,13 +1647,69 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 		Result->SetStringField(TEXT("status"), TEXT("ok"));
 		Result->SetStringField(TEXT("mode"), RuntimeModeName);
 		Result->SetStringField(TEXT("plan_id"), PlanId);
-		Result->SetArrayField(TEXT("results"), StepResults);
-		Result->SetNumberField(TEXT("step_count"), Steps.Num());
-		Result->SetNumberField(TEXT("success_count"), SuccessCount);
-		Result->SetNumberField(TEXT("error_count"), ErrorCount);
-		SendJsonResponse(OnComplete, Result);
-		PushAuditEntry(TEXT("/nova/executePlan"), TEXT("executePlan.complete"), TEXT("success"),
-			FString::Printf(TEXT("Plan %s complete: %d success, %d error"), *PlanId, SuccessCount, ErrorCount));
+			Result->SetArrayField(TEXT("results"), StepResults);
+			Result->SetNumberField(TEXT("step_count"), Steps.Num());
+			Result->SetNumberField(TEXT("success_count"), SuccessCount);
+			Result->SetNumberField(TEXT("error_count"), ErrorCount);
+
+			for (const TSharedPtr<FJsonValue>& StepResultValue : StepResults)
+			{
+				if (!StepResultValue.IsValid() || StepResultValue->Type != EJson::Object)
+				{
+					continue;
+				}
+				const TSharedPtr<FJsonObject> StepResultObj = StepResultValue->AsObject();
+				if (!StepResultObj.IsValid())
+				{
+					continue;
+				}
+
+				const int32 ResultStepIndex = StepResultObj->HasTypedField<EJson::Number>(TEXT("step"))
+					? static_cast<int32>(StepResultObj->GetNumberField(TEXT("step")))
+					: INDEX_NONE;
+				const FString ResultStatus = StepResultObj->HasTypedField<EJson::String>(TEXT("status"))
+					? StepResultObj->GetStringField(TEXT("status"))
+					: TEXT("error");
+				const FString ResultAction = (ResultStepIndex >= 0 && ResultStepIndex < StepActions.Num() && !StepActions[ResultStepIndex].IsEmpty())
+					? StepActions[ResultStepIndex]
+					: TEXT("unknown");
+
+				TSharedPtr<FJsonObject> PlanStepEvent = MakeShared<FJsonObject>();
+				PlanStepEvent->SetStringField(TEXT("type"), ResultStatus.Equals(TEXT("error"), ESearchCase::IgnoreCase) ? TEXT("error") : TEXT("plan_step"));
+				PlanStepEvent->SetStringField(TEXT("mode"), RuntimeModeName);
+				PlanStepEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
+				PlanStepEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
+				PlanStepEvent->SetStringField(TEXT("action"), ResultAction);
+				PlanStepEvent->SetStringField(TEXT("status"), ResultStatus);
+				PlanStepEvent->SetStringField(TEXT("plan_id"), PlanId);
+				PlanStepEvent->SetNumberField(TEXT("step"), ResultStepIndex);
+				if (StepResultObj->HasTypedField<EJson::String>(TEXT("message")))
+				{
+					PlanStepEvent->SetStringField(TEXT("message"), StepResultObj->GetStringField(TEXT("message")));
+				}
+				if (StepResultObj->HasTypedField<EJson::String>(TEXT("object_id")))
+				{
+					PlanStepEvent->SetStringField(TEXT("object_id"), StepResultObj->GetStringField(TEXT("object_id")));
+				}
+				QueueRuntimeEvent(PlanStepEvent);
+			}
+
+			TSharedPtr<FJsonObject> PlanCompleteEvent = MakeShared<FJsonObject>();
+			PlanCompleteEvent->SetStringField(TEXT("type"), TEXT("plan_complete"));
+			PlanCompleteEvent->SetStringField(TEXT("mode"), RuntimeModeName);
+			PlanCompleteEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
+			PlanCompleteEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
+			PlanCompleteEvent->SetStringField(TEXT("action"), TEXT("executePlan.complete"));
+			PlanCompleteEvent->SetStringField(TEXT("status"), ErrorCount == 0 ? TEXT("success") : TEXT("partial"));
+			PlanCompleteEvent->SetStringField(TEXT("plan_id"), PlanId);
+			PlanCompleteEvent->SetNumberField(TEXT("step_count"), Steps.Num());
+			PlanCompleteEvent->SetNumberField(TEXT("success_count"), SuccessCount);
+			PlanCompleteEvent->SetNumberField(TEXT("error_count"), ErrorCount);
+			QueueRuntimeEvent(PlanCompleteEvent);
+
+			SendJsonResponse(OnComplete, Result);
+			PushAuditEntry(TEXT("/nova/executePlan"), TEXT("executePlan.complete"), TEXT("success"),
+				FString::Printf(TEXT("Plan %s complete: %d success, %d error"), *PlanId, SuccessCount, ErrorCount));
 	});
 
 	return true;

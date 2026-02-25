@@ -36,6 +36,27 @@ Runtime-mode checks (port `30120`, events port `30122`):
   - `POST /nova/executePlan` (spawn)
 - Result: passed; runtime `events_ws_port` surfaced in health and `/nova/events` metadata.
 
+### macOS Event Stream Validation Refresh
+
+- Date: 2026-02-24
+- Run root:
+  - `/tmp/novabridge-smoke-20260224-183509`
+- Build command:
+  - `"/Users/Shared/Epic Games/UE_5.6/Engine/Build/BatchFiles/Mac/Build.sh" UnrealEditor Mac Development -Project="<...>/NovaBridgeDefault.uproject" -WaitMutex -NoHotReloadFromIDE`
+
+Editor checks:
+- `POST /nova/executePlan` (spawn + delete) succeeded with `success_count=2`, `error_count=0`.
+- `GET /nova/events` returned typed metadata:
+  - `supported_types`: `audit`, `spawn`, `delete`, `plan_step`, `plan_complete`, `error`
+  - `pending_by_type` counters present
+- `GET /nova/events?types=spawn,error` returned filtered metadata with `filtered_pending_events`.
+- Sequencer regression recheck (`create` + `scrub`) succeeded.
+
+Runtime checks:
+- Enabled with `-NovaBridgeRuntime=1 -NovaBridgeRuntimePort=30220 -NovaBridgeRuntimeEventsPort=30222`.
+- `POST /nova/executePlan` with runtime spawn `label` + delete by that name succeeded (`success_count=2`, `error_count=0`).
+- Runtime `GET /nova/events` and `GET /nova/events?types=spawn,error` returned type-aware metadata and counters.
+
 ## macOS Validation (Completed)
 
 ### Toolchain discovery and setup

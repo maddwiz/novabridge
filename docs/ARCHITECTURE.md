@@ -31,11 +31,13 @@ Optional Blender path:
 - Reversible operation tracking is exposed via `POST /nova/undo`.
 - In-memory audit trail is exposed via `GET /nova/audit`.
 - Event WebSocket discovery is exposed via `GET /nova/events` (default socket `ws://localhost:30012`).
+- Event discovery supports optional type-filter metadata (`types=spawn,error`) and reports `supported_types` + `pending_by_type`.
 - Runtime control server defaults to `127.0.0.1:30020` and is enabled with `-NovaBridgeRuntime=1`.
 - Runtime request handling enforces localhost host access before auth/dispatch.
 - Runtime pairing endpoint: `POST /nova/runtime/pair`.
 - Runtime audit trail endpoint: token-gated `GET /nova/audit`.
 - Runtime events endpoint: token-gated `GET /nova/events` with WebSocket stream (`ws://localhost:30022` by default).
+- Editor and Runtime event streams emit typed events: `audit`, `spawn`, `delete`, `plan_step`, `plan_complete`, `error`.
 
 ## Control Policy Layer
 

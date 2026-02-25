@@ -33,6 +33,7 @@ private:
 	void SendErrorResponse(const FHttpResultCallback& OnComplete, const FString& Error, int32 StatusCode = 400) const;
 	bool IsLocalHostRequest(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) const;
 	bool IsAuthorizedRuntimeToken(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) const;
+	void QueueRuntimeEvent(const TSharedPtr<FJsonObject>& EventObj);
 	void PushAuditEntry(const FString& Route, const FString& Action, const FString& Status, const FString& Message);
 
 	bool HandleHealth(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
@@ -74,6 +75,7 @@ private:
 	FTSTicker::FDelegateHandle EventWsServerTickHandle;
 	mutable FCriticalSection RuntimeEventQueueMutex;
 	TArray<FString> RuntimePendingEventPayloads;
+	TArray<FString> RuntimePendingEventTypes;
 	int32 RuntimePendingEventsLimit = 2048;
 
 	struct FRuntimeAuditEntry

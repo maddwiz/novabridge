@@ -101,12 +101,13 @@ curl -sS -X POST http://127.0.0.1:30010/nova/scene/spawn \
 ## Platform Control Additions (v0.9.5-dev)
 
 - `GET /nova/caps` for capability + policy discovery.
-- `GET /nova/events` for event channel discovery (`ws://localhost:30012` by default).
+- `GET /nova/events` for event channel discovery (`ws://localhost:30012` by default) with type-aware metadata (`supported_types`, `pending_by_type`) and optional `types` filter query.
 - `POST /nova/executePlan` for schema-driven multi-step execution (`spawn`, `delete`, `set`, `screenshot`).
 - `POST /nova/undo` for reversible operations (currently tracked spawn actions).
 - `GET /nova/audit` for structured in-memory execution/audit trail.
 - Runtime now also exposes token-gated `GET /nova/audit`.
 - Runtime also exposes token-gated `GET /nova/events` for event socket discovery (`ws://localhost:30022` by default).
+- Event stream now emits typed payloads (`audit`, `spawn`, `delete`, `plan_step`, `plan_complete`, `error`) for both editor and runtime modules.
 - Spawn guardrails for non-admin roles:
   - class allow list
   - transform bounds
@@ -124,6 +125,7 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 - `POST /nova/scene/set-property` now includes class-name alias matching for component prefixes (for example, `PointLightComponent0.Intensity` resolves correctly).
 - Sequencer scrub fallback on UE `< 5.7` now uses explicit playback params (non-recursive) to avoid stack overflow regressions.
 - MB-Lab export cleanup removes non-character scene objects/ground planes before export.
+- Runtime `executePlan` spawn now respects optional `label` as requested actor/object name (enables follow-up delete by that name).
 
 ## Blender Extension Configuration
 
