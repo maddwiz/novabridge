@@ -23,6 +23,7 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
 - Runtime mode (experimental):
   - Enable with `-NovaBridgeRuntime=1` (or `NOVABRIDGE_RUNTIME=1`)
   - Runtime endpoints enforce localhost host access (`127.0.0.1`, `localhost`, `::1`)
+  - Runtime events WebSocket default port is `30022` (`-NovaBridgeRuntimeEventsPort=<port>`)
   - Pair with `POST /runtime/pair` using startup pairing code
   - Send runtime token using `X-NovaBridge-Token: <token>`
   - `POST /executePlan` is rate-limited in runtime mode (default 30 requests/minute)
@@ -68,6 +69,9 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
   - runtime mode requires token auth
 - `GET /caps`
   - runtime-safe capability subset
+- `GET /events`
+  - token-gated runtime event socket discovery
+  - returns `ws_url`, `ws_port`, `clients`, `pending_events`
 - `GET /audit`
   - token-gated in-memory runtime audit trail
   - Query: `limit` (1-500, default 50)
@@ -240,6 +244,11 @@ curl -s -X POST http://localhost:30020/nova/runtime/pair \
 
 ```bash
 curl -s "http://localhost:30020/nova/audit?limit=20" \
+  -H "X-NovaBridge-Token: <token-from-pair>"
+```
+
+```bash
+curl -s "http://localhost:30020/nova/events" \
   -H "X-NovaBridge-Token: <token-from-pair>"
 ```
 

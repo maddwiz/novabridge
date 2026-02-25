@@ -1,4 +1,5 @@
 using UnrealBuildTool;
+using System.IO;
 
 public class NovaBridgeRuntime : ModuleRules
 {
@@ -16,5 +17,12 @@ public class NovaBridgeRuntime : ModuleRules
 			"JsonUtilities",
 			"NovaBridgeCore",
 		});
+
+		bool bHasWebSocketNetworking = Directory.Exists(Path.Combine(EngineDirectory, "Plugins", "Experimental", "WebSocketNetworking", "Source", "WebSocketNetworking"));
+		PublicDefinitions.Add($"NOVABRIDGE_WITH_WEBSOCKET_NETWORKING={(bHasWebSocketNetworking ? 1 : 0)}");
+		if (bHasWebSocketNetworking)
+		{
+			PrivateDependencyModuleNames.Add("WebSocketNetworking");
+		}
 	}
 }

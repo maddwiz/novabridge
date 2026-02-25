@@ -17,7 +17,7 @@ Optional Blender path:
 
 ## Module Layout
 
-- `NovaBridgeCore` (shared constants/types + capability registry)
+- `NovaBridgeCore` (shared constants/types + capability registry + policy helpers)
 - `NovaBridge` (editor module, editor-first control surface)
 - `NovaBridgeRuntime` (runtime module, disabled by default, token/pairing gated)
 
@@ -35,6 +35,7 @@ Optional Blender path:
 - Runtime request handling enforces localhost host access before auth/dispatch.
 - Runtime pairing endpoint: `POST /nova/runtime/pair`.
 - Runtime audit trail endpoint: token-gated `GET /nova/audit`.
+- Runtime events endpoint: token-gated `GET /nova/events` with WebSocket stream (`ws://localhost:30022` by default).
 
 ## Control Policy Layer
 

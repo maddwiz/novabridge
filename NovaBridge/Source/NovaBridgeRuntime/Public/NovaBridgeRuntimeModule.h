@@ -5,9 +5,12 @@
 #include "HttpRouteHandle.h"
 #include "HttpServerRequest.h"
 #include "HttpServerResponse.h"
+#include "Containers/Ticker.h"
 
 class IHttpRouter;
 class FJsonObject;
+class IWebSocketServer;
+class INetworkingWebSocket;
 
 class FNovaBridgeRuntimeModule : public IModuleInterface
 {
@@ -18,6 +21,9 @@ public:
 private:
 	void StartHttpServer();
 	void StopHttpServer();
+	void StartEventWebSocketServer();
+	void StopEventWebSocketServer();
+	void PumpEventSocketQueue();
 
 	bool IsRuntimeEnabledByConfig() const;
 	bool HandleCorsPreflight(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
@@ -31,6 +37,7 @@ private:
 
 	bool HandleHealth(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 	bool HandleCapabilities(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
+	bool HandleEvents(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 	bool HandleAuditTrail(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 	bool HandlePair(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 	bool HandleExecutePlan(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
@@ -55,6 +62,19 @@ private:
 	double RuntimeExecutePlanWindowStartSec = 0.0;
 	int32 RuntimeExecutePlanCountInWindow = 0;
 	int32 MaxExecutePlanPerMinute = 30;
+
+	struct FWsClient
+	{
+		INetworkingWebSocket* Socket = nullptr;
+		FGuid Id;
+	};
+	TUniquePtr<IWebSocketServer> EventWsServer;
+	TArray<FWsClient> EventWsClients;
+	uint32 EventWsPort = 30022;
+	FTSTicker::FDelegateHandle EventWsServerTickHandle;
+	mutable FCriticalSection RuntimeEventQueueMutex;
+	TArray<FString> RuntimePendingEventPayloads;
+	int32 RuntimePendingEventsLimit = 2048;
 
 	struct FRuntimeAuditEntry
 	{

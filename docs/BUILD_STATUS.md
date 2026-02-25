@@ -2,11 +2,39 @@
 
 ## Last Updated
 
-- Date: 2026-02-21
+- Date: 2026-02-24
 - Environments:
   - Linux ARM64 host (`aarch64`) validation previously completed.
   - macOS native validation completed on `MacBookPro17,1` (Apple M1, 8 GB RAM), macOS `15.6.1` (`24G90`), Xcode `26.2` (`17C52`), Unreal Engine `5.6.1-44394996`.
   - Windows Win64 native validation completed on `DESKTOP-QNVIB5M`, Unreal Engine `5.7.3` (`C:\Program Files\Epic Games\UE_5.7`), Visual Studio Build Tools 2022 (`17.14.27`), MSVC `14.44.35207`, Windows SDK `10.0.26100.0`.
+
+## macOS Validation Refresh (v0.9.5-dev)
+
+- Date: 2026-02-24
+- Run root:
+  - `/tmp/novabridge-smoke-20260224-181954`
+- Source project:
+  - `/tmp/novabridge-smoke-20260224-181954/NovaBridgeDefault/NovaBridgeDefault.uproject`
+- Build command:
+  - `"/Users/Shared/Epic Games/UE_5.6/Engine/Build/BatchFiles/Mac/Build.sh" UnrealEditor Mac Development -Project="<...>/NovaBridgeDefault.uproject" -WaitMutex -NoHotReloadFromIDE`
+
+Editor-mode checks (port `30110`, events port `30112`):
+- `GET /nova/health`, `GET /nova/caps`, `GET /nova/events`, `GET /nova/audit`
+- `POST /nova/executePlan` (spawn + delete)
+- `POST /nova/undo` (spawn-undo probe)
+- Sequencer regression path:
+  - `POST /nova/sequencer/create`
+  - `POST /nova/sequencer/scrub`
+  - `POST /nova/sequencer/stop`
+- Result: passed; UE `<5.7` scrub fallback no recursion/crash in UE `5.6.1` smoke.
+
+Runtime-mode checks (port `30120`, events port `30122`):
+- Enabled with `-NovaBridgeRuntime=1 -NovaBridgeRuntimePort=30120 -NovaBridgeRuntimeEventsPort=30122`
+- Pairing validated via `POST /nova/runtime/pair` (token returned)
+- Token-gated checks:
+  - `GET /nova/health`, `GET /nova/caps`, `GET /nova/events`, `GET /nova/audit`
+  - `POST /nova/executePlan` (spawn)
+- Result: passed; runtime `events_ws_port` surfaced in health and `/nova/events` metadata.
 
 ## macOS Validation (Completed)
 

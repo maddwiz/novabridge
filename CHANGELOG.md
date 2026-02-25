@@ -15,8 +15,10 @@
 - Extended `/nova/health` with `mode`, `default_role`, `stream_ws_port`, and `events_ws_port`.
 - Added modular plugin structure groundwork with `NovaBridgeCore` and `NovaBridgeRuntime` modules.
 - Added shared core capability registry used by Editor and Runtime `GET /nova/caps` responses.
+- Extracted shared spawn/plan policy helpers into `NovaBridgeCore` and wired Editor + Runtime to reuse them.
 - Added runtime server endpoints (experimental): `POST /nova/runtime/pair`, token-gated `/nova/health`, `/nova/caps`, `/nova/executePlan`.
 - Added runtime token-gated audit endpoint: `GET /nova/audit`.
+- Added runtime token-gated events discovery endpoint: `GET /nova/events` with runtime event WebSocket stream.
 - Enforced localhost-only runtime request policy (`Host` must be loopback).
 - Added runtime `executePlan` per-minute rate limiting and pairing-code rotation on successful pair.
 - Fixed UE `< 5.7` sequencer scrub fallback to avoid recursion regressions (`NovaBridgeSetPlaybackTime` now uses explicit playback params on pre-5.7).

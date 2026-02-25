@@ -2,6 +2,7 @@
 
 #include "NovaBridgeCapabilityRegistry.h"
 #include "NovaBridgeCoreTypes.h"
+#include "NovaBridgePolicy.h"
 #include "HttpServerModule.h"
 #include "IHttpRouter.h"
 #include "HttpPath.h"
@@ -9,10 +10,12 @@
 #include "HttpServerResponse.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "Modules/ModuleManager.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Async/Async.h"
+#include "Containers/Ticker.h"
 
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -28,6 +31,13 @@
 #include "Misc/ScopeLock.h"
 #include "HAL/PlatformMisc.h"
 #include "Math/UnrealMathUtility.h"
+
+#if NOVABRIDGE_WITH_WEBSOCKET_NETWORKING
+#include "IWebSocketNetworkingModule.h"
+#include "IWebSocketServer.h"
+#include "INetworkingWebSocket.h"
+#include "WebSocketNetworkingDelegates.h"
+#endif
 
 DEFINE_LOG_CATEGORY_STATIC(LogNovaBridgeRuntime, Log, All);
 
@@ -108,7 +118,7 @@ static bool IsLoopbackHost(const FString& HostHeader)
 
 static const TArray<FString>& RuntimeAllowedClasses();
 
-static void RegisterRuntimeCapabilities(const int32 MaxSpawnPerPlan, const int32 MaxPlanSteps, const int32 MaxExecutePlanPerMinute)
+static void RegisterRuntimeCapabilities(const int32 MaxSpawnPerPlan, const int32 MaxPlanSteps, const int32 MaxExecutePlanPerMinute, const uint32 InEventWsPort)
 {
 	using namespace NovaBridgeCore;
 
@@ -129,15 +139,17 @@ static void RegisterRuntimeCapabilities(const int32 MaxSpawnPerPlan, const int32
 		AllowedClassValues.Add(MakeShared<FJsonValueString>(AllowedClass));
 	}
 
+	const FVector& MinSpawnBounds = NovaBridgeCore::MinSpawnBounds();
+	const FVector& MaxSpawnBounds = NovaBridgeCore::MaxSpawnBounds();
 	TSharedPtr<FJsonObject> SpawnBounds = MakeShared<FJsonObject>();
 	TSharedPtr<FJsonObject> MinBounds = MakeShared<FJsonObject>();
-	MinBounds->SetNumberField(TEXT("x"), -50000.0);
-	MinBounds->SetNumberField(TEXT("y"), -50000.0);
-	MinBounds->SetNumberField(TEXT("z"), -50000.0);
+	MinBounds->SetNumberField(TEXT("x"), MinSpawnBounds.X);
+	MinBounds->SetNumberField(TEXT("y"), MinSpawnBounds.Y);
+	MinBounds->SetNumberField(TEXT("z"), MinSpawnBounds.Z);
 	TSharedPtr<FJsonObject> MaxBounds = MakeShared<FJsonObject>();
-	MaxBounds->SetNumberField(TEXT("x"), 50000.0);
-	MaxBounds->SetNumberField(TEXT("y"), 50000.0);
-	MaxBounds->SetNumberField(TEXT("z"), 50000.0);
+	MaxBounds->SetNumberField(TEXT("x"), MaxSpawnBounds.X);
+	MaxBounds->SetNumberField(TEXT("y"), MaxSpawnBounds.Y);
+	MaxBounds->SetNumberField(TEXT("z"), MaxSpawnBounds.Z);
 	SpawnBounds->SetObjectField(TEXT("min"), MinBounds);
 	SpawnBounds->SetObjectField(TEXT("max"), MaxBounds);
 
@@ -158,6 +170,11 @@ static void RegisterRuntimeCapabilities(const int32 MaxSpawnPerPlan, const int32
 	TSharedPtr<FJsonObject> AuditData = MakeShared<FJsonObject>();
 	AuditData->SetStringField(TEXT("endpoint"), TEXT("/nova/audit"));
 	RegisterCapability(TEXT("audit"), AuditData);
+
+	TSharedPtr<FJsonObject> EventsData = MakeShared<FJsonObject>();
+	EventsData->SetStringField(TEXT("endpoint"), TEXT("/nova/events"));
+	EventsData->SetStringField(TEXT("ws_url"), FString::Printf(TEXT("ws://localhost:%d"), InEventWsPort));
+	RegisterCapability(TEXT("events"), EventsData);
 }
 
 static UWorld* ResolveRuntimeWorld()
@@ -208,27 +225,12 @@ static AActor* FindActorByNameRuntime(UWorld* World, const FString& Name)
 
 static const TArray<FString>& RuntimeAllowedClasses()
 {
-	static const TArray<FString> Classes =
-	{
-		TEXT("StaticMeshActor"),
-		TEXT("PointLight"),
-		TEXT("DirectionalLight"),
-		TEXT("SpotLight"),
-		TEXT("CameraActor")
-	};
-	return Classes;
+	return NovaBridgeCore::RuntimeAllowedSpawnClasses();
 }
 
 static bool IsRuntimeClassAllowed(const FString& ClassName)
 {
-	for (const FString& AllowedClass : RuntimeAllowedClasses())
-	{
-		if (AllowedClass.Equals(ClassName, ESearchCase::IgnoreCase))
-		{
-			return true;
-		}
-	}
-	return false;
+	return NovaBridgeCore::IsClassAllowed(RuntimeAllowedClasses(), ClassName);
 }
 
 static UClass* ResolveRuntimeActorClass(const FString& InClassName)
@@ -550,6 +552,26 @@ void FNovaBridgeRuntimeModule::StartHttpServer()
 			}
 		}
 	}
+	int32 ParsedEventsPort = 0;
+	if (FParse::Value(FCommandLine::Get(), TEXT("NovaBridgeRuntimeEventsPort="), ParsedEventsPort))
+	{
+		if (ParsedEventsPort > 0 && ParsedEventsPort <= 65535)
+		{
+			EventWsPort = static_cast<uint32>(ParsedEventsPort);
+		}
+	}
+	if (EventWsPort == 30022)
+	{
+		const FString EnvEventsPort = FPlatformMisc::GetEnvironmentVariable(TEXT("NOVABRIDGE_RUNTIME_EVENTS_PORT"));
+		if (!EnvEventsPort.IsEmpty())
+		{
+			const int32 EnvEventsPortInt = FCString::Atoi(*EnvEventsPort);
+			if (EnvEventsPortInt > 0 && EnvEventsPortInt <= 65535)
+			{
+				EventWsPort = static_cast<uint32>(EnvEventsPortInt);
+			}
+		}
+	}
 
 	FString ConfiguredToken;
 	if (FParse::Value(FCommandLine::Get(), TEXT("NovaBridgeRuntimeToken="), ConfiguredToken))
@@ -571,7 +593,7 @@ void FNovaBridgeRuntimeModule::StartHttpServer()
 	const int32 PairCode = FMath::RandRange(100000, 999999);
 	RuntimePairingCode = FString::Printf(TEXT("%06d"), PairCode);
 	RuntimePairingExpiryUtc = FDateTime::UtcNow() + FTimespan::FromMinutes(15.0);
-	RegisterRuntimeCapabilities(MaxSpawnPerPlan, MaxPlanSteps, MaxExecutePlanPerMinute);
+	RegisterRuntimeCapabilities(MaxSpawnPerPlan, MaxPlanSteps, MaxExecutePlanPerMinute, EventWsPort);
 
 	HttpRouter = FHttpServerModule::Get().GetHttpRouter(HttpPort);
 	if (!HttpRouter)
@@ -627,11 +649,13 @@ void FNovaBridgeRuntimeModule::StartHttpServer()
 	Bind(TEXT("/nova/runtime/pair"), EHttpServerRequestVerbs::VERB_POST, false, &FNovaBridgeRuntimeModule::HandlePair);
 	Bind(TEXT("/nova/health"), EHttpServerRequestVerbs::VERB_GET, true, &FNovaBridgeRuntimeModule::HandleHealth);
 	Bind(TEXT("/nova/caps"), EHttpServerRequestVerbs::VERB_GET, true, &FNovaBridgeRuntimeModule::HandleCapabilities);
+	Bind(TEXT("/nova/events"), EHttpServerRequestVerbs::VERB_GET, true, &FNovaBridgeRuntimeModule::HandleEvents);
 	Bind(TEXT("/nova/audit"), EHttpServerRequestVerbs::VERB_GET, true, &FNovaBridgeRuntimeModule::HandleAuditTrail);
 	Bind(TEXT("/nova/executePlan"), EHttpServerRequestVerbs::VERB_POST, true, &FNovaBridgeRuntimeModule::HandleExecutePlan);
 
 	FHttpServerModule::Get().StartAllListeners();
 	bServerStarted = true;
+	StartEventWebSocketServer();
 
 	UE_LOG(LogNovaBridgeRuntime, Log, TEXT("NovaBridgeRuntime server listening on 127.0.0.1:%d"), HttpPort);
 	UE_LOG(LogNovaBridgeRuntime, Log, TEXT("Runtime pairing code: %s (valid until %s UTC)"),
@@ -645,6 +669,7 @@ void FNovaBridgeRuntimeModule::StopHttpServer()
 	{
 		return;
 	}
+	StopEventWebSocketServer();
 
 	if (HttpRouter)
 	{
@@ -657,6 +682,153 @@ void FNovaBridgeRuntimeModule::StopHttpServer()
 	ApiRouteCount = 0;
 	FHttpServerModule::Get().StopAllListeners();
 	bServerStarted = false;
+}
+
+void FNovaBridgeRuntimeModule::StartEventWebSocketServer()
+{
+#if NOVABRIDGE_WITH_WEBSOCKET_NETWORKING
+	if (EventWsServer.IsValid())
+	{
+		return;
+	}
+
+	FWebSocketClientConnectedCallBack ConnectedCallback;
+	ConnectedCallback.BindLambda([this](INetworkingWebSocket* Socket)
+	{
+		if (!Socket)
+		{
+			return;
+		}
+
+		FWsClient Client;
+		Client.Socket = Socket;
+		Client.Id = FGuid::NewGuid();
+		EventWsClients.Add(MoveTemp(Client));
+
+		FWebSocketPacketReceivedCallBack ReceiveCallback;
+		ReceiveCallback.BindLambda([](void* Data, int32 Size)
+		{
+			(void)Data;
+			(void)Size;
+		});
+		Socket->SetReceiveCallBack(ReceiveCallback);
+
+		FWebSocketInfoCallBack CloseCallback;
+		CloseCallback.BindLambda([this, Socket]()
+		{
+			const int32 Index = EventWsClients.IndexOfByPredicate([Socket](const FWsClient& InClient)
+			{
+				return InClient.Socket == Socket;
+			});
+			if (Index != INDEX_NONE)
+			{
+				if (EventWsClients[Index].Socket)
+				{
+					delete EventWsClients[Index].Socket;
+					EventWsClients[Index].Socket = nullptr;
+				}
+				EventWsClients.RemoveAtSwap(Index);
+			}
+		});
+		Socket->SetSocketClosedCallBack(CloseCallback);
+
+		UE_LOG(LogNovaBridgeRuntime, Log, TEXT("NovaBridgeRuntime events client connected (%d total)"), EventWsClients.Num());
+	});
+
+	IWebSocketNetworkingModule* WsModule = FModuleManager::Get().LoadModulePtr<IWebSocketNetworkingModule>(TEXT("WebSocketNetworking"));
+	if (!WsModule)
+	{
+		UE_LOG(LogNovaBridgeRuntime, Warning, TEXT("WebSocketNetworking module not available; runtime events WebSocket server disabled"));
+		return;
+	}
+
+	EventWsServer = WsModule->CreateServer();
+	if (!EventWsServer.IsValid() || !EventWsServer->Init(EventWsPort, ConnectedCallback))
+	{
+		UE_LOG(LogNovaBridgeRuntime, Warning, TEXT("Runtime events WebSocket server failed to initialize on port %d"), EventWsPort);
+		EventWsServer.Reset();
+		return;
+	}
+
+	EventWsServerTickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([this](float DeltaTime) -> bool
+	{
+		(void)DeltaTime;
+		if (EventWsServer.IsValid())
+		{
+			EventWsServer->Tick();
+		}
+		PumpEventSocketQueue();
+		return true;
+	}));
+
+	UE_LOG(LogNovaBridgeRuntime, Log, TEXT("Runtime events WebSocket server started on port %d"), EventWsPort);
+#else
+	UE_LOG(LogNovaBridgeRuntime, Warning, TEXT("WebSocketNetworking module not available; runtime events WebSocket server disabled"));
+#endif
+}
+
+void FNovaBridgeRuntimeModule::StopEventWebSocketServer()
+{
+#if NOVABRIDGE_WITH_WEBSOCKET_NETWORKING
+	if (EventWsServerTickHandle.IsValid())
+	{
+		FTSTicker::GetCoreTicker().RemoveTicker(EventWsServerTickHandle);
+		EventWsServerTickHandle.Reset();
+	}
+
+	for (FWsClient& Client : EventWsClients)
+	{
+		if (Client.Socket)
+		{
+			delete Client.Socket;
+			Client.Socket = nullptr;
+		}
+	}
+	EventWsClients.Empty();
+	EventWsServer.Reset();
+#endif
+
+	FScopeLock EventLock(&RuntimeEventQueueMutex);
+	RuntimePendingEventPayloads.Empty();
+}
+
+void FNovaBridgeRuntimeModule::PumpEventSocketQueue()
+{
+#if NOVABRIDGE_WITH_WEBSOCKET_NETWORKING
+	if (EventWsClients.Num() == 0)
+	{
+		return;
+	}
+
+	TArray<FString> PendingPayloads;
+	{
+		FScopeLock EventLock(&RuntimeEventQueueMutex);
+		if (RuntimePendingEventPayloads.Num() == 0)
+		{
+			return;
+		}
+		PendingPayloads = MoveTemp(RuntimePendingEventPayloads);
+		RuntimePendingEventPayloads.Reset();
+	}
+
+	for (const FString& Payload : PendingPayloads)
+	{
+		const FTCHARToUTF8 Utf8Payload(*Payload);
+		const uint8* Data = reinterpret_cast<const uint8*>(Utf8Payload.Get());
+		uint8* MutableData = const_cast<uint8*>(Data);
+		const int32 DataLen = Utf8Payload.Length();
+
+		for (int32 ClientIndex = EventWsClients.Num() - 1; ClientIndex >= 0; --ClientIndex)
+		{
+			if (!EventWsClients[ClientIndex].Socket)
+			{
+				EventWsClients.RemoveAtSwap(ClientIndex);
+				continue;
+			}
+			EventWsClients[ClientIndex].Socket->Send(MutableData, DataLen, false);
+		}
+	}
+#endif
 }
 
 bool FNovaBridgeRuntimeModule::HandleCorsPreflight(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
@@ -747,6 +919,29 @@ void FNovaBridgeRuntimeModule::PushAuditEntry(const FString& Route, const FStrin
 	{
 		RuntimeAuditTrail.RemoveAt(0, RuntimeAuditTrail.Num() - RuntimeAuditLimit, EAllowShrinking::No);
 	}
+
+	TSharedPtr<FJsonObject> EventObj = MakeShareable(new FJsonObject);
+	EventObj->SetStringField(TEXT("type"), TEXT("audit"));
+	EventObj->SetStringField(TEXT("timestamp_utc"), Entry.TimestampUtc);
+	EventObj->SetStringField(TEXT("route"), Entry.Route);
+	EventObj->SetStringField(TEXT("action"), Entry.Action);
+	EventObj->SetStringField(TEXT("status"), Entry.Status);
+	EventObj->SetStringField(TEXT("message"), Entry.Message);
+
+	FString SerializedEvent;
+	{
+		TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&SerializedEvent);
+		FJsonSerializer::Serialize(EventObj.ToSharedRef(), Writer);
+	}
+
+	{
+		FScopeLock EventLock(&RuntimeEventQueueMutex);
+		RuntimePendingEventPayloads.Add(MoveTemp(SerializedEvent));
+		if (RuntimePendingEventPayloads.Num() > RuntimePendingEventsLimit)
+		{
+			RuntimePendingEventPayloads.RemoveAt(0, RuntimePendingEventPayloads.Num() - RuntimePendingEventsLimit, EAllowShrinking::No);
+		}
+	}
 }
 
 bool FNovaBridgeRuntimeModule::IsAuthorizedRuntimeToken(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) const
@@ -800,6 +995,7 @@ bool FNovaBridgeRuntimeModule::HandleHealth(const FHttpServerRequest& Request, c
 	JsonObj->SetStringField(TEXT("project_name"), FApp::GetProjectName());
 	JsonObj->SetNumberField(TEXT("port"), HttpPort);
 	JsonObj->SetNumberField(TEXT("routes"), ApiRouteCount);
+	JsonObj->SetNumberField(TEXT("events_ws_port"), EventWsPort);
 	JsonObj->SetBoolField(TEXT("token_required"), bRequireRuntimeToken);
 	JsonObj->SetBoolField(TEXT("localhost_only"), true);
 	JsonObj->SetNumberField(TEXT("audit_entries"), AuditCount);
@@ -815,7 +1011,7 @@ bool FNovaBridgeRuntimeModule::HandleCapabilities(const FHttpServerRequest& Requ
 	TArray<NovaBridgeCore::FCapabilityRecord> Snapshot = NovaBridgeCore::FCapabilityRegistry::Get().Snapshot();
 	if (Snapshot.Num() == 0)
 	{
-		RegisterRuntimeCapabilities(MaxSpawnPerPlan, MaxPlanSteps, MaxExecutePlanPerMinute);
+		RegisterRuntimeCapabilities(MaxSpawnPerPlan, MaxPlanSteps, MaxExecutePlanPerMinute, EventWsPort);
 		Snapshot = NovaBridgeCore::FCapabilityRegistry::Get().Snapshot();
 	}
 	Capabilities.Reserve(Snapshot.Num());
@@ -829,6 +1025,32 @@ bool FNovaBridgeRuntimeModule::HandleCapabilities(const FHttpServerRequest& Requ
 	Result->SetStringField(TEXT("mode"), RuntimeModeName);
 	Result->SetStringField(TEXT("version"), NovaBridgeCore::PluginVersion);
 	Result->SetArrayField(TEXT("capabilities"), Capabilities);
+	SendJsonResponse(OnComplete, Result);
+	return true;
+}
+
+bool FNovaBridgeRuntimeModule::HandleEvents(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+	(void)Request;
+	const int32 PendingEvents = [&]()
+	{
+		FScopeLock Lock(&RuntimeEventQueueMutex);
+		return RuntimePendingEventPayloads.Num();
+	}();
+
+	TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+	Result->SetStringField(TEXT("status"), TEXT("ok"));
+	Result->SetStringField(TEXT("route"), TEXT("/nova/events"));
+	Result->SetStringField(TEXT("transport"), TEXT("websocket"));
+	Result->SetStringField(TEXT("ws_url"), FString::Printf(TEXT("ws://localhost:%d"), EventWsPort));
+	Result->SetNumberField(TEXT("ws_port"), EventWsPort);
+	Result->SetNumberField(TEXT("clients"), EventWsClients.Num());
+	Result->SetNumberField(TEXT("pending_events"), PendingEvents);
+#if NOVABRIDGE_WITH_WEBSOCKET_NETWORKING
+	Result->SetBoolField(TEXT("websocket_available"), true);
+#else
+	Result->SetBoolField(TEXT("websocket_available"), false);
+#endif
 	SendJsonResponse(OnComplete, Result);
 	return true;
 }
@@ -1056,9 +1278,7 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 				FVector SpawnLocation = FVector::ZeroVector;
 				FRotator SpawnRotation = FRotator::ZeroRotator;
 				ParseSpawnTransform(Params, SpawnLocation, SpawnRotation);
-				if (SpawnLocation.X < -50000.0 || SpawnLocation.X > 50000.0
-					|| SpawnLocation.Y < -50000.0 || SpawnLocation.Y > 50000.0
-					|| SpawnLocation.Z < -50000.0 || SpawnLocation.Z > 50000.0)
+				if (!NovaBridgeCore::IsSpawnLocationInBounds(SpawnLocation))
 				{
 					AddStepResult(StepIndex, TEXT("error"), TEXT("Spawn location is outside runtime bounds"));
 					ErrorCount++;

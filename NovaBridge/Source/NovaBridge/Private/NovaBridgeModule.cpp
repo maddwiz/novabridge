@@ -1,6 +1,7 @@
 #include "NovaBridgeModule.h"
 #include "NovaBridgeCapabilityRegistry.h"
 #include "NovaBridgeCoreTypes.h"
+#include "NovaBridgePolicy.h"
 #include "HttpServerModule.h"
 #include "IHttpRouter.h"
 #include "HttpPath.h"
@@ -248,24 +249,10 @@ static FString NovaBridgeDefaultRole;
 static const int32 NovaBridgeUndoLimit = 128;
 static const int32 NovaBridgeAuditLimit = 512;
 static const int32 NovaBridgePendingEventsLimit = 2048;
-static const FVector NovaBridgeMinSpawnBounds(-50000.0, -50000.0, -50000.0);
-static const FVector NovaBridgeMaxSpawnBounds(50000.0, 50000.0, 50000.0);
 
 static const TArray<FString>& NovaBridgeSpawnClassAllowList()
 {
-	static const TArray<FString> Classes =
-	{
-		TEXT("PointLight"),
-		TEXT("DirectionalLight"),
-		TEXT("SpotLight"),
-		TEXT("StaticMeshActor"),
-		TEXT("CameraActor"),
-		TEXT("SkyLight"),
-		TEXT("ExponentialHeightFog"),
-		TEXT("PostProcessVolume"),
-		TEXT("PlayerStart")
-	};
-	return Classes;
+	return NovaBridgeCore::EditorAllowedSpawnClasses();
 }
 
 static FString NormalizeRoleName(const FString& RawRole)
@@ -486,58 +473,22 @@ static bool IsSpawnClassAllowedForRole(const FString& Role, const FString& Class
 	{
 		return true;
 	}
-
-	for (const FString& AllowedClass : NovaBridgeSpawnClassAllowList())
-	{
-		if (ClassName.Equals(AllowedClass, ESearchCase::IgnoreCase))
-		{
-			return true;
-		}
-	}
-	return false;
+	return NovaBridgeCore::IsClassAllowed(NovaBridgeSpawnClassAllowList(), ClassName);
 }
 
 static bool IsSpawnLocationInBounds(const FVector& Location)
 {
-	return Location.X >= NovaBridgeMinSpawnBounds.X && Location.X <= NovaBridgeMaxSpawnBounds.X
-		&& Location.Y >= NovaBridgeMinSpawnBounds.Y && Location.Y <= NovaBridgeMaxSpawnBounds.Y
-		&& Location.Z >= NovaBridgeMinSpawnBounds.Z && Location.Z <= NovaBridgeMaxSpawnBounds.Z;
+	return NovaBridgeCore::IsSpawnLocationInBounds(Location);
 }
 
 static int32 GetPlanSpawnLimit(const FString& Role)
 {
-	if (Role == TEXT("admin"))
-	{
-		return 100;
-	}
-	if (Role == TEXT("automation"))
-	{
-		return 25;
-	}
-	return 0;
+	return NovaBridgeCore::GetEditorPlanSpawnLimit(Role);
 }
 
 static bool IsPlanActionAllowedForRole(const FString& Role, const FString& Action)
 {
-	if (Role == TEXT("admin"))
-	{
-		return true;
-	}
-
-	if (Role == TEXT("automation"))
-	{
-		return Action == TEXT("spawn")
-			|| Action == TEXT("delete")
-			|| Action == TEXT("set")
-			|| Action == TEXT("screenshot");
-	}
-
-	if (Role == TEXT("read_only"))
-	{
-		return Action == TEXT("screenshot");
-	}
-
-	return false;
+	return NovaBridgeCore::IsEditorPlanActionAllowedForRole(Role, Action);
 }
 
 static TSharedPtr<FJsonObject> MakePlanStepResult(int32 StepIndex, const FString& Status, const FString& Message)
@@ -1780,15 +1731,17 @@ static TArray<FString> BuildCapabilityRoles(const bool bAdmin, const bool bAutom
 
 static TSharedPtr<FJsonObject> BuildSpawnBoundsJson()
 {
+	const FVector& MinSpawnBounds = NovaBridgeCore::MinSpawnBounds();
+	const FVector& MaxSpawnBounds = NovaBridgeCore::MaxSpawnBounds();
 	TSharedPtr<FJsonObject> SpawnBounds = MakeShared<FJsonObject>();
 	TSharedPtr<FJsonObject> MinBounds = MakeShared<FJsonObject>();
-	MinBounds->SetNumberField(TEXT("x"), NovaBridgeMinSpawnBounds.X);
-	MinBounds->SetNumberField(TEXT("y"), NovaBridgeMinSpawnBounds.Y);
-	MinBounds->SetNumberField(TEXT("z"), NovaBridgeMinSpawnBounds.Z);
+	MinBounds->SetNumberField(TEXT("x"), MinSpawnBounds.X);
+	MinBounds->SetNumberField(TEXT("y"), MinSpawnBounds.Y);
+	MinBounds->SetNumberField(TEXT("z"), MinSpawnBounds.Z);
 	TSharedPtr<FJsonObject> MaxBounds = MakeShared<FJsonObject>();
-	MaxBounds->SetNumberField(TEXT("x"), NovaBridgeMaxSpawnBounds.X);
-	MaxBounds->SetNumberField(TEXT("y"), NovaBridgeMaxSpawnBounds.Y);
-	MaxBounds->SetNumberField(TEXT("z"), NovaBridgeMaxSpawnBounds.Z);
+	MaxBounds->SetNumberField(TEXT("x"), MaxSpawnBounds.X);
+	MaxBounds->SetNumberField(TEXT("y"), MaxSpawnBounds.Y);
+	MaxBounds->SetNumberField(TEXT("z"), MaxSpawnBounds.Z);
 	SpawnBounds->SetObjectField(TEXT("min"), MinBounds);
 	SpawnBounds->SetObjectField(TEXT("max"), MaxBounds);
 	return SpawnBounds;

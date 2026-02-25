@@ -38,6 +38,7 @@ AI Agent
 Port override: change `-NovaBridgePort=30010` to any open port, then use that same port in your API calls.
 
 For headless startup without an existing project, use `NovaBridgeDefault/NovaBridgeDefault.uproject`.
+When running from this repo source tree, copy `NovaBridge/` into that project's `Plugins/` folder first.
 
 ## Runtime Mode (Experimental)
 
@@ -56,7 +57,13 @@ curl -sS -X POST http://127.0.0.1:30020/nova/runtime/pair \
   -H "Content-Type: application/json" \
   -d '{"code":"123456"}'
 ```
-3. Use returned token in `X-NovaBridge-Token` for `/nova/health`, `/nova/caps`, `/nova/executePlan`.
+3. Use returned token in `X-NovaBridge-Token` for `/nova/health`, `/nova/caps`, `/nova/events`, `/nova/executePlan`, `/nova/audit`.
+
+Runtime events WebSocket defaults to `ws://localhost:30022` and can be overridden with:
+
+```bash
+-NovaBridgeRuntimeEventsPort=30022
+```
 
 ## macOS Smoke Snapshot
 
@@ -99,6 +106,7 @@ curl -sS -X POST http://127.0.0.1:30010/nova/scene/spawn \
 - `POST /nova/undo` for reversible operations (currently tracked spawn actions).
 - `GET /nova/audit` for structured in-memory execution/audit trail.
 - Runtime now also exposes token-gated `GET /nova/audit`.
+- Runtime also exposes token-gated `GET /nova/events` for event socket discovery (`ws://localhost:30022` by default).
 - Spawn guardrails for non-admin roles:
   - class allow list
   - transform bounds
