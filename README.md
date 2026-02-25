@@ -173,6 +173,7 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 - `GET /nova/caps` now returns explicit `permissions` snapshots for editor/runtime policy introspection.
 - Resolved deferred event-stream bug: WebSocket clients no longer receive pre-subscription events before `status=ok`.
 - NovaBridge Studio now supports optional NovaBridge API key forwarding (`X-API-Key`), stricter plan schema validation, richer execute fallback mapping (`set-property` + transform-aware spawn), and per-step execution logging.
+- NovaBridge Studio now includes baseline unit tests (`vitest`) for plan schema validation, policy preflight checks, and provider JSON extraction helpers.
 
 ## Blender Extension Configuration
 

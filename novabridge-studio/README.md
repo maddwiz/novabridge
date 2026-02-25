@@ -52,6 +52,12 @@ pnpm build
 pnpm tauri build
 ```
 
+## Tests
+
+```bash
+pnpm test
+```
+
 ## Provider Setup
 
 Use **Settings** tab:

@@ -14,11 +14,13 @@
 - Working directory:
   - `/Users/desmondpottle/Documents/New project/novabridge/novabridge-studio`
 - Commands:
+  - `npm test`
   - `npm run build`
   - `npm run tauri -- --version`
 - Result:
   - `Succeeded`
 - Notes:
+  - Vitest suite passed (`3` files / `10` tests): schema validation, policy preflight, provider adapter parsing/prompt helpers.
   - TypeScript + Vite production build completed (`dist/assets/index-Djwfm5Eg.js`).
   - Confirmed Tauri CLI availability (`tauri-cli 2.10.0`).
   - Validated studio hardening changes: strict plan validation, provider JSON extraction improvements, API key forwarding, fallback mapping expansion, and per-step execute logging.
