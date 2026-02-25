@@ -150,6 +150,7 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 - Editor optimization handlers (`/nova/optimize/*`) are now isolated in `NovaBridgeOptimizeHandlers.cpp` to reduce the main module size and simplify maintenance.
 - `GET /nova/optimize/stats` spotlight counting now uses `USpotLightComponent` detection (component-based, no class-name string matching).
 - Python SDK raw screenshot path now includes auth/runtime headers and shared HTTP error handling (`NovaBridge._request_bytes`).
+- Added baseline automated tests for Python integrations (`python-sdk/tests` and `mcp-server/tests`) and core execute-plan schema automation coverage (`NovaBridgePlanSchemaTests`).
 - `GET /nova/caps` now returns explicit `permissions` snapshots for editor/runtime policy introspection.
 - Resolved deferred event-stream bug: WebSocket clients no longer receive pre-subscription events before `status=ok`.
 

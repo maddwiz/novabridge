@@ -13,6 +13,7 @@
 - [x] Optional API key mode validated (`401` without key, `200` with key)
 - [x] Automated macOS execute-plan smoke script passes (`scripts/mac_executeplan_smoke.sh`)
 - [x] Python SDK unit tests pass (`python3 -m unittest discover -s python-sdk/tests -p 'test_*.py'`)
+- [x] MCP server unit tests pass (`python3 -m unittest discover -s mcp-server/tests -p 'test_*.py'`)
 
 ## Platform Validation
 

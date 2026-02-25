@@ -23,6 +23,19 @@
   - `NovaBridgeOptimizeHandlers.cpp` compiled and linked as part of `NovaBridge` module.
   - `run-summary.json` reported editor `success_count=2/error_count=0` and runtime `success_count=2/error_count=0`.
 
+## Unit Test Refresh
+
+- Date: 2026-02-25
+- Python SDK:
+  - `python3 -m unittest discover -s python-sdk/tests -p 'test_*.py'`
+  - Result: `Ran 2 tests ... OK`
+- MCP server:
+  - `python3 -m unittest discover -s mcp-server/tests -p 'test_*.py'`
+  - Result: `Ran 2 tests ... OK`
+- C++ integration check:
+  - `"/Users/Shared/Epic Games/UE_5.6/Engine/Build/BatchFiles/Mac/Build.sh" UnrealEditor Mac Development -Project="/Users/desmondpottle/Documents/New project/novabridge/NovaBridgeDefault/NovaBridgeDefault.uproject" -WaitMutex -NoHotReloadFromIDE`
+  - Result: `Succeeded` (includes new `NovaBridgePlanSchemaTests.cpp` in module sources)
+
 ## macOS Validation Refresh (v0.9.5-dev)
 
 - Date: 2026-02-24

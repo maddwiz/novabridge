@@ -42,6 +42,8 @@
 - Split editor optimization endpoints into `NovaBridgeOptimizeHandlers.cpp` to reduce `NovaBridgeModule.cpp` size and isolate optimize-route maintenance.
 - Fixed Python SDK raw screenshot path to include auth/runtime headers and shared error handling (`NovaBridge._request_bytes`).
 - Added Python SDK unit tests for request header propagation and raw screenshot auth path (`python-sdk/tests/test_novabridge_client.py`).
+- Added MCP server unit tests for wrapper error handling and spawn argument forwarding (`mcp-server/tests/test_novabridge_mcp.py`).
+- Added NovaBridgeCore automation tests for execute-plan schema validation coverage (`NovaBridgePlanSchemaTests`).
 - Marked sidecar servers (`ai-gen-server`, `voice-server`, `livelink-server`) as experimental examples in README.
 - Added explicit permission snapshots to `GET /nova/caps` for editor/runtime (limits, allowed actions, spawn policy, and event subscription gating requirement).
 - NovaBridge Studio now uses `/nova/caps` `permissions` for local plan preflight and blocks disallowed steps before execution.

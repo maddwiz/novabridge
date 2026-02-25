@@ -14,6 +14,12 @@ pip install -r requirements.txt
 python novabridge_mcp.py
 ```
 
+## Tests
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
+```
+
 Environment variables:
 
 - `NOVABRIDGE_HOST` (default `localhost`)
