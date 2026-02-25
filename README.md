@@ -114,7 +114,7 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 
 - `POST /nova/asset/import` now accepts optional `scale` (default `100`) to normalize Blender meter-scale OBJ files to UE centimeters.
 - `POST /nova/scene/set-property` now includes class-name alias matching for component prefixes (for example, `PointLightComponent0.Intensity` resolves correctly).
-- Sequencer scrub fallback on UE `< 5.7` now uses a direct playback jump path to avoid recursion/stack overflow regressions.
+- Sequencer scrub fallback on UE `< 5.7` now uses explicit playback params (non-recursive) to avoid stack overflow regressions.
 - MB-Lab export cleanup removes non-character scene objects/ground planes before export.
 
 ## Blender Extension Configuration

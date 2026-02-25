@@ -3,7 +3,7 @@
 ## Status
 
 - Resolved in `v0.9.5-dev`.
-- Pre-5.7 fallback now uses direct `JumpToSeconds(...)` in `NovaBridgeSetPlaybackTime`.
+- Pre-5.7 fallback now uses explicit playback params in `NovaBridgeSetPlaybackTime`.
 
 ## Priority
 
@@ -49,13 +49,17 @@ static void NovaBridgeSetPlaybackTime(ULevelSequencePlayer* Player, float TimeSe
     Params.UpdateMethod = bScrub ? EUpdatePositionMethod::Scrub : EUpdatePositionMethod::Jump;
     Player->SetPlaybackPosition(Params);
 #else
-    Player->JumpToSeconds(TimeSeconds);
+    FMovieSceneSequencePlaybackParams Params;
+    Params.PositionType = EMovieScenePositionType::Time;
+    Params.Time = TimeSeconds;
+    Params.UpdateMethod = bScrub ? EUpdatePositionMethod::Scrub : EUpdatePositionMethod::Jump;
+    Player->SetPlaybackPosition(Params);
 #endif
 }
 ```
 
 Notes:
-- `ScrubToSeconds(...)` may exist in some UE minors; `JumpToSeconds(...)` is safer and acceptable for NovaBridge's editor-time agent workflows.
+- Older UE minors do not consistently expose `JumpToSeconds(...)`; explicit playback params are the most stable cross-version fallback.
 
 ## How to trigger
 

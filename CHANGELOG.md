@@ -19,7 +19,7 @@
 - Added runtime token-gated audit endpoint: `GET /nova/audit`.
 - Enforced localhost-only runtime request policy (`Host` must be loopback).
 - Added runtime `executePlan` per-minute rate limiting and pairing-code rotation on successful pair.
-- Fixed UE `< 5.7` sequencer scrub fallback to avoid recursion regressions (`NovaBridgeSetPlaybackTime` now uses `JumpToSeconds` on pre-5.7).
+- Fixed UE `< 5.7` sequencer scrub fallback to avoid recursion regressions (`NovaBridgeSetPlaybackTime` now uses explicit playback params on pre-5.7).
 - Added UE 5.7 compatibility for sequencer playback positioning and asset duplication.
 - Avoided hard crash when `WebSocketNetworking` is unavailable by disabling the stream server gracefully.
 - Added Windows packaging and packaged-smoke helper scripts.

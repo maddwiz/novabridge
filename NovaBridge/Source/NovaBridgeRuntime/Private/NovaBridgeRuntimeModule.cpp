@@ -106,6 +106,8 @@ static bool IsLoopbackHost(const FString& HostHeader)
 		|| HostOnly == TEXT("::1");
 }
 
+static const TArray<FString>& RuntimeAllowedClasses();
+
 static void RegisterRuntimeCapabilities(const int32 MaxSpawnPerPlan, const int32 MaxPlanSteps, const int32 MaxExecutePlanPerMinute)
 {
 	using namespace NovaBridgeCore;
@@ -743,7 +745,7 @@ void FNovaBridgeRuntimeModule::PushAuditEntry(const FString& Route, const FStrin
 	RuntimeAuditTrail.Add(Entry);
 	if (RuntimeAuditTrail.Num() > RuntimeAuditLimit)
 	{
-		RuntimeAuditTrail.RemoveAt(0, RuntimeAuditTrail.Num() - RuntimeAuditLimit, false);
+		RuntimeAuditTrail.RemoveAt(0, RuntimeAuditTrail.Num() - RuntimeAuditLimit, EAllowShrinking::No);
 	}
 }
 

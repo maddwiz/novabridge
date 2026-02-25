@@ -127,9 +127,12 @@ static void NovaBridgeSetPlaybackTime(ULevelSequencePlayer* Player, float TimeSe
 	Params.UpdateMethod = bScrub ? EUpdatePositionMethod::Scrub : EUpdatePositionMethod::Jump;
 	Player->SetPlaybackPosition(Params);
 #else
-	(void)bScrub;
-	// UE < 5.7 fallback: use direct jump API to avoid recursive scrub regressions.
-	Player->JumpToSeconds(TimeSeconds);
+	// UE < 5.7 fallback: keep explicit param-based positioning for compatibility.
+	FMovieSceneSequencePlaybackParams Params;
+	Params.PositionType = EMovieScenePositionType::Time;
+	Params.Time = TimeSeconds;
+	Params.UpdateMethod = bScrub ? EUpdatePositionMethod::Scrub : EUpdatePositionMethod::Jump;
+	Player->SetPlaybackPosition(Params);
 #endif
 }
 
@@ -419,7 +422,7 @@ static void PushUndoEntry(const FNovaBridgeUndoEntry& Entry)
 	NovaBridgeUndoStack.Add(Entry);
 	if (NovaBridgeUndoStack.Num() > NovaBridgeUndoLimit)
 	{
-		NovaBridgeUndoStack.RemoveAt(0, NovaBridgeUndoStack.Num() - NovaBridgeUndoLimit, false);
+		NovaBridgeUndoStack.RemoveAt(0, NovaBridgeUndoStack.Num() - NovaBridgeUndoLimit, EAllowShrinking::No);
 	}
 }
 
@@ -449,7 +452,7 @@ static void PushAuditEntry(const FString& Route, const FString& Action, const FS
 	NovaBridgeAuditTrail.Add(Entry);
 	if (NovaBridgeAuditTrail.Num() > NovaBridgeAuditLimit)
 	{
-		NovaBridgeAuditTrail.RemoveAt(0, NovaBridgeAuditTrail.Num() - NovaBridgeAuditLimit, false);
+		NovaBridgeAuditTrail.RemoveAt(0, NovaBridgeAuditTrail.Num() - NovaBridgeAuditLimit, EAllowShrinking::No);
 	}
 
 	TSharedPtr<FJsonObject> EventObj = MakeShareable(new FJsonObject);
@@ -472,7 +475,7 @@ static void PushAuditEntry(const FString& Route, const FString& Action, const FS
 		NovaBridgePendingEventPayloads.Add(MoveTemp(SerializedEvent));
 		if (NovaBridgePendingEventPayloads.Num() > NovaBridgePendingEventsLimit)
 		{
-			NovaBridgePendingEventPayloads.RemoveAt(0, NovaBridgePendingEventPayloads.Num() - NovaBridgePendingEventsLimit, false);
+			NovaBridgePendingEventPayloads.RemoveAt(0, NovaBridgePendingEventPayloads.Num() - NovaBridgePendingEventsLimit, EAllowShrinking::No);
 		}
 	}
 }
