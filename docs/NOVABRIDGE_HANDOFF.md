@@ -1,5 +1,9 @@
 # NovaBridge System - Complete Handoff Document
 
+> Internal historical handoff (2026-02-10).  
+> Contains machine-specific path snapshots and legacy notes; do not treat this file as customer setup documentation.  
+> For customer configuration, use environment-based guides in `README.md`, `extensions/openclaw/README.md`, and `docs/SETUP_*.md`.
+
 **Date:** 2026-02-10
 **Author:** Claude Code (Opus 4.6), working with Desmond (@maddwiz)
 **Purpose:** Full handoff for any developer or AI agent to continue building on the NovaBridge system
