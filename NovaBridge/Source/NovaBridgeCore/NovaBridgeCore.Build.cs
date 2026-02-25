@@ -10,6 +10,7 @@ public class NovaBridgeCore : ModuleRules
 		{
 			"Core",
 			"Json",
+			"HTTPServer",
 		});
 	}
 }

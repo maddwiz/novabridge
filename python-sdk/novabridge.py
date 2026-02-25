@@ -32,6 +32,23 @@ class NovaBridge:
     def base_url(self) -> str:
         return f"http://{self.host}:{self.port}/nova"
 
+    def _build_headers(
+        self,
+        *,
+        role: Optional[str] = None,
+        runtime_token: Optional[str] = None,
+    ) -> Dict[str, str]:
+        headers: Dict[str, str] = {}
+        if self.api_key:
+            headers["X-API-Key"] = self.api_key
+        effective_role = role if role is not None else self.role
+        if effective_role:
+            headers["X-NovaBridge-Role"] = effective_role
+        effective_runtime_token = runtime_token if runtime_token is not None else self.runtime_token
+        if effective_runtime_token:
+            headers["X-NovaBridge-Token"] = effective_runtime_token
+        return headers
+
     def _request(
         self,
         method: str,
@@ -42,19 +59,11 @@ class NovaBridge:
         runtime_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         body = None
-        headers = {}
+        headers = self._build_headers(role=role, runtime_token=runtime_token)
         if data is not None:
             body = json.dumps(data).encode("utf-8")
             headers["Content-Type"] = "application/json"
             headers["Content-Length"] = str(len(body))
-        if self.api_key:
-            headers["X-API-Key"] = self.api_key
-        effective_role = role if role is not None else self.role
-        if effective_role:
-            headers["X-NovaBridge-Role"] = effective_role
-        effective_runtime_token = runtime_token if runtime_token is not None else self.runtime_token
-        if effective_runtime_token:
-            headers["X-NovaBridge-Token"] = effective_runtime_token
 
         req = urllib.request.Request(
             f"{self.base_url}{route}",
@@ -75,6 +84,27 @@ class NovaBridge:
             raise NovaBridgeError(f"Connection failed: {exc.reason}") from exc
         except json.JSONDecodeError as exc:
             raise NovaBridgeError(f"Invalid JSON response: {exc}") from exc
+
+    def _request_bytes(
+        self,
+        route: str,
+        *,
+        role: Optional[str] = None,
+        runtime_token: Optional[str] = None,
+    ) -> bytes:
+        req = urllib.request.Request(
+            f"{self.base_url}{route}",
+            headers=self._build_headers(role=role, runtime_token=runtime_token),
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise NovaBridgeError(f"HTTP {exc.code}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise NovaBridgeError(f"Connection failed: {exc.reason}") from exc
 
     def _get(
         self,
@@ -229,18 +259,16 @@ class NovaBridge:
             route = "/viewport/screenshot"
             if params:
                 route += f"?{urllib.parse.urlencode(params)}"
-            req = urllib.request.Request(f"{self.base_url}{route}", method="GET")
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                data = resp.read()
-                if save_path:
-                    with open(save_path, "wb") as out:
-                        out.write(data)
-                return {
-                    "status": "ok",
-                    "format": "png",
-                    "bytes": len(data),
-                    "saved_to": save_path,
-                }
+            data = self._request_bytes(route)
+            if save_path:
+                with open(save_path, "wb") as out:
+                    out.write(data)
+            return {
+                "status": "ok",
+                "format": "png",
+                "bytes": len(data),
+                "saved_to": save_path,
+            }
 
         result = self._get("/viewport/screenshot", params or None)
         if save_path and "image" in result:

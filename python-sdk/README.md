@@ -51,3 +51,11 @@ print(runtime.audit(limit=10))
 - Camera controls + show flag overrides
 - Material creation
 - Console command execution
+
+## Tests
+
+Run unit tests:
+
+```bash
+python3 -m unittest discover -s python-sdk/tests -p 'test_*.py'
+```

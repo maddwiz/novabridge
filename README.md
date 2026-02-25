@@ -146,6 +146,9 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 - Editor `executePlan` now also dispatches actions through the shared core command router (`NovaBridgeCore::FPlanCommandRouter`).
 - Editor and Runtime `executePlan` now use shared core event builders (`NovaBridgeCore::BuildPlanStepEvent` / `BuildPlanCompleteEvent`) so emitted plan event payloads stay aligned.
 - Editor and Runtime `executePlan` spawn/delete typed events now also use shared core builders (`BuildSpawnEvent` / `BuildDeleteEvent`) for consistent payload shape.
+- Shared HTTP/event parsing helpers now live in `NovaBridgeCore` (`NovaBridgeHttpUtils`) and are reused by Editor + Runtime modules.
+- `GET /nova/optimize/stats` spotlight counting now uses `USpotLightComponent` detection (component-based, no class-name string matching).
+- Python SDK raw screenshot path now includes auth/runtime headers and shared HTTP error handling (`NovaBridge._request_bytes`).
 - `GET /nova/caps` now returns explicit `permissions` snapshots for editor/runtime policy introspection.
 - Resolved deferred event-stream bug: WebSocket clients no longer receive pre-subscription events before `status=ok`.
 
@@ -173,6 +176,16 @@ The `extensions/openclaw/nova-blender` bridge now supports environment-based con
 - Demo video script: [demo/VIDEO_SCRIPT.md](demo/VIDEO_SCRIPT.md)
 - Landing page starter: [site/index.html](site/index.html)
 - NovaBridge Studio desktop scaffold: [novabridge-studio](novabridge-studio)
+
+## Experimental Sidecars
+
+These helper servers are included as experimental examples and are not part of the supported core plugin surface:
+
+- `ai-gen-server/`
+- `voice-server/`
+- `livelink-server/`
+
+Treat them as optional prototypes unless explicitly promoted to supported modules in release notes.
 
 ## Setup Guides
 

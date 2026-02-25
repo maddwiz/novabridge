@@ -36,6 +36,12 @@
 - Added shared plan event-object builders in `NovaBridgeCore` (`NovaBridgePlanEvents`) and wired editor/runtime `executePlan` event emission through the shared helpers.
 - Added shared typed action event builders in `NovaBridgeCore` (`BuildSpawnEvent`, `BuildDeleteEvent`) and wired editor/runtime execute-plan spawn/delete events through them.
 - Added macOS automation script `scripts/mac_executeplan_smoke.sh` for one-command build + editor/runtime execute-plan smoke validation (including runtime pairing flow and JSON artifacts).
+- Removed redundant version branch in `NovaBridgeSetPlaybackTime`; explicit playback-params path is now single-source.
+- Moved shared HTTP/event helper utilities (`HttpVerbToString`, case-insensitive header lookup, event type normalization/filter parsing, JSON string array conversion) into `NovaBridgeCore` and wired editor/runtime modules to reuse them.
+- Fixed optimize stats spotlight detection to use `FindComponentByClass<USpotLightComponent>()` instead of class-name substring matching.
+- Fixed Python SDK raw screenshot path to include auth/runtime headers and shared error handling (`NovaBridge._request_bytes`).
+- Added Python SDK unit tests for request header propagation and raw screenshot auth path (`python-sdk/tests/test_novabridge_client.py`).
+- Marked sidecar servers (`ai-gen-server`, `voice-server`, `livelink-server`) as experimental examples in README.
 - Added explicit permission snapshots to `GET /nova/caps` for editor/runtime (limits, allowed actions, spawn policy, and event subscription gating requirement).
 - NovaBridge Studio now uses `/nova/caps` `permissions` for local plan preflight and blocks disallowed steps before execution.
 - NovaBridge Studio now surfaces policy snapshots in Connect and shows policy-block reasons inline in Plan Preview (execute disabled when blocked).

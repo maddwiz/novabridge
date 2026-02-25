@@ -319,6 +319,28 @@ Runtime checks (port `31120`, events port `31122`):
   - `/tmp/novabridge-smoke-20260224-215730/artifacts/executeplan-smoke/runtime-pair.json`
   - `/tmp/novabridge-smoke-20260224-215730/artifacts/executeplan-smoke/runtime-execute-summary.json`
 
+### Claude-Issue Fix Validation (Core Utils + Python SDK Auth)
+
+- Date: 2026-02-25
+- C++ build command:
+  - `"/Users/Shared/Epic Games/UE_5.6/Engine/Build/BatchFiles/Mac/Build.sh" UnrealEditor Mac Development -Project="/tmp/novabridge-smoke-20260224-195531/NovaBridgeDefault/NovaBridgeDefault.uproject" -WaitMutex -NoHotReloadFromIDE`
+- Build result:
+  - `Succeeded` (includes `NovaBridgeHttpUtils.cpp` in `NovaBridgeCore`)
+- Smoke command:
+  - `NOVABRIDGE_PROJECT=/tmp/novabridge-smoke-20260224-195531/NovaBridgeDefault/NovaBridgeDefault.uproject NOVABRIDGE_BUILD=1 ./scripts/mac_executeplan_smoke.sh`
+- Smoke result:
+  - `status=ok` from run summary.
+- Smoke artifact root:
+  - `/tmp/novabridge-smoke-20260224-220847/artifacts/executeplan-smoke`
+- Key artifacts:
+  - `/tmp/novabridge-smoke-20260224-220847/artifacts/executeplan-smoke/run-summary.json`
+  - `/tmp/novabridge-smoke-20260224-220847/artifacts/executeplan-smoke/editor-execute-summary.json`
+  - `/tmp/novabridge-smoke-20260224-220847/artifacts/executeplan-smoke/runtime-pair.json`
+  - `/tmp/novabridge-smoke-20260224-220847/artifacts/executeplan-smoke/runtime-execute-summary.json`
+- Python SDK unit tests:
+  - Command: `python3 -m unittest discover -s python-sdk/tests -p 'test_*.py'`
+  - Result: `Ran 2 tests ... OK`
+
 ### NovaBridge Studio Scaffold Validation
 
 - Date: 2026-02-25
