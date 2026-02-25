@@ -46,10 +46,25 @@ def _load_module():  # type: ignore[no-untyped-def]
 class _StubClient:
     def __init__(self):
         self.last_spawn = None
+        self.last_execute_plan = None
+        self.last_runtime_pair = None
+        self.last_undo = None
 
     def spawn(self, *args, **kwargs):  # type: ignore[no-untyped-def]
         self.last_spawn = {"args": args, "kwargs": kwargs}
         return {"status": "ok", "action": "spawn"}
+
+    def execute_plan(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        self.last_execute_plan = {"args": args, "kwargs": kwargs}
+        return {"status": "ok", "action": "executePlan"}
+
+    def runtime_pair(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        self.last_runtime_pair = {"args": args, "kwargs": kwargs}
+        return {"status": "ok", "action": "runtime.pair"}
+
+    def undo(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        self.last_undo = {"args": args, "kwargs": kwargs}
+        return {"status": "ok", "action": "undo"}
 
 
 class NovaBridgeMcpTests(unittest.TestCase):
@@ -91,6 +106,42 @@ class NovaBridgeMcpTests(unittest.TestCase):
         self.assertEqual(stub.last_spawn["kwargs"]["label"], "MCPTestLight")
         self.assertEqual(stub.last_spawn["kwargs"]["x"], 1.0)
         self.assertEqual(stub.last_spawn["kwargs"]["roll"], 6.0)
+
+    def test_execute_plan_tool_forwards_plan_payload(self) -> None:
+        stub = _StubClient()
+        original_client = self.mod.client
+        self.mod.client = stub
+        try:
+            result = self.mod.ue5_execute_plan(
+                [{"action": "spawn", "params": {"type": "PointLight"}}],
+                plan_id="mcp-plan",
+                role="automation",
+            )
+        finally:
+            self.mod.client = original_client
+
+        self.assertEqual(result["status"], "ok")
+        self.assertIsNotNone(stub.last_execute_plan)
+        self.assertEqual(stub.last_execute_plan["kwargs"]["plan_id"], "mcp-plan")
+        self.assertEqual(stub.last_execute_plan["kwargs"]["role"], "automation")
+
+    def test_runtime_pair_and_undo_tools_forward_arguments(self) -> None:
+        stub = _StubClient()
+        original_client = self.mod.client
+        self.mod.client = stub
+        try:
+            pair_result = self.mod.ue5_runtime_pair("123456", role="admin")
+            undo_result = self.mod.ue5_undo(role="automation")
+        finally:
+            self.mod.client = original_client
+
+        self.assertEqual(pair_result["status"], "ok")
+        self.assertEqual(undo_result["status"], "ok")
+        self.assertIsNotNone(stub.last_runtime_pair)
+        self.assertEqual(stub.last_runtime_pair["kwargs"]["code"], "123456")
+        self.assertEqual(stub.last_runtime_pair["kwargs"]["role"], "admin")
+        self.assertIsNotNone(stub.last_undo)
+        self.assertEqual(stub.last_undo["kwargs"]["role"], "automation")
 
 
 if __name__ == "__main__":

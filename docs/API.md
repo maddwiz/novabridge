@@ -1,111 +1,64 @@
-# NovaBridge HTTP API
+# NovaBridge HTTP API (v1.0.0)
 
-Base URL: `http://localhost:30010/nova`
+Editor base URL:
+- `http://127.0.0.1:30010/nova`
 
-Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
+Runtime base URL:
+- `http://127.0.0.1:30020/nova`
 
-## Conventions
+## Global Conventions
 
-- All write endpoints use `POST` with JSON body.
-- Responses are JSON unless explicitly noted.
-- Error shape:
+- Write routes use `POST` with JSON body.
+- Errors return:
   - `{"status":"error","error":"<message>","code":<http_code>}`
-- CORS headers are included on all responses.
-- Role-based policy is supported via `X-NovaBridge-Role`:
-  - `admin` (full access)
-  - `automation` (exec/build restricted)
-  - `read_only` (read routes only)
-- Default role can be configured with `NOVABRIDGE_DEFAULT_ROLE` or `-NovaBridgeDefaultRole=`.
-- Request-level and role-level per-minute rate limits are enforced.
-- Optional auth: set `NOVABRIDGE_API_KEY` (or `-NovaBridgeApiKey=<key>`) and send:
-  - `X-API-Key: <key>` or
+- CORS headers are returned on JSON routes.
+- Optional API key auth:
+  - `X-API-Key: <key>`
   - `Authorization: Bearer <key>`
-- Runtime mode (experimental):
-  - Enable with `-NovaBridgeRuntime=1` (or `NOVABRIDGE_RUNTIME=1`)
-  - Runtime endpoints enforce localhost host access (`127.0.0.1`, `localhost`, `::1`)
-  - Runtime events WebSocket default port is `30022` (`-NovaBridgeRuntimeEventsPort=<port>`)
-  - Pair with `POST /runtime/pair` using startup pairing code
-  - Send runtime token using `X-NovaBridge-Token: <token>`
-  - `POST /executePlan` is rate-limited in runtime mode (default 30 requests/minute)
+- Role header (editor and runtime):
+  - `X-NovaBridge-Role: admin|automation|read_only`
 
-## Endpoints
+## Runtime Security Model
 
-### System
+Runtime mode (`-NovaBridgeRuntime=1`) enforces:
+- localhost-only host acceptance
+- pairing flow (`POST /runtime/pair`)
+- token auth (`X-NovaBridge-Token`)
+- role-gated endpoint access
+- per-route rate limits
+- spawn guardrails and actor-count limits
+
+## Control Endpoints
 
 - `GET /health`
-  - Includes `version`, `mode`, `default_role`, `api_key_required`, `stream_ws_port`, `events_ws_port`
-- `GET /project/info`
+- `GET /project/info` (editor)
 - `GET /caps`
-  - In editor mode, capability list is filtered by resolved role (`X-NovaBridge-Role` or default role).
-  - Includes `permissions` snapshot for the resolved role with:
-    - spawn policy (`allowedClasses`, `classes_unrestricted`, `bounds`, max spawn and spawn-rate limits)
-    - execute-plan policy (`allowed_actions`, `max_steps`, request rate limit)
-    - undo/events flags and route-level per-minute limits
 - `GET /events`
-  - Query: `types` (optional comma-separated type filter for metadata counters)
-  - Returns event socket metadata:
-    - `ws_url`, `ws_port`, `clients`, `clients_with_filters`, `clients_pending_subscription`
-    - `pending_events`, `filtered_pending_events`
-    - `supported_types`, `pending_by_type`, `subscription_action`
-  - Event stream types:
-    - `audit`
-    - `spawn`
-    - `delete`
-    - `plan_step`
-    - `plan_complete`
-    - `error`
-  - `POST /executePlan` spawn/delete steps also emit typed `spawn`/`delete` events.
-  - WebSocket subscription control:
-    - On connect, server sends `{"type":"subscription","status":"ready",...}`
-    - Client can narrow stream by sending `{"action":"subscribe","types":["spawn","error"]}`
-    - Server replies `{"type":"subscription","status":"ok","filter_enabled":true,...}`
-    - `{"action":"clear"}` / `{"action":"all"}` clears filter for that client
-    - Event delivery is paused until `status=ok` is acknowledged for that socket
 - `GET /audit`
-  - Query: `limit` (1-500, default 50)
 - `POST /executePlan`
-  - Plan schema:
-    - `plan_id` (optional)
-    - `steps[]` each with `action` and `params`
-  - Unknown/malformed schema fields are rejected with `400` before step execution.
-  - Supported actions:
-    - `spawn`
-    - `delete`
-    - `set`
-    - `screenshot`
 - `POST /undo`
-  - Reversible operations currently tracked: `spawn`
 
-### Runtime (Experimental)
+`GET /caps` returns mode, role, permissions snapshot, and registered capabilities.
+
+## Runtime-Only Control
 
 - `POST /runtime/pair`
-  - request: `{"code":"<6-digit-pairing-code>"}`
-  - returns short-lived in-memory runtime token
-- `GET /health`
-  - runtime mode requires token auth
-- `GET /caps`
-  - runtime-safe capability subset
-  - includes `permissions` snapshot with runtime guardrails (`localhost_only`, token/pairing requirement, spawn/execute limits)
-- `GET /events`
-  - token-gated runtime event socket discovery
-  - Query: `types` (optional comma-separated type filter for metadata counters)
-  - returns `ws_url`, `ws_port`, `clients`, `clients_with_filters`, `clients_pending_subscription`, `pending_events`, `filtered_pending_events`, `supported_types`, `pending_by_type`, `subscription_action`
-- `GET /audit`
-  - token-gated in-memory runtime audit trail
-  - Query: `limit` (1-500, default 50)
-- `POST /executePlan`
-  - runtime-safe subset currently supports:
-    - `spawn`
-    - `delete`
-    - `set`
-  - Unknown/malformed schema fields are rejected with `400` before step execution.
-  - Runtime `spawn` supports optional `label` (used as requested actor/object name)
-- `POST /undo`
-  - token-gated runtime undo endpoint
-  - currently supports undoing spawn entries recorded by runtime `executePlan`
 
-### Scene
+Request:
 
+```json
+{"code":"123456","role":"automation"}
+```
+
+Response:
+
+```json
+{"status":"ok","mode":"runtime","role":"automation","token":"..."}
+```
+
+## Scene Endpoints
+
+Editor:
 - `GET /scene/list`
 - `POST /scene/spawn`
 - `POST /scene/delete`
@@ -113,70 +66,28 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
 - `GET|POST /scene/get`
 - `POST /scene/set-property`
 
-### Assets
+Runtime:
+- `GET /scene/list`
+- `GET|POST /scene/get`
+- `POST /scene/set-property`
 
-- `GET|POST /asset/list`
-- `POST /asset/create`
-- `POST /asset/duplicate`
-- `POST /asset/delete`
-- `POST /asset/rename`
-- `GET|POST /asset/info`
-- `POST /asset/import`
-  - Supports `.obj` and `.fbx`
-  - OBJ supports `scale` (default `100`)
+## Viewport Endpoints
 
-### Mesh
-
-- `POST /mesh/create`
-- `GET|POST /mesh/get`
-- `POST /mesh/primitive`
-
-### Materials
-
-- `POST /material/create`
-- `POST /material/set-param`
-- `GET|POST /material/get`
-- `POST /material/create-instance`
-
-### Viewport
-
+Editor:
 - `GET /viewport/screenshot`
-  - Query: `width`, `height`, `format`
-  - `format=raw` returns `image/png` bytes
 - `POST /viewport/camera/set`
-  - Supports `location`, `rotation`, `fov`, `show_flags`
 - `GET /viewport/camera/get`
 
-### Blueprint
+Runtime:
+- `GET /viewport/screenshot`
+- `POST /viewport/camera/set`
+- `GET /viewport/camera/get`
 
-- `POST /blueprint/create`
-- `POST /blueprint/add-component`
-- `POST /blueprint/compile`
+`GET /viewport/screenshot?format=raw` returns `image/png` bytes.
 
-### Build / Console
+## Sequencer Endpoints
 
-- `POST /build/lighting`
-- `POST /exec/command`
-
-### Stream
-
-- `POST /stream/start`
-- `POST /stream/stop`
-- `POST /stream/config`
-  - body: `fps` (1-30), `width` (64-1920), `height` (64-1080), `quality` (1-100)
-- `GET /stream/status`
-  - returns `ws_url` (default: `ws://localhost:30011`) and current stream settings
-
-### PCG
-
-- `GET /pcg/list-graphs`
-- `POST /pcg/create-volume`
-- `POST /pcg/generate`
-- `POST /pcg/set-param`
-- `POST /pcg/cleanup`
-
-### Sequencer
-
+Editor:
 - `POST /sequencer/create`
 - `POST /sequencer/add-track`
 - `POST /sequencer/set-keyframe`
@@ -184,11 +95,61 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
 - `POST /sequencer/stop`
 - `POST /sequencer/scrub`
 - `POST /sequencer/render`
-  - v1 output is PNG image sequence in `output_path`
 - `GET /sequencer/info`
 
-### Optimize
+Runtime:
+- `POST /sequencer/play`
+- `POST /sequencer/stop`
+- `GET /sequencer/info`
 
+## PCG Endpoints
+
+Editor:
+- `GET /pcg/list-graphs`
+- `POST /pcg/create-volume`
+- `POST /pcg/generate`
+- `POST /pcg/set-param`
+- `POST /pcg/cleanup`
+
+Runtime:
+- `POST /pcg/generate` (if PCG module is available in runtime build)
+
+## Asset / Material / Mesh / Build / Stream / Optimize (Editor)
+
+Assets:
+- `GET|POST /asset/list`
+- `POST /asset/create`
+- `POST /asset/duplicate`
+- `POST /asset/delete`
+- `POST /asset/rename`
+- `GET|POST /asset/info`
+- `POST /asset/import`
+
+Mesh:
+- `POST /mesh/create`
+- `GET|POST /mesh/get`
+- `POST /mesh/primitive`
+
+Material:
+- `POST /material/create`
+- `POST /material/set-param`
+- `GET|POST /material/get`
+- `POST /material/create-instance`
+
+Blueprint / Build / Exec:
+- `POST /blueprint/create`
+- `POST /blueprint/add-component`
+- `POST /blueprint/compile`
+- `POST /build/lighting`
+- `POST /exec/command`
+
+Stream:
+- `POST /stream/start`
+- `POST /stream/stop`
+- `POST /stream/config`
+- `GET /stream/status`
+
+Optimize:
 - `POST /optimize/nanite`
 - `POST /optimize/lod`
 - `POST /optimize/lumen`
@@ -196,105 +157,51 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
 - `POST /optimize/textures`
 - `POST /optimize/collision`
 
-## Request Samples
+## ExecutePlan Actions
+
+Editor supported actions:
+- `spawn`
+- `delete`
+- `set`
+- `screenshot`
+
+Runtime supported actions:
+- `spawn`
+- `delete`
+- `set`
+- `call`
+- `screenshot`
+
+Request shape:
+
+```json
+{
+  "plan_id": "demo-plan",
+  "steps": [
+    { "action": "spawn", "params": { "type": "PointLight", "label": "DemoLight", "x": 0, "y": 0, "z": 260 } }
+  ]
+}
+```
+
+## Sample Requests
 
 ```bash
-curl -s http://localhost:30010/nova/health
+curl http://127.0.0.1:30010/nova/health
 ```
 
 ```bash
-curl -s http://localhost:30010/nova/caps
-```
-
-```bash
-curl -s http://localhost:30010/nova/events
-```
-
-```bash
-curl -s "http://localhost:30010/nova/events?types=spawn,error"
-```
-
-```bash
-curl -s -X POST http://localhost:30010/nova/asset/import \
+curl -X POST http://127.0.0.1:30010/nova/executePlan \
   -H "Content-Type: application/json" \
-  -d '{"file_path":"/tmp/model.obj","asset_name":"ModelA","destination":"/Game","scale":100}'
+  -d '{"plan_id":"demo","steps":[{"action":"spawn","params":{"type":"PointLight","label":"A","x":0,"y":0,"z":250}}]}'
 ```
 
 ```bash
-curl -s "http://localhost:30010/nova/viewport/screenshot?format=raw&width=1920&height=1080" -o shot.png
-```
-
-```bash
-curl -s -X POST http://localhost:30010/nova/stream/config \
+curl -X POST http://127.0.0.1:30020/nova/runtime/pair \
   -H "Content-Type: application/json" \
-  -d '{"fps":10,"width":640,"height":360,"quality":50}'
+  -d '{"code":"123456","role":"automation"}'
 ```
 
 ```bash
-curl -s http://localhost:30010/nova/stream/status
-```
-
-```bash
-curl -s -X POST http://localhost:30010/nova/pcg/generate \
-  -H "Content-Type: application/json" \
-  -d '{"actor_name":"PCGVolume_1","seed":1234,"force_regenerate":true}'
-```
-
-```bash
-curl -s -X POST http://localhost:30010/nova/sequencer/create \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Cine01","path":"/Game","duration_seconds":8,"fps":30}'
-```
-
-```bash
-curl -s -X POST http://localhost:30010/nova/executePlan \
-  -H "Content-Type: application/json" \
-  -d '{
-    "plan_id":"demo-plan",
-    "steps":[
-      {"action":"spawn","params":{"type":"PointLight","label":"LaunchSmokeLight","transform":{"location":[0,0,260]}}},
-      {"action":"set","params":{"target":"LaunchSmokeLight","props":{"PointLightComponent.Intensity":50000}}},
-      {"action":"screenshot","params":{"width":1280,"height":720}}
-    ]
-  }'
-```
-
-```bash
-curl -s -X POST http://localhost:30010/nova/undo
-```
-
-```bash
-curl -s -X POST http://localhost:30020/nova/runtime/pair \
-  -H "Content-Type: application/json" \
-  -d '{"code":"123456"}'
-```
-
-```bash
-curl -s "http://localhost:30020/nova/audit?limit=20" \
-  -H "X-NovaBridge-Token: <token-from-pair>"
-```
-
-```bash
-curl -s "http://localhost:30020/nova/events" \
-  -H "X-NovaBridge-Token: <token-from-pair>"
-```
-
-```bash
-curl -s -X POST http://localhost:30020/nova/executePlan \
-  -H "Content-Type: application/json" \
-  -H "X-NovaBridge-Token: <token-from-pair>" \
-  -d '{
-    "plan_id":"runtime-plan",
-    "steps":[
-      {"action":"spawn","params":{"type":"PointLight","label":"RuntimePlanLight","x":0,"y":0,"z":220}},
-      {"action":"delete","params":{"name":"RuntimePlanLight"}}
-    ]
-  }'
-```
-
-```bash
-curl -s -X POST http://localhost:30020/nova/undo \
-  -H "Content-Type: application/json" \
-  -H "X-NovaBridge-Token: <token-from-pair>" \
-  -d '{}'
+curl http://127.0.0.1:30020/nova/caps \
+  -H "X-NovaBridge-Token: <token>"
 ```

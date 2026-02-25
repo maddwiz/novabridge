@@ -8,6 +8,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -27,6 +28,8 @@ class NovaBridge:
     api_key: Optional[str] = None
     role: Optional[str] = None
     runtime_token: Optional[str] = None
+    max_retries: int = 2
+    retry_backoff: float = 0.25
 
     @property
     def base_url(self) -> str:
@@ -65,25 +68,35 @@ class NovaBridge:
             headers["Content-Type"] = "application/json"
             headers["Content-Length"] = str(len(body))
 
-        req = urllib.request.Request(
-            f"{self.base_url}{route}",
-            data=body,
-            headers=headers,
-            method=method,
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                payload = resp.read()
-                if not payload:
-                    return {"status": "ok"}
-                return json.loads(payload)
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise NovaBridgeError(f"HTTP {exc.code}: {detail}") from exc
-        except urllib.error.URLError as exc:
-            raise NovaBridgeError(f"Connection failed: {exc.reason}") from exc
-        except json.JSONDecodeError as exc:
-            raise NovaBridgeError(f"Invalid JSON response: {exc}") from exc
+        retries = max(0, int(self.max_retries))
+        for attempt in range(retries + 1):
+            req = urllib.request.Request(
+                f"{self.base_url}{route}",
+                data=body,
+                headers=headers,
+                method=method,
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    payload = resp.read()
+                    if not payload:
+                        return {"status": "ok"}
+                    return json.loads(payload)
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")
+                if exc.code in (429, 500, 502, 503, 504) and attempt < retries:
+                    time.sleep(self.retry_backoff * (2**attempt))
+                    continue
+                raise NovaBridgeError(f"HTTP {exc.code}: {detail}") from exc
+            except urllib.error.URLError as exc:
+                if attempt < retries:
+                    time.sleep(self.retry_backoff * (2**attempt))
+                    continue
+                raise NovaBridgeError(f"Connection failed: {exc.reason}") from exc
+            except json.JSONDecodeError as exc:
+                raise NovaBridgeError(f"Invalid JSON response: {exc}") from exc
+
+        raise NovaBridgeError("Request failed after retries")
 
     def _request_bytes(
         self,
@@ -92,19 +105,29 @@ class NovaBridge:
         role: Optional[str] = None,
         runtime_token: Optional[str] = None,
     ) -> bytes:
-        req = urllib.request.Request(
-            f"{self.base_url}{route}",
-            headers=self._build_headers(role=role, runtime_token=runtime_token),
-            method="GET",
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                return resp.read()
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise NovaBridgeError(f"HTTP {exc.code}: {detail}") from exc
-        except urllib.error.URLError as exc:
-            raise NovaBridgeError(f"Connection failed: {exc.reason}") from exc
+        retries = max(0, int(self.max_retries))
+        headers = self._build_headers(role=role, runtime_token=runtime_token)
+        for attempt in range(retries + 1):
+            req = urllib.request.Request(
+                f"{self.base_url}{route}",
+                headers=headers,
+                method="GET",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    return resp.read()
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")
+                if exc.code in (429, 500, 502, 503, 504) and attempt < retries:
+                    time.sleep(self.retry_backoff * (2**attempt))
+                    continue
+                raise NovaBridgeError(f"HTTP {exc.code}: {detail}") from exc
+            except urllib.error.URLError as exc:
+                if attempt < retries:
+                    time.sleep(self.retry_backoff * (2**attempt))
+                    continue
+                raise NovaBridgeError(f"Connection failed: {exc.reason}") from exc
+        raise NovaBridgeError("Request failed after retries")
 
     def _get(
         self,
@@ -160,8 +183,11 @@ class NovaBridge:
     def undo(self, *, role: Optional[str] = None) -> Dict[str, Any]:
         return self._post("/undo", {}, role=role)
 
-    def runtime_pair(self, code: str) -> Dict[str, Any]:
-        result = self._post("/runtime/pair", {"code": code}, runtime_token="")
+    def runtime_pair(self, code: str, *, role: Optional[str] = None) -> Dict[str, Any]:
+        body: Dict[str, Any] = {"code": code}
+        if role:
+            body["role"] = role
+        result = self._post("/runtime/pair", body, runtime_token="")
         token = result.get("token")
         if isinstance(token, str) and token:
             self.runtime_token = token

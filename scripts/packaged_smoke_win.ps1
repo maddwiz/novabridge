@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$RepoRoot,
     [Parameter(Mandatory = $true)][string]$ArtifactsRoot,
-    [Parameter(Mandatory = $false)][string]$Version = "0.9.5-dev"
+    [Parameter(Mandatory = $false)][string]$Version = "1.0.0"
 )
 
 $ErrorActionPreference = "Stop"

@@ -2,13 +2,17 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION_RAW="${1:-0.9.5-dev}"
+VERSION_RAW="${1:-1.0.0}"
 VERSION="${VERSION_RAW#v}"
 VERSION_TAG="v${VERSION}"
 DIST_DIR="${ROOT_DIR}/dist"
 PKG_NAME="NovaBridge-${VERSION_TAG}"
 PKG_DIR="${DIST_DIR}/${PKG_NAME}"
 ZIP_PATH="${DIST_DIR}/${PKG_NAME}.zip"
+
+BUILD_WHEEL="${NOVABRIDGE_BUILD_WHEEL:-1}"
+BUILD_DOCKER="${NOVABRIDGE_BUILD_DOCKER:-0}"
+DOCKER_IMAGE="${NOVABRIDGE_DOCKER_IMAGE:-ghcr.io/maddwiz/novabridge}"
 
 rm -rf "${PKG_DIR}" "${ZIP_PATH}"
 mkdir -p "${PKG_DIR}" "${DIST_DIR}"
@@ -69,3 +73,26 @@ fi
 )
 
 echo "Created package: ${ZIP_PATH}"
+
+if [[ "${BUILD_WHEEL}" != "0" ]]; then
+  if python3 -m build --help >/dev/null 2>&1; then
+    mkdir -p "${DIST_DIR}/python-sdk"
+    python3 -m build --wheel --outdir "${DIST_DIR}/python-sdk" "${ROOT_DIR}/python-sdk"
+    echo "Created python wheel(s): ${DIST_DIR}/python-sdk"
+  else
+    echo "Skipping python wheel build (python3 -m build not available)." >&2
+  fi
+fi
+
+if [[ "${BUILD_DOCKER}" != "0" ]]; then
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "Docker build requested but docker is not installed." >&2
+    exit 2
+  fi
+
+  docker build \
+    -t "${DOCKER_IMAGE}:${VERSION}" \
+    -t "${DOCKER_IMAGE}:latest" \
+    "${ROOT_DIR}"
+  echo "Built docker images: ${DOCKER_IMAGE}:${VERSION}, ${DOCKER_IMAGE}:latest"
+fi

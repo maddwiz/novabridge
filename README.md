@@ -1,252 +1,205 @@
 # NovaBridge
 
-HTTP API bridge giving AI agents full programmatic control over Unreal Engine 5.
+> **v1.0.0 - Now Ship-Ready**
+>
+> NovaBridge is a schema-driven, capability-based, permissioned UE5 control layer with Editor + Runtime support, public test surface, CI checks, Docker tooling, and Python/MCP integrations.
 
-## What it does
+NovaBridge gives AI agents structured HTTP control over Unreal Engine 5 for scene operations, asset operations, viewport control, sequencer, optimization, PCG hooks, and plan execution.
 
-NovaBridge is a UE5 control plugin with an editor-first HTTP surface for scene manipulation, asset management, material creation, viewport control, and more. Combined with a Blender integration pipeline, AI agents can autonomously generate 3D content and build scenes in Unreal Engine.
-
-> Editor module is still the primary production path. An experimental runtime module now exists for packaged builds and must be explicitly enabled.
-
-## Architecture
-
-```
-AI Agent (any LLM)
-  → HTTP calls (or OpenClaw extension tools)
-    → NovaBridge Plugin (C++, inside UE5 Editor, port 30010)
-      → Unreal Engine 5
-
-AI Agent → Blender (Python/MB-Lab) → OBJ export → NovaBridge import → UE5
-```
-
-Runtime path (experimental):
+## Core Architecture
 
 ```
 AI Agent
-  → local runtime HTTP calls (token + pairing)
-    → NovaBridgeRuntime module (port 30020 by default, disabled unless -NovaBridgeRuntime=1)
-      → packaged UE5 runtime world
+  -> HTTP / MCP / SDK
+    -> NovaBridgeCore (schema, caps, policy, guardrails, audit, plan engine)
+      -> NovaBridgeEditor (editor-only actions)
+      -> NovaBridgeRuntime (runtime-safe action subset)
 ```
 
-## Quick Start
+## Launch Status
 
-1. Copy `NovaBridge/` to your UE5 project's `Plugins/` folder
-2. Build the project
-3. Launch UE5: `UnrealEditor YourProject.uproject -RenderOffScreen -nosplash -unattended -nopause -NovaBridgePort=30010`
-4. Test: `curl http://localhost:30010/nova/health`
+- Version: `v1.0.0`
+- Editor mode: production-ready
+- Runtime mode: production-ready (token-gated + localhost-only)
+- WebSocket events: available in editor + runtime modes
+- Public tests: C++ automation tests + Python SDK + MCP + Studio tests
 
-Port override: change `-NovaBridgePort=30010` to any open port, then use that same port in your API calls.
+## One-Command Onboarding
 
-For headless startup without an existing project, use `NovaBridgeDefault/NovaBridgeDefault.uproject`.
-When running from this repo source tree, copy `NovaBridge/` into that project's `Plugins/` folder first.
-
-macOS one-command executePlan smoke (build + editor/runtime validation + artifacts):
+macOS/Linux:
 
 ```bash
-./scripts/mac_executeplan_smoke.sh
+./scripts/setup.sh
 ```
 
-## Runtime Mode (Experimental)
+Windows PowerShell:
 
-Enable runtime server in packaged/game processes only when needed:
+```powershell
+./scripts/setup_win.ps1
+```
+
+These scripts:
+- copy `NovaBridge/` into the default project plugin path
+- print the exact launch command
+- auto-launch UnrealEditor when a local engine binary is detected
+
+## Quick Start (Manual)
+
+1. Copy `NovaBridge/` to your UE5 project `Plugins/` directory.
+2. Build the project.
+3. Launch Editor with NovaBridge enabled:
+
+```bash
+UnrealEditor YourProject.uproject -RenderOffScreen -nosplash -unattended -nopause -NovaBridgePort=30010
+```
+
+4. Verify:
+
+```bash
+curl http://127.0.0.1:30010/nova/health
+```
+
+## Runtime Mode (Packaged Builds)
+
+Enable runtime server in packaged/game process:
 
 ```bash
 YourGame -NovaBridgeRuntime=1 -NovaBridgeRuntimePort=30020
 ```
 
-Runtime pairing flow:
+Runtime security model:
+- localhost-only request acceptance
+- pairing endpoint for short-lived token generation
+- per-role endpoint permissions (`admin`, `automation`, `read_only`)
+- rate limits and spawn guardrails
+- audit trail and event stream support
 
-1. Read pairing code from runtime logs on startup.
-2. Exchange code:
+Pairing example:
+
 ```bash
-curl -sS -X POST http://127.0.0.1:30020/nova/runtime/pair \
+curl -X POST http://127.0.0.1:30020/nova/runtime/pair \
   -H "Content-Type: application/json" \
-  -d '{"code":"123456"}'
+  -d '{"code":"123456","role":"automation"}'
 ```
-3. Use returned token in `X-NovaBridge-Token` for `/nova/health`, `/nova/caps`, `/nova/events`, `/nova/executePlan`, `/nova/undo`, `/nova/audit`.
 
-Runtime events WebSocket defaults to `ws://localhost:30022` and can be overridden with:
+## Docker (Recommended For Fast Evaluation)
 
 ```bash
--NovaBridgeRuntimeEventsPort=30022
+docker run --rm -p 8080:8080 -v ./MyProject:/project ghcr.io/maddwiz/novabridge:latest
 ```
 
-## macOS Smoke Snapshot
+Notes:
+- The Docker image ships a **mock NovaBridge API harness** for SDK/MCP/automation testing.
+- Unreal Engine binaries are not bundled in Docker images.
+- Set `NOVABRIDGE_API_KEY` in container env to require API-key auth.
 
-Validation screenshot from a live macOS smoke run (health/spawn/delete path):
+## Pre-Built Binaries
 
-![macOS NovaBridge smoke screenshot](docs/images/mac-smoke-launchproof.png)
+Release workflow publishes:
+- source package zip
+- Python SDK wheel
+- optional self-hosted plugin binaries for macOS/Windows/Linux targets
+- Docker image to `ghcr.io/maddwiz/novabridge`
 
-For explicit API-driven control evidence (bind log + health + spawn + delete artifacts), see:
-- [docs/AI_CONTROL_PROOF.md](docs/AI_CONTROL_PROOF.md)
+See `.github/workflows/release.yml` for release build matrix and artifact publishing.
 
-Example command used during smoke:
+## Major Endpoints
+
+- `GET /nova/health`
+- `GET /nova/caps`
+- `POST /nova/executePlan`
+- `POST /nova/undo`
+- `GET /nova/events`
+- `GET /nova/audit`
+- `POST /nova/scene/spawn`
+- `POST /nova/scene/delete`
+- `POST /nova/scene/set-property`
+- `GET|POST /nova/scene/get`
+- `GET /nova/scene/list`
+- `GET|POST /nova/viewport/*`
+- `POST /nova/sequencer/*`
+- `POST /nova/pcg/generate`
+
+Full reference: [docs/API.md](docs/API.md)
+
+## Python SDK + CLI
+
+Install locally:
 
 ```bash
-curl -sS -X POST http://127.0.0.1:30010/nova/scene/spawn \
-  -H "Content-Type: application/json" \
-  -d '{"class":"PointLight","label":"LaunchSmokeLight","x":0,"y":0,"z":260}'
+cd python-sdk
+python -m pip install .
 ```
 
-## Release Status
+Use CLI:
 
-- Current release: `v0.9.5-dev` (Early Access)
-- Validated now: Linux ARM64, macOS, Windows Win64
-- In validation: Linux x86_64
+```bash
+novabridge-cli --host 127.0.0.1 --port 30010 health
+novabridge-cli execute-plan --plan-file ./examples/plan.json
+novabridge-cli spawn-actor PointLight --label LaunchSmokeLight --x 0 --y 0 --z 260
+```
 
-## Security Defaults
+SDK includes:
+- sync client (`novabridge.py`)
+- async client (`novabridge_async.py`)
+- pydantic models (`novabridge_models.py`)
+- examples (`python-sdk/examples/`)
 
-- NovaBridge uses Unreal HTTP Server's default listener bind address (`127.0.0.1`).
-- It is designed for local Unreal Editor workflows on the same machine.
-- API key authentication is enabled automatically when `NOVABRIDGE_API_KEY` or `-NovaBridgeApiKey=<key>` is set.
-- If no API key is configured, NovaBridge allows requests and logs a startup warning.
-- Role-based policy is available via `X-NovaBridge-Role` (`admin`, `automation`, `read_only`) or `NOVABRIDGE_DEFAULT_ROLE` / `-NovaBridgeDefaultRole=`.
-- Runtime mode requires token auth via `X-NovaBridge-Token` after pairing (`POST /nova/runtime/pair`).
-- Runtime requests are localhost-only (non-loopback hosts are rejected).
+## MCP Server
 
-## Platform Control Additions (v0.9.5-dev)
+Location: `mcp-server/`
 
-- `GET /nova/caps` for capability + policy discovery.
-- `GET /nova/caps` is role-aware in editor mode (`X-NovaBridge-Role`) and only returns capabilities permitted for that role.
-- `GET /nova/caps` now also returns an explicit `permissions` snapshot (role/mode limits, allowed actions, spawn bounds/classes, and route rate limits).
-- `GET /nova/events` for event channel discovery (`ws://localhost:30012` by default) with type-aware metadata (`supported_types`, `pending_by_type`) and optional `types` filter query.
-- Event WebSocket now supports per-client subscription control (`{"action":"subscribe","types":[...]}`) with server ACKs and filter metrics (`clients_with_filters`).
-- Event sockets now hold back action/audit traffic until a subscription ACK is received (fixes pre-subscription event leakage).
-- `POST /nova/executePlan` for schema-driven multi-step execution (`spawn`, `delete`, `set`, `screenshot`).
-- `POST /nova/undo` for reversible operations (currently tracked spawn actions).
-- `GET /nova/audit` for structured in-memory execution/audit trail.
-- Runtime now also exposes token-gated `GET /nova/audit`.
-- Runtime now also exposes token-gated `POST /nova/undo` for spawn undo entries created by runtime `executePlan`.
-- Runtime also exposes token-gated `GET /nova/events` for event socket discovery (`ws://localhost:30022` by default).
-- Event stream now emits typed payloads (`audit`, `spawn`, `delete`, `plan_step`, `plan_complete`, `error`) for both editor and runtime modules.
-- Event clients must send a subscription command and wait for `{"type":"subscription","status":"ok"}` before they receive event traffic.
-- `POST /nova/executePlan` now applies strict schema validation (unknown or malformed fields return HTTP 400 before execution).
-- Spawn guardrails for non-admin roles:
-  - class allow list
-  - transform bounds
-  - per-plan and per-minute limits
-- Capability discovery is now backed by a shared core registry (`NovaBridgeCore`) used by Editor and Runtime modules.
-- Event socket port override: `-NovaBridgeEventsPort=<port>`.
+MCP now exposes health, caps, executePlan, undo, runtime pairing, scene tools, viewport tools, sequencer, PCG, and optimization tools through FastMCP wrappers.
 
-## API Endpoints
+## Testing
 
-Primary API reference lives at [docs/API.md](docs/API.md).
+Run fast CI-equivalent checks locally:
 
-## Recent Fixes
+```bash
+python3 scripts/ci/validate_novabridge_cpp.py
+python3 -m unittest discover -s python-sdk/tests -p 'test_*.py'
+python3 -m unittest discover -s mcp-server/tests -p 'test_*.py'
+node --test assistant-server/tests/*.test.js
+cd novabridge-studio && npm test && npm run build
+```
 
-- `POST /nova/asset/import` now accepts optional `scale` (default `100`) to normalize Blender meter-scale OBJ files to UE centimeters.
-- `POST /nova/scene/set-property` now includes class-name alias matching for component prefixes (for example, `PointLightComponent0.Intensity` resolves correctly).
-- Sequencer scrub fallback on UE `< 5.7` now uses explicit playback params (non-recursive) to avoid stack overflow regressions.
-- MB-Lab export cleanup removes non-character scene objects/ground planes before export.
-- Runtime `executePlan` spawn now respects optional `label` as requested actor/object name (enables follow-up delete by that name).
-- Editor `executePlan` spawn/delete now emit typed `spawn`/`delete` events for filtered WebSocket clients.
-- Shared plan action/schema registry now lives in `NovaBridgeCore` and is enforced by both Editor and Runtime `executePlan`.
-- Runtime `executePlan` step parsing and action dispatch now route through a shared core command-dispatch layer (`NovaBridgeCore`).
-- Editor `executePlan` step parsing now routes through the shared core step extractor (`NovaBridgeCore::ExtractPlanStep`).
-- Editor `executePlan` now also dispatches actions through the shared core command router (`NovaBridgeCore::FPlanCommandRouter`).
-- Editor and Runtime `executePlan` now use shared core event builders (`NovaBridgeCore::BuildPlanStepEvent` / `BuildPlanCompleteEvent`) so emitted plan event payloads stay aligned.
-- Editor and Runtime `executePlan` spawn/delete typed events now also use shared core builders (`BuildSpawnEvent` / `BuildDeleteEvent`) for consistent payload shape.
-- Shared HTTP/event parsing helpers now live in `NovaBridgeCore` (`NovaBridgeHttpUtils`) and are reused by Editor + Runtime modules.
-- Editor optimization handlers (`/nova/optimize/*`) are now isolated in `NovaBridgeOptimizeHandlers.cpp` to reduce the main module size and simplify maintenance.
-- Editor sequencer handlers (`/nova/sequencer/*`) are now isolated in `NovaBridgeSequencerHandlers.cpp` to continue breaking down the previous monolithic module.
-- Sequencer render endpoint (`POST /nova/sequencer/render`) is now isolated in `NovaBridgeSequencerRenderHandlers.cpp`, keeping capture/render dependencies separate from core sequencer editing handlers.
-- Editor scene read/transform handlers (`/nova/scene/list`, `/nova/scene/get`, `/nova/scene/transform`) are now isolated in `NovaBridgeSceneHandlers.cpp`.
-- Editor blueprint/build handlers (`/nova/blueprint/*`, `/nova/build/lighting`, `/nova/exec`) are now isolated in `NovaBridgeBlueprintBuildHandlers.cpp`.
-- Editor stream handlers (`/nova/stream/*`) are now isolated in `NovaBridgeStreamHandlers.cpp`.
-- Editor material handlers (`/nova/material/*`) are now isolated in `NovaBridgeMaterialHandlers.cpp`.
-- Editor asset handlers (`/nova/asset/*`) are now isolated in `NovaBridgeAssetHandlers.cpp`.
-- Control handlers (`/nova/health`, `/nova/project/info`, `/nova/caps`, `/nova/events`, `/nova/audit`, `/nova/undo`) are now isolated in `NovaBridgeControlHandlers.cpp`.
-- `POST /nova/executePlan` is now isolated in `NovaBridgeExecutePlanHandlers.cpp`.
-- WebSocket/event stream infrastructure is now isolated in `NovaBridgeWebSocketHandlers.cpp` (stream socket server, event socket subscription handshake, stream ticker/frame pump).
-- Shared editor actor/property utility logic now lives in `NovaBridgeEditorUtilityHelpers.cpp` (actor lookup/serialization, class/transform parsing, generic property mutation helpers).
-- Shared editor policy/control state now lives in `NovaBridgeEditorPolicyState.cpp` (role defaulting, route permissions, rate limiting, undo/audit/event queue state).
-- HTTP server/bootstrap logic now lives in `NovaBridgeHttpServer.cpp` (route binding, auth, CORS, and JSON response helpers), while `NovaBridgeModule.cpp` is lifecycle-only.
-- Runtime HTTP helper/auth logic now lives in `NovaBridgeRuntimeHttpHelpers.cpp` (CORS, request body parsing, localhost gating, runtime token auth, JSON responses).
-- Runtime event WebSocket lifecycle/subscription handlers now live in `NovaBridgeRuntimeEventHandlers.cpp` (`/nova/events` metadata, WS startup/shutdown, queue pump).
-- Runtime `executePlan`/`undo` handlers and runtime actor/property helpers now live in `NovaBridgeRuntimeExecutePlanHandlers.cpp`.
-- Runtime control-plane handlers now live in `NovaBridgeRuntimeControlHandlers.cpp` (`/nova/health`, `/nova/caps`, `/nova/audit`, `/nova/runtime/pair` and capability/permission snapshots).
-- Runtime event/audit/undo state helpers now live in `NovaBridgeRuntimeState.cpp` (event queue normalization, audit trail push, undo stack push/pop).
-- Runtime HTTP bootstrap/binding logic now lives in `NovaBridgeRuntimeHttpServer.cpp`, while `NovaBridgeRuntimeModule.cpp` is lifecycle-only.
-- `GET /nova/optimize/stats` spotlight counting now uses `USpotLightComponent` detection (component-based, no class-name string matching).
-- Python SDK raw screenshot path now includes auth/runtime headers and shared HTTP error handling (`NovaBridge._request_bytes`).
-- Added baseline automated tests for Python integrations (`python-sdk/tests` and `mcp-server/tests`) and core execute-plan schema automation coverage (`NovaBridgePlanSchemaTests`).
-- `GET /nova/caps` now returns explicit `permissions` snapshots for editor/runtime policy introspection.
-- Resolved deferred event-stream bug: WebSocket clients no longer receive pre-subscription events before `status=ok`.
-- NovaBridge Studio now supports optional NovaBridge API key forwarding (`X-API-Key`), stricter plan schema validation, richer execute fallback mapping (`set-property` + transform-aware spawn), and per-step execution logging.
-- NovaBridge Studio now discovers `/nova/events` and subscribes to the event socket (`subscribe` ACK flow) so Activity shows live spawn/delete/plan/error stream events.
-- NovaBridge Studio now includes baseline unit tests (`vitest`) for plan schema validation, policy preflight checks, and provider JSON extraction helpers.
-- Added GitHub Actions fast QA workflow (`.github/workflows/qa-fast.yml`) for Python SDK/MCP tests and NovaBridge Studio test/build automation.
+Unreal automation tests (self-hosted runner / local UE setup):
 
-## Blender Extension Configuration
+```bash
+scripts/ci/run_automation_tests_mac.sh
+```
 
-The `extensions/openclaw/nova-blender` bridge now supports environment-based configuration:
+## Packaging
 
-- `NOVABRIDGE_BLENDER_PATH` (optional; default resolves `blender` from `PATH`)
-- `NOVABRIDGE_EXPORT_DIR` (default OS temp dir `novabridge-exports`)
-- `NOVABRIDGE_SCRIPTS_DIR` (default auto-detected from extension `scripts/` or repo blender scripts)
-- `NOVABRIDGE_OUTPUT_DIR` (default `<NOVABRIDGE_EXPORT_DIR>/output`)
-- `NOVABRIDGE_HOST` (default `localhost`)
-- `NOVABRIDGE_PORT` (default `30010`)
-- `NOVABRIDGE_IMPORT_SCALE` (default `100`)
-- `NOVABRIDGE_API_KEY` (optional shared secret for API access)
+Create release bundle + wheel:
 
-## New Integrations
+```bash
+./scripts/package_release.sh 1.0.0
+```
 
-- Python SDK: [python-sdk](python-sdk)
-- MCP server: [mcp-server](mcp-server)
-- Examples: [examples](examples)
-- Headless project template: [NovaBridgeDefault](NovaBridgeDefault)
-- Demo project scaffold: [NovaBridgeDemo](NovaBridgeDemo)
-- Release checklist: [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md)
-- Demo video script: [demo/VIDEO_SCRIPT.md](demo/VIDEO_SCRIPT.md)
-- Landing page starter: [site/index.html](site/index.html)
-- NovaBridge Studio desktop scaffold: [novabridge-studio](novabridge-studio)
-- NovaBridge Assistant server + browser studio (`/nova/studio`): [assistant-server](assistant-server)
+Build Docker image during packaging:
+
+```bash
+NOVABRIDGE_BUILD_DOCKER=1 NOVABRIDGE_DOCKER_IMAGE=ghcr.io/maddwiz/novabridge ./scripts/package_release.sh 1.0.0
+```
 
 ## Experimental Sidecars
 
-These helper servers are included as experimental examples and are not part of the supported core plugin surface:
-
+These are explicitly experimental and not part of supported core plugin guarantees:
 - `ai-gen-server/`
 - `voice-server/`
 - `livelink-server/`
 - `assistant-server/`
 
-Treat them as optional prototypes unless explicitly promoted to supported modules in release notes.
+## Security Defaults
 
-## Setup Guides
-
-- Linux: [docs/SETUP_LINUX.md](docs/SETUP_LINUX.md)
-- Windows: [docs/SETUP_WINDOWS.md](docs/SETUP_WINDOWS.md)
-- macOS: [docs/SETUP_MAC.md](docs/SETUP_MAC.md)
-- Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- Build status: [docs/BUILD_STATUS.md](docs/BUILD_STATUS.md)
-- v0.9.1 bug-fix handoff (resolved): [docs/BUG_FIX_HANDOFF_v0.9.1.md](docs/BUG_FIX_HANDOFF_v0.9.1.md)
-- Fab launch checklist: [docs/FAB_MARKET_LAUNCH_CHECKLIST.md](docs/FAB_MARKET_LAUNCH_CHECKLIST.md)
-- Fab listing copy draft: [docs/FAB_LISTING_COPY.md](docs/FAB_LISTING_COPY.md)
-- Lemon Squeezy listing copy draft: [docs/LEMON_SQUEEZY_LISTING_COPY.md](docs/LEMON_SQUEEZY_LISTING_COPY.md)
-- Self-hosted CI runbook: [docs/CI_SELF_HOSTED.md](docs/CI_SELF_HOSTED.md)
-- Runner bootstrap: [docs/RUNNER_SETUP.md](docs/RUNNER_SETUP.md)
-- Experimental sidecars policy: [docs/EXPERIMENTAL_SIDECARS.md](docs/EXPERIMENTAL_SIDECARS.md)
-
-## Packaging
-
-Create a distribution zip:
-
-```bash
-./scripts/package_release.sh 0.9.5-dev
-```
-
-Output is written to `dist/NovaBridge-v0.9.5-dev.zip`.
-
-## Platform Status
-
-- Linux (ARM64): validated
-- Linux (x86_64): pending native validation
-- Windows (Win64): validated
-- macOS (Mac): validated
+- localhost-first networking
+- optional API key (`X-API-Key`)
+- role-based policy gates
+- runtime token gating
+- audit trail and event stream telemetry
 
 ## License
 
-Proprietary - All rights reserved. See [LICENSE](LICENSE).
-Contribution expectations are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
+Proprietary - All rights reserved.
+See [LICENSE](LICENSE), [EULA.txt](EULA.txt), and [SUPPORT.md](SUPPORT.md).

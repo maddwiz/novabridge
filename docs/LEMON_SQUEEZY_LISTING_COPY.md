@@ -29,7 +29,7 @@ Default networking:
 - Port override supported: `-NovaBridgePort=30010` (replace `30010` with your chosen open port)
 
 Current release:
-- Early Access `v0.9.5-dev`
+- `v1.0.0` ship-ready
 - Validated: Windows Win64, macOS, Linux ARM64
 - In validation: Linux x86_64
 

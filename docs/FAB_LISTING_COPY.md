@@ -25,7 +25,7 @@ Included extras:
 - Blender integration helpers
 - Demo scripts and sample project scaffolds
 
-Release tier: Early Access (`v0.9.5-dev`)
+Release tier: `v1.0.0` ship-ready
 
 ## Supported Platforms (Current)
 

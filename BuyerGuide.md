@@ -2,35 +2,35 @@
 
 ## What You Get
 
-- UE5 plugin with 30 HTTP endpoints for scene, assets, materials, camera, blueprint, and commands
-- Blender-to-UE pipeline extension
-- Python SDK
-- MCP server
-- Example scripts and demo project scaffold
+- UE5 plugin with schema-driven HTTP control endpoints across scene, assets, viewport, sequencer, optimization, and PCG.
+- Runtime module with token pairing, role policy, route limits, and localhost-only enforcement.
+- Python SDK (sync + async + CLI) and MCP server.
+- Public test surface and CI workflows.
+- Packaging and release tooling including Docker harness and wheel artifacts.
 
 ## Best Fit
 
-- Teams building AI-driven UE automation
-- Tooling teams who need programmable UE editor control
-- Rapid scene generation / synthetic media workflows
+- Teams building AI-assisted UE tooling pipelines.
+- Studios needing deterministic scene automation and plan execution.
+- Developers integrating LLM agents with Unreal Editor or packaged runtime workflows.
 
 ## Current Release Tier
 
-- `v0.9.5-dev` Early Access
-- Validated platforms: Linux ARM64, Windows Win64, macOS
-- In validation: Linux x86_64
+- **`v1.0.0` Ship-Ready**
+- Validated platforms: macOS, Windows Win64, Linux (x64 + ARM64 build workflows)
 
-## Not Included Yet
+## Not Included
 
-- Linux x86_64 native runtime validation
-- Production SLA / enterprise support terms
-- Managed cloud hosting
+- Managed cloud hosting.
+- Enterprise SLA by default.
+- Unreal Engine binaries inside Docker images.
 
 ## Quick Verification
 
-1. Launch Unreal Editor with your project loaded.
-2. Confirm log: `NovaBridge server listening on 127.0.0.1:30010`
-3. Run:
+1. Run `./scripts/setup.sh` (or `./scripts/setup_win.ps1`).
+2. Check health:
    - `curl http://127.0.0.1:30010/nova/health`
-4. Expect:
-   - `{ "status": "ok" }`
+3. Check capabilities:
+   - `curl http://127.0.0.1:30010/nova/caps`
+4. Execute one plan:
+   - `curl -X POST http://127.0.0.1:30010/nova/executePlan -H "Content-Type: application/json" -d '{"steps":[{"action":"spawn","params":{"type":"PointLight","label":"BuyerGuideLight","x":0,"y":0,"z":220}}]}'`

@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased
+## v1.0.0 - 2026-02-25
+
+- Released `v1.0.0` ship-ready track and aligned plugin/runtime version strings.
+- Hardened runtime control surface with role-aware route enforcement, per-route limits, session actor guardrails, and expanded runtime-safe action endpoints (`scene`, `viewport`, `sequencer`, `pcg`).
+- Expanded runtime `executePlan` actions (`spawn`, `delete`, `set`, `call`, `screenshot`) with schema enforcement and per-role policy checks.
+- Added public core automation coverage for capability registry + runtime policy + extended plan schema validation.
+- Added macOS automation test runner script (`scripts/ci/run_automation_tests_mac.sh`) and optional QA-fast CI job gate for Unreal automation runs.
+- Added release workflow (`.github/workflows/release.yml`) for source package, Python wheel, Docker image publishing, and optional self-hosted plugin binary artifacts.
+- Added Docker support (`Dockerfile`, `.dockerignore`, `docker/mock_novabridge_server.py`) for fast SDK/MCP evaluation harnesses.
+- Added one-command onboarding scripts (`scripts/setup.sh`, `scripts/setup_win.ps1`) for copy + launch bootstrap.
+- Added Python SDK packaging (`pyproject.toml`), async client (`novabridge_async.py`), pydantic models (`novabridge_models.py`), installable CLI (`novabridge-cli`), and expanded examples/tests.
+- Expanded MCP server tool surface to include capability discovery, plan execution, undo, runtime pairing, and camera state lookup.
+- Refreshed launch docs for v1.0.0 (`README.md`, `INSTALL.md`, `QUICK_START.md`, `docs/API.md`, `BuyerGuide.md`).
 
 - Upgraded control plane to `v0.9.5-dev` semantics.
 - Added capability discovery endpoint: `GET /nova/caps`.

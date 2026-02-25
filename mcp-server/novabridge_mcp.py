@@ -53,6 +53,12 @@ def ue5_health() -> Dict[str, Any]:
 
 
 @mcp.tool()
+def ue5_caps() -> Dict[str, Any]:
+    """Discover capabilities, permissions, and mode from /nova/caps."""
+    return _wrap(client.caps)
+
+
+@mcp.tool()
 def ue5_project_info() -> Dict[str, Any]:
     """Get currently loaded UE5 project details."""
     return _wrap(client.project_info)
@@ -62,6 +68,28 @@ def ue5_project_info() -> Dict[str, Any]:
 def ue5_scene_list() -> Dict[str, Any]:
     """List actors in the current level."""
     return _wrap(client.scene_list)
+
+
+@mcp.tool()
+def ue5_execute_plan(
+    steps: Any,
+    plan_id: Optional[str] = None,
+    role: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Execute structured multi-step plans via POST /nova/executePlan."""
+    return _wrap(lambda: client.execute_plan(steps=steps, plan_id=plan_id, role=role))
+
+
+@mcp.tool()
+def ue5_undo(role: Optional[str] = None) -> Dict[str, Any]:
+    """Undo supported operations via POST /nova/undo."""
+    return _wrap(lambda: client.undo(role=role))
+
+
+@mcp.tool()
+def ue5_runtime_pair(code: str, role: Optional[str] = None) -> Dict[str, Any]:
+    """Pair with runtime mode and store the returned runtime token in-memory."""
+    return _wrap(lambda: client.runtime_pair(code=code, role=role))
 
 
 @mcp.tool()
@@ -157,6 +185,12 @@ def ue5_set_camera(
 ) -> Dict[str, Any]:
     """Set viewport camera and optional SceneCapture show flags."""
     return _wrap(lambda: client.set_camera(location=location, rotation=rotation, fov=fov, show_flags=show_flags))
+
+
+@mcp.tool()
+def ue5_get_camera() -> Dict[str, Any]:
+    """Get viewport camera state."""
+    return _wrap(client.get_camera)
 
 
 @mcp.tool()

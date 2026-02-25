@@ -26,8 +26,8 @@ Use this checklist to publish NovaBridge on Fab with current repo state.
 ## 4) Package Assembly
 
 - [ ] Build release zip:
-  - `pwsh scripts/package_release_win.ps1 -Version 0.9.5-dev` (Windows)
-  - or `./scripts/package_release.sh 0.9.5-dev` (Linux/macOS)
+  - `pwsh scripts/package_release_win.ps1 -Version 1.0.0` (Windows)
+  - or `./scripts/package_release.sh 1.0.0` (Linux/macOS)
 - [ ] Verify zip hygiene:
   - no `Intermediate/`, `Saved/`, `DerivedDataCache/`, logs, crash dumps.
 - [ ] Verify docs included in zip:
@@ -62,7 +62,7 @@ Use this supported-platform statement in listing text:
 
 > Validated: Windows Win64, macOS, Linux ARM64.  
 > In validation: Linux x86_64.  
-> Release tier: Early Access (`v0.9.5-dev`).
+> Release tier: `v1.0.0` ship-ready.
 
 ## 8) Launch-Day Operations
 
