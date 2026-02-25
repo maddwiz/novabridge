@@ -33,6 +33,7 @@ Optional Blender path:
 - `executePlan` schema validation and action support registry are shared in `NovaBridgeCore`.
 - Editor `executePlan` step parsing reuses shared core extraction (`NovaBridgePlanDispatch::ExtractPlanStep`).
 - Editor and Runtime `executePlan` command routing use shared core dispatcher primitives (`NovaBridgePlanDispatch`) for step extraction + action handler dispatch.
+- Editor and Runtime `executePlan` event payload creation uses shared core builders (`NovaBridgePlanEvents`) to keep plan-step and plan-complete stream shape consistent.
 - Reversible operation tracking is exposed via `POST /nova/undo`.
 - In-memory audit trail is exposed via `GET /nova/audit`.
 - Event WebSocket discovery is exposed via `GET /nova/events` (default socket `ws://localhost:30012`).

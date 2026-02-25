@@ -3,6 +3,7 @@
 #include "NovaBridgeCoreTypes.h"
 #include "NovaBridgePolicy.h"
 #include "NovaBridgePlanDispatch.h"
+#include "NovaBridgePlanEvents.h"
 #include "NovaBridgePlanSchema.h"
 #include "HttpServerModule.h"
 #include "IHttpRouter.h"
@@ -2795,45 +2796,24 @@ bool FNovaBridgeModule::HandleExecutePlan(const FHttpServerRequest& Request, con
 			const int32 ResultStepIndex = StepResultObj->HasTypedField<EJson::Number>(TEXT("step"))
 				? static_cast<int32>(StepResultObj->GetNumberField(TEXT("step")))
 				: INDEX_NONE;
-			const FString ResultStatus = StepResultObj->HasTypedField<EJson::String>(TEXT("status"))
-				? StepResultObj->GetStringField(TEXT("status"))
-				: TEXT("error");
 			const FString ResultAction = (ResultStepIndex >= 0 && ResultStepIndex < StepActions.Num() && !StepActions[ResultStepIndex].IsEmpty())
 				? StepActions[ResultStepIndex]
 				: TEXT("unknown");
 
-			TSharedPtr<FJsonObject> PlanStepEvent = MakeShared<FJsonObject>();
-			PlanStepEvent->SetStringField(TEXT("type"), ResultStatus.Equals(TEXT("error"), ESearchCase::IgnoreCase) ? TEXT("error") : TEXT("plan_step"));
-			PlanStepEvent->SetStringField(TEXT("mode"), TEXT("editor"));
-			PlanStepEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
-			PlanStepEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
-			PlanStepEvent->SetStringField(TEXT("action"), ResultAction);
-			PlanStepEvent->SetStringField(TEXT("status"), ResultStatus);
-			PlanStepEvent->SetStringField(TEXT("plan_id"), PlanId);
-			PlanStepEvent->SetNumberField(TEXT("step"), ResultStepIndex);
-			if (StepResultObj->HasTypedField<EJson::String>(TEXT("message")))
+			const TSharedPtr<FJsonObject> PlanStepEvent = NovaBridgeCore::BuildPlanStepEvent(TEXT("editor"), PlanId, ResultAction, StepResultObj);
+			if (PlanStepEvent.IsValid())
 			{
-				PlanStepEvent->SetStringField(TEXT("message"), StepResultObj->GetStringField(TEXT("message")));
+				QueueEventObject(PlanStepEvent);
 			}
-			if (StepResultObj->HasTypedField<EJson::String>(TEXT("object_id")))
-			{
-				PlanStepEvent->SetStringField(TEXT("object_id"), StepResultObj->GetStringField(TEXT("object_id")));
-			}
-			QueueEventObject(PlanStepEvent);
 		}
 
-		TSharedPtr<FJsonObject> PlanCompleteEvent = MakeShared<FJsonObject>();
-		PlanCompleteEvent->SetStringField(TEXT("type"), TEXT("plan_complete"));
-		PlanCompleteEvent->SetStringField(TEXT("mode"), TEXT("editor"));
-		PlanCompleteEvent->SetStringField(TEXT("timestamp_utc"), FDateTime::UtcNow().ToIso8601());
-		PlanCompleteEvent->SetStringField(TEXT("route"), TEXT("/nova/executePlan"));
-		PlanCompleteEvent->SetStringField(TEXT("action"), TEXT("executePlan.complete"));
-		PlanCompleteEvent->SetStringField(TEXT("status"), ErrorCount == 0 ? TEXT("success") : TEXT("partial"));
-		PlanCompleteEvent->SetStringField(TEXT("plan_id"), PlanId);
-		PlanCompleteEvent->SetStringField(TEXT("role"), Role);
-		PlanCompleteEvent->SetNumberField(TEXT("step_count"), Steps.Num());
-		PlanCompleteEvent->SetNumberField(TEXT("success_count"), SuccessCount);
-		PlanCompleteEvent->SetNumberField(TEXT("error_count"), ErrorCount);
+		const TSharedPtr<FJsonObject> PlanCompleteEvent = NovaBridgeCore::BuildPlanCompleteEvent(
+			TEXT("editor"),
+			PlanId,
+			Steps.Num(),
+			SuccessCount,
+			ErrorCount,
+			Role);
 		QueueEventObject(PlanCompleteEvent);
 
 		PushAuditEntry(TEXT("/nova/executePlan"), TEXT("executePlan.complete"), Role, TEXT("success"),
