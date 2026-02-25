@@ -427,6 +427,59 @@ void FNovaBridgeModule::StopEventWebSocketServer()
 #endif
 }
 
+void FNovaBridgeModule::PumpEventSocketQueue()
+{
+#if NOVABRIDGE_WITH_WEBSOCKET_NETWORKING
+	if (EventWsClients.Num() == 0)
+	{
+		return;
+	}
+
+	TArray<FString> PendingPayloads;
+	TArray<FString> PendingTypes;
+	DrainPendingEventQueue(PendingPayloads, PendingTypes);
+	if (PendingPayloads.Num() == 0)
+	{
+		return;
+	}
+	if (PendingTypes.Num() != PendingPayloads.Num())
+	{
+		PendingTypes.Init(TEXT("audit"), PendingPayloads.Num());
+	}
+
+	for (int32 PayloadIndex = 0; PayloadIndex < PendingPayloads.Num(); ++PayloadIndex)
+	{
+		const FTCHARToUTF8 Utf8Payload(*PendingPayloads[PayloadIndex]);
+		const uint8* Data = reinterpret_cast<const uint8*>(Utf8Payload.Get());
+		uint8* MutableData = const_cast<uint8*>(Data);
+		const int32 DataLen = Utf8Payload.Length();
+		const FString& PayloadType = PendingTypes.IsValidIndex(PayloadIndex) && !PendingTypes[PayloadIndex].IsEmpty()
+			? PendingTypes[PayloadIndex]
+			: TEXT("audit");
+
+		for (int32 ClientIndex = EventWsClients.Num() - 1; ClientIndex >= 0; --ClientIndex)
+		{
+			if (!EventWsClients[ClientIndex].Socket)
+			{
+				EventWsClients.RemoveAtSwap(ClientIndex);
+				continue;
+			}
+			if (!EventWsClients[ClientIndex].bSubscriptionConfirmed)
+			{
+				continue;
+			}
+
+			if (EventWsClients[ClientIndex].bEventTypeFilterEnabled
+				&& !EventWsClients[ClientIndex].EventTypes.Contains(PayloadType))
+			{
+				continue;
+			}
+			EventWsClients[ClientIndex].Socket->Send(MutableData, DataLen, false);
+		}
+	}
+#endif
+}
+
 void FNovaBridgeModule::StartStreamTicker()
 {
 	if (!bStreamActive || WsClients.Num() == 0 || StreamTickHandle.IsValid())

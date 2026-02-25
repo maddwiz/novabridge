@@ -26,11 +26,14 @@ struct FNovaBridgeAuditEntry
 };
 
 FString ResolveRoleFromRequest(const FHttpServerRequest& Request);
+void SetNovaBridgeDefaultRole(const FString& InRole);
 const TArray<FString>& SupportedEventTypes();
 const FString& GetNovaBridgeDefaultRole();
 int32 GetNovaBridgeEditorMaxPlanSteps();
+void ResetNovaBridgeEditorControlState();
 TArray<FNovaBridgeAuditEntry> GetAuditTrailSnapshot();
 void GetPendingEventSnapshot(int32& OutPendingEvents, TArray<FString>& OutPendingTypes);
+void DrainPendingEventQueue(TArray<FString>& OutPendingPayloads, TArray<FString>& OutPendingTypes);
 
 bool IsRouteAllowedForRole(const FString& Role, const FString& RoutePath, EHttpServerRequestVerbs Verb);
 int32 GetRouteRateLimitPerMinute(const FString& Role, const FString& RoutePath);
