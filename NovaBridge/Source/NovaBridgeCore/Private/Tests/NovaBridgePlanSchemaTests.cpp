@@ -81,11 +81,11 @@ bool FNovaBridgePlanSchemaRejectsUnknownTopLevelField::RunTest(const FString& Pa
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FNovaBridgePlanSchemaRejectsRuntimeScreenshotAction,
-	"NovaBridge.Core.PlanSchema.RejectsRuntimeScreenshotAction",
+	FNovaBridgePlanSchemaAcceptsRuntimeScreenshotAction,
+	"NovaBridge.Core.PlanSchema.AcceptsRuntimeScreenshotAction",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FNovaBridgePlanSchemaRejectsRuntimeScreenshotAction::RunTest(const FString& Parameters)
+bool FNovaBridgePlanSchemaAcceptsRuntimeScreenshotAction::RunTest(const FString& Parameters)
 {
 	(void)Parameters;
 	TSharedPtr<FJsonObject> Plan = MakePlan(TEXT("screenshot"));
@@ -97,8 +97,8 @@ bool FNovaBridgePlanSchemaRejectsRuntimeScreenshotAction::RunTest(const FString&
 		16,
 		Error);
 
-	TestFalse(TEXT("Runtime screenshot action should fail schema validation"), bValid);
-	TestTrue(TEXT("Error should identify unsupported action"), Error.Message.Contains(TEXT("Unsupported action")));
+	TestTrue(TEXT("Runtime screenshot action should pass schema validation"), bValid);
+	TestEqual(TEXT("Error should stay empty"), Error.Message, FString());
 	return true;
 }
 

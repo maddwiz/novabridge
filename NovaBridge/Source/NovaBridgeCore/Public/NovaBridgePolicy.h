@@ -15,4 +15,6 @@ NOVABRIDGECORE_API bool IsSpawnLocationInBounds(const FVector& Location);
 
 NOVABRIDGECORE_API int32 GetEditorPlanSpawnLimit(const FString& NormalizedRole);
 NOVABRIDGECORE_API bool IsEditorPlanActionAllowedForRole(const FString& NormalizedRole, const FString& Action);
+NOVABRIDGECORE_API int32 GetRuntimePlanSpawnLimit(const FString& NormalizedRole);
+NOVABRIDGECORE_API bool IsRuntimePlanActionAllowedForRole(const FString& NormalizedRole, const FString& Action);
 } // namespace NovaBridgeCore

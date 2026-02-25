@@ -1,10 +1,13 @@
 #include "NovaBridgeRuntimeModule.h"
 
+#include "NovaBridgeCoreTypes.h"
 #include "NovaBridgeHttpUtils.h"
 
 #include "Dom/JsonObject.h"
 #include "HttpServerRequest.h"
 #include "HttpServerResponse.h"
+#include "HAL/PlatformTime.h"
+#include "Misc/ScopeLock.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -54,6 +57,36 @@ bool IsLoopbackHost(const FString& HostHeader)
 	return HostOnly == TEXT("127.0.0.1")
 		|| HostOnly == TEXT("localhost")
 		|| HostOnly == TEXT("::1");
+}
+
+int32 RuntimeRoleRank(const FString& NormalizedRole)
+{
+	if (NormalizedRole == TEXT("admin"))
+	{
+		return 3;
+	}
+	if (NormalizedRole == TEXT("automation"))
+	{
+		return 2;
+	}
+	if (NormalizedRole == TEXT("read_only"))
+	{
+		return 1;
+	}
+	return 0;
+}
+
+bool IsRuntimeReadOnlyRoute(const FString& RoutePath)
+{
+	return RoutePath == TEXT("/nova/health")
+		|| RoutePath == TEXT("/nova/caps")
+		|| RoutePath == TEXT("/nova/events")
+		|| RoutePath == TEXT("/nova/audit")
+		|| RoutePath == TEXT("/nova/scene/list")
+		|| RoutePath == TEXT("/nova/scene/get")
+		|| RoutePath == TEXT("/nova/viewport/camera/get")
+		|| RoutePath == TEXT("/nova/viewport/screenshot")
+		|| RoutePath == TEXT("/nova/sequencer/info");
 }
 } // namespace
 
@@ -131,10 +164,136 @@ bool FNovaBridgeRuntimeModule::IsLocalHostRequest(const FHttpServerRequest& Requ
 	return false;
 }
 
-bool FNovaBridgeRuntimeModule::IsAuthorizedRuntimeToken(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) const
+FString FNovaBridgeRuntimeModule::ResolveRuntimeRoleFromRequest(const FHttpServerRequest& Request) const
+{
+	FString CandidateRole = NovaBridgeCore::GetHeaderValueCaseInsensitive(Request, TEXT("X-NovaBridge-Role"));
+	if (CandidateRole.IsEmpty() && Request.QueryParams.Contains(TEXT("role")))
+	{
+		CandidateRole = Request.QueryParams[TEXT("role")];
+	}
+
+	FString NormalizedCandidate = NovaBridgeCore::NormalizeRoleName(CandidateRole);
+	const FString NormalizedTokenRole = NovaBridgeCore::NormalizeRoleName(RuntimeTokenRole);
+	const FString NormalizedDefaultRole = NovaBridgeCore::NormalizeRoleName(RuntimeDefaultRole);
+	const FString BaselineRole = !NormalizedTokenRole.IsEmpty()
+		? NormalizedTokenRole
+		: (!NormalizedDefaultRole.IsEmpty() ? NormalizedDefaultRole : FString(TEXT("automation")));
+
+	if (NormalizedCandidate.IsEmpty())
+	{
+		return BaselineRole;
+	}
+
+	const int32 CandidateRank = RuntimeRoleRank(NormalizedCandidate);
+	const int32 BaselineRank = RuntimeRoleRank(BaselineRole);
+	if (CandidateRank <= BaselineRank)
+	{
+		return NormalizedCandidate;
+	}
+
+	return BaselineRole;
+}
+
+bool FNovaBridgeRuntimeModule::IsRuntimeRouteAllowedForRole(const FString& Role, const FString& RoutePath, EHttpServerRequestVerbs Verb, FString& OutReason) const
+{
+	if (Role == TEXT("admin"))
+	{
+		return true;
+	}
+
+	if (Role == TEXT("automation"))
+	{
+		if (RoutePath == TEXT("/nova/runtime/pair"))
+		{
+			OutReason = TEXT("Pair endpoint is unauthenticated-only");
+			return false;
+		}
+		return true;
+	}
+
+	if (Role == TEXT("read_only"))
+	{
+		if (Verb == EHttpServerRequestVerbs::VERB_GET && IsRuntimeReadOnlyRoute(RoutePath))
+		{
+			return true;
+		}
+		OutReason = TEXT("Role does not permit write runtime endpoints");
+		return false;
+	}
+
+	OutReason = TEXT("Unknown runtime role");
+	return false;
+}
+
+int32 FNovaBridgeRuntimeModule::GetRuntimeRouteRateLimitPerMinute(const FString& Role, const FString& RoutePath) const
+{
+	if (RoutePath == TEXT("/nova/executePlan"))
+	{
+		if (Role == TEXT("admin"))
+		{
+			return MaxAdminExecutePlanPerMinute;
+		}
+		if (Role == TEXT("automation"))
+		{
+			return MaxAutomationExecutePlanPerMinute;
+		}
+		if (Role == TEXT("read_only"))
+		{
+			return MaxReadOnlyExecutePlanPerMinute;
+		}
+		return 0;
+	}
+
+	if (Role == TEXT("admin"))
+	{
+		return MaxAdminRequestsPerMinute;
+	}
+	if (Role == TEXT("automation"))
+	{
+		return MaxAutomationRequestsPerMinute;
+	}
+	if (Role == TEXT("read_only"))
+	{
+		return MaxReadOnlyRequestsPerMinute;
+	}
+	return 0;
+}
+
+bool FNovaBridgeRuntimeModule::ConsumeRuntimeRouteRateLimit(const FString& BucketKey, const int32 LimitPerMinute, FString& OutError)
+{
+	if (LimitPerMinute <= 0)
+	{
+		OutError = TEXT("Rate limit denied for this runtime role/action");
+		return false;
+	}
+
+	const double NowSec = FPlatformTime::Seconds();
+	FScopeLock Lock(&RuntimeRouteRateLimitMutex);
+	FRuntimeRateBucket& Bucket = RuntimeRouteRateBuckets.FindOrAdd(BucketKey);
+	if (Bucket.WindowStartSec <= 0.0 || (NowSec - Bucket.WindowStartSec) >= 60.0)
+	{
+		Bucket.WindowStartSec = NowSec;
+		Bucket.Count = 0;
+	}
+
+	Bucket.Count++;
+	if (Bucket.Count > LimitPerMinute)
+	{
+		OutError = FString::Printf(TEXT("Rate limit: max %d requests/minute for this runtime role/action"), LimitPerMinute);
+		return false;
+	}
+
+	return true;
+}
+
+bool FNovaBridgeRuntimeModule::IsAuthorizedRuntimeToken(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete, FString* OutResolvedRole) const
 {
 	if (Request.Verb == EHttpServerRequestVerbs::VERB_OPTIONS || !bRequireRuntimeToken)
 	{
+		if (OutResolvedRole)
+		{
+			*OutResolvedRole = ResolveRuntimeRoleFromRequest(Request);
+		}
 		return true;
 	}
 
@@ -158,6 +317,10 @@ bool FNovaBridgeRuntimeModule::IsAuthorizedRuntimeToken(const FHttpServerRequest
 	PresentedToken.TrimStartAndEndInline();
 	if (!PresentedToken.IsEmpty() && PresentedToken == RuntimeToken)
 	{
+		if (OutResolvedRole)
+		{
+			*OutResolvedRole = ResolveRuntimeRoleFromRequest(Request);
+		}
 		return true;
 	}
 

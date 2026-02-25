@@ -355,11 +355,70 @@ static bool ValidateScreenshotParams(const TSharedPtr<FJsonObject>& Params, FStr
 	}
 	return true;
 }
+
+static bool ValidateCallParams(const TSharedPtr<FJsonObject>& Params, FString& OutError)
+{
+	const TSet<FString> AllowedCallFields =
+	{
+		TEXT("target"),
+		TEXT("name"),
+		TEXT("function"),
+		TEXT("event"),
+		TEXT("args")
+	};
+
+	FString UnknownField;
+	if (RejectUnknownFields(Params, AllowedCallFields, UnknownField))
+	{
+		OutError = FString::Printf(TEXT("Unknown call param field: %s"), *UnknownField);
+		return false;
+	}
+
+	if (Params->HasField(TEXT("target")) && !Params->HasTypedField<EJson::String>(TEXT("target")))
+	{
+		OutError = TEXT("call.params.target must be a string");
+		return false;
+	}
+	if (Params->HasField(TEXT("name")) && !Params->HasTypedField<EJson::String>(TEXT("name")))
+	{
+		OutError = TEXT("call.params.name must be a string");
+		return false;
+	}
+	if (Params->HasField(TEXT("function")) && !Params->HasTypedField<EJson::String>(TEXT("function")))
+	{
+		OutError = TEXT("call.params.function must be a string");
+		return false;
+	}
+	if (Params->HasField(TEXT("event")) && !Params->HasTypedField<EJson::String>(TEXT("event")))
+	{
+		OutError = TEXT("call.params.event must be a string");
+		return false;
+	}
+	if (Params->HasField(TEXT("args")))
+	{
+		const TSharedPtr<FJsonValue>* ArgsValue = Params->Values.Find(TEXT("args"));
+		if (!ArgsValue || ((*ArgsValue)->Type != EJson::Array && (*ArgsValue)->Type != EJson::Object))
+		{
+			OutError = TEXT("call.params.args must be an array or object");
+			return false;
+		}
+	}
+
+	const bool bHasFunction = Params->HasTypedField<EJson::String>(TEXT("function"));
+	const bool bHasEvent = Params->HasTypedField<EJson::String>(TEXT("event"));
+	if (!bHasFunction && !bHasEvent)
+	{
+		OutError = TEXT("call.params.function or call.params.event is required");
+		return false;
+	}
+
+	return true;
+}
 } // namespace
 
 const TArray<FString>& GetSupportedPlanActionsRef(const ENovaBridgePlanMode Mode)
 {
-	static const TArray<FString> RuntimeActions = { TEXT("spawn"), TEXT("delete"), TEXT("set") };
+	static const TArray<FString> RuntimeActions = { TEXT("spawn"), TEXT("delete"), TEXT("set"), TEXT("call"), TEXT("screenshot") };
 	static const TArray<FString> EditorActions = { TEXT("spawn"), TEXT("delete"), TEXT("set"), TEXT("screenshot") };
 
 	if (Mode == ENovaBridgePlanMode::Runtime)
@@ -533,6 +592,17 @@ bool ValidateExecutePlanSchema(
 		if (Action == TEXT("screenshot"))
 		{
 			if (!ValidateScreenshotParams(Params, ValidationError))
+			{
+				OutError.StepIndex = StepIndex;
+				OutError.Message = ValidationError;
+				return false;
+			}
+			continue;
+		}
+
+		if (Action == TEXT("call"))
+		{
+			if (!ValidateCallParams(Params, ValidationError))
 			{
 				OutError.StepIndex = StepIndex;
 				OutError.Message = ValidationError;

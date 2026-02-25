@@ -9,13 +9,20 @@
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
 #include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "HAL/PlatformTime.h"
+#include "IImageWrapper.h"
+#include "IImageWrapperModule.h"
 #include "Misc/ScopeLock.h"
+#include "Modules/ModuleManager.h"
+#include "Misc/Base64.h"
 #include "UObject/Class.h"
 #include "UObject/UnrealType.h"
+#include "UnrealClient.h"
 
 namespace
 {
@@ -277,6 +284,55 @@ bool SetRuntimeActorPropertyValue(AActor* Actor, const FString& PropertyName, co
 	return true;
 }
 
+bool CaptureRuntimeViewportPng(TArray64<uint8>& OutPngData, int32& OutWidth, int32& OutHeight, FString& OutError)
+{
+	if (!GEngine || !GEngine->GameViewport || !GEngine->GameViewport->Viewport)
+	{
+		OutError = TEXT("Runtime viewport is not available");
+		return false;
+	}
+
+	FViewport* Viewport = GEngine->GameViewport->Viewport;
+	const FIntPoint ViewSize = Viewport->GetSizeXY();
+	if (ViewSize.X <= 0 || ViewSize.Y <= 0)
+	{
+		OutError = TEXT("Runtime viewport has invalid size");
+		return false;
+	}
+
+	TArray<FColor> Bitmap;
+	if (!Viewport->ReadPixels(Bitmap) || Bitmap.Num() == 0)
+	{
+		OutError = TEXT("Failed to read runtime viewport pixels");
+		return false;
+	}
+
+	IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
+	const TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::PNG);
+	if (!ImageWrapper.IsValid())
+	{
+		OutError = TEXT("Failed to create PNG image wrapper");
+		return false;
+	}
+
+	if (!ImageWrapper->SetRaw(Bitmap.GetData(), Bitmap.Num() * sizeof(FColor), ViewSize.X, ViewSize.Y, ERGBFormat::BGRA, 8))
+	{
+		OutError = TEXT("Failed to encode raw runtime viewport pixels");
+		return false;
+	}
+
+	OutPngData = ImageWrapper->GetCompressed(0);
+	if (OutPngData.Num() == 0)
+	{
+		OutError = TEXT("Failed to compress runtime viewport PNG");
+		return false;
+	}
+
+	OutWidth = ViewSize.X;
+	OutHeight = ViewSize.Y;
+	return true;
+}
+
 void ParseSpawnTransform(const TSharedPtr<FJsonObject>& Params, FVector& OutLocation, FRotator& OutRotation)
 {
 	OutLocation = FVector::ZeroVector;
@@ -322,6 +378,9 @@ void ParseSpawnTransform(const TSharedPtr<FJsonObject>& Params, FVector& OutLoca
 
 bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
 {
+	const FString ResolvedRole = ResolveRuntimeRoleFromRequest(Request);
+	const int32 ExecutePlanLimit = GetRuntimeRouteRateLimitPerMinute(ResolvedRole, TEXT("/nova/executePlan"));
+
 	{
 		const double NowSec = FPlatformTime::Seconds();
 		FScopeLock Lock(&RuntimeExecutePlanRateLimitMutex);
@@ -332,10 +391,10 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 		}
 
 		RuntimeExecutePlanCountInWindow++;
-		if (RuntimeExecutePlanCountInWindow > MaxExecutePlanPerMinute)
+		if (RuntimeExecutePlanCountInWindow > ExecutePlanLimit)
 		{
 			PushAuditEntry(TEXT("/nova/executePlan"), TEXT("executePlan"), TEXT("rate_limited"), TEXT("Runtime executePlan per-minute limit exceeded"));
-			SendErrorResponse(OnComplete, FString::Printf(TEXT("Rate limit: max %d runtime executePlan requests per minute"), MaxExecutePlanPerMinute), 429);
+			SendErrorResponse(OnComplete, FString::Printf(TEXT("Rate limit: max %d runtime executePlan requests per minute"), ExecutePlanLimit), 429);
 			return true;
 		}
 	}
@@ -364,7 +423,7 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 		? Body->GetStringField(TEXT("plan_id"))
 		: FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
 
-	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, Steps, PlanId]()
+	AsyncTask(ENamedThreads::GameThread, [this, OnComplete, Steps, PlanId, ResolvedRole]()
 	{
 		UWorld* World = ResolveRuntimeWorld();
 		if (!World)
@@ -381,18 +440,30 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 		int32 SpawnCount = 0;
 		int32 SuccessCount = 0;
 		int32 ErrorCount = 0;
+		const int32 PlanSpawnLimit = NovaBridgeCore::GetRuntimePlanSpawnLimit(ResolvedRole);
 
 		NovaBridgeCore::FPlanCommandRouter CommandRouter;
-		CommandRouter.Register(TEXT("spawn"), [this, World, &SpawnCount, PlanId](const NovaBridgeCore::FPlanStepContext& Step)
+		CommandRouter.Register(TEXT("spawn"), [this, World, &SpawnCount, PlanId, PlanSpawnLimit](const NovaBridgeCore::FPlanStepContext& Step)
 		{
 			const TSharedPtr<FJsonObject> Params = Step.Params.IsValid() ? Step.Params : MakeShared<FJsonObject>();
 
-			if (SpawnCount >= MaxSpawnPerPlan)
+			if (PlanSpawnLimit <= 0 || SpawnCount >= PlanSpawnLimit)
 			{
 				return NovaBridgeCore::MakePlanStepResult(
 					Step.StepIndex,
 					TEXT("error"),
-					FString::Printf(TEXT("Max spawn per plan reached (%d)"), MaxSpawnPerPlan));
+					FString::Printf(TEXT("Max spawn per plan reached (%d)"), PlanSpawnLimit));
+			}
+
+			{
+				FScopeLock ActorLock(&RuntimeActorCountMutex);
+				if (RuntimeActiveActorCount >= MaxActorsPerSession)
+				{
+					return NovaBridgeCore::MakePlanStepResult(
+						Step.StepIndex,
+						TEXT("error"),
+						FString::Printf(TEXT("Max actors per runtime session reached (%d)"), MaxActorsPerSession));
+				}
 			}
 
 			FString ClassName;
@@ -472,7 +543,11 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 				FString(),
 				RequestedName);
 			QueueRuntimeEvent(SpawnEvent);
-			PushRuntimeUndoEntry(TEXT("spawn"), NewActor->GetName(), NewActor->GetActorLabel());
+			PushRuntimeUndoEntry(TEXT("spawn"), NewActor->GetName(), NewActor->GetActorNameOrLabel());
+			{
+				FScopeLock ActorLock(&RuntimeActorCountMutex);
+				RuntimeActiveActorCount++;
+			}
 			SpawnCount++;
 
 			return StepResult;
@@ -502,6 +577,10 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 			}
 
 			Actor->Destroy();
+			{
+				FScopeLock ActorLock(&RuntimeActorCountMutex);
+				RuntimeActiveActorCount = FMath::Max(0, RuntimeActiveActorCount - 1);
+			}
 
 			TSharedPtr<FJsonObject> StepResult = NovaBridgeCore::MakePlanStepResult(
 				Step.StepIndex,
@@ -622,12 +701,143 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 				FString::Printf(TEXT("Updated actor %s"), *TargetName));
 		});
 
-		CommandRouter.Register(TEXT("screenshot"), [](const NovaBridgeCore::FPlanStepContext& Step)
+		CommandRouter.Register(TEXT("call"), [World](const NovaBridgeCore::FPlanStepContext& Step)
 		{
+			const TSharedPtr<FJsonObject> Params = Step.Params.IsValid() ? Step.Params : MakeShared<FJsonObject>();
+			FString TargetName = Params->HasTypedField<EJson::String>(TEXT("target")) ? Params->GetStringField(TEXT("target")) : FString();
+			if (TargetName.IsEmpty() && Params->HasTypedField<EJson::String>(TEXT("name")))
+			{
+				TargetName = Params->GetStringField(TEXT("name"));
+			}
+			if (TargetName.IsEmpty())
+			{
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), TEXT("call.params.target is required"));
+			}
+
+			const FString FunctionName = Params->HasTypedField<EJson::String>(TEXT("function"))
+				? Params->GetStringField(TEXT("function"))
+				: (Params->HasTypedField<EJson::String>(TEXT("event")) ? Params->GetStringField(TEXT("event")) : FString());
+			if (FunctionName.IsEmpty())
+			{
+				return NovaBridgeCore::MakePlanStepResult(Step.StepIndex, TEXT("error"), TEXT("call.params.function or call.params.event is required"));
+			}
+
+			AActor* Actor = FindActorByNameRuntime(World, TargetName);
+			if (!Actor)
+			{
+				return NovaBridgeCore::MakePlanStepResult(
+					Step.StepIndex,
+					TEXT("error"),
+					FString::Printf(TEXT("Actor not found: %s"), *TargetName));
+			}
+
+			UFunction* Function = Actor->FindFunction(FName(*FunctionName));
+			if (!Function)
+			{
+				return NovaBridgeCore::MakePlanStepResult(
+					Step.StepIndex,
+					TEXT("error"),
+					FString::Printf(TEXT("Function not found: %s"), *FunctionName));
+			}
+
+			const TSharedPtr<FJsonValue>* ArgsValue = Params->Values.Find(TEXT("args"));
+			TArray<TSharedPtr<FJsonValue>> ArgsArray;
+			if (ArgsValue && (*ArgsValue).IsValid() && (*ArgsValue)->Type == EJson::Array)
+			{
+				ArgsArray = (*ArgsValue)->AsArray();
+			}
+
+			uint8* ParamBuffer = nullptr;
+			TArray<uint8> StackParams;
+			if (Function->ParmsSize > 0)
+			{
+				StackParams.SetNumZeroed(Function->ParmsSize);
+				ParamBuffer = StackParams.GetData();
+
+				TArray<FProperty*> InputProperties;
+				for (TFieldIterator<FProperty> It(Function); It; ++It)
+				{
+					FProperty* Property = *It;
+					if (!Property || !Property->HasAnyPropertyFlags(CPF_Parm) || Property->HasAnyPropertyFlags(CPF_ReturnParm))
+					{
+						continue;
+					}
+					InputProperties.Add(Property);
+				}
+
+				if (InputProperties.Num() > 0)
+				{
+					if (ArgsArray.Num() != InputProperties.Num())
+					{
+						return NovaBridgeCore::MakePlanStepResult(
+							Step.StepIndex,
+							TEXT("error"),
+							FString::Printf(TEXT("call.args count mismatch: expected %d, got %d"), InputProperties.Num(), ArgsArray.Num()));
+					}
+
+					for (int32 ArgIndex = 0; ArgIndex < InputProperties.Num(); ++ArgIndex)
+					{
+						FProperty* InputProperty = InputProperties[ArgIndex];
+						const TSharedPtr<FJsonValue>& ArgValue = ArgsArray[ArgIndex];
+						FString ImportText;
+						if (!JsonValueToImportText(ArgValue, ImportText))
+						{
+							return NovaBridgeCore::MakePlanStepResult(
+								Step.StepIndex,
+								TEXT("error"),
+								FString::Printf(TEXT("Unsupported call arg type at index %d"), ArgIndex));
+						}
+
+						void* ValuePtr = InputProperty->ContainerPtrToValuePtr<void>(ParamBuffer);
+						if (!InputProperty->ImportText_Direct(*ImportText, ValuePtr, Actor, PPF_None))
+						{
+							return NovaBridgeCore::MakePlanStepResult(
+								Step.StepIndex,
+								TEXT("error"),
+								FString::Printf(TEXT("Failed to parse call arg %d"), ArgIndex));
+						}
+					}
+				}
+			}
+
+			Actor->ProcessEvent(Function, ParamBuffer);
 			return NovaBridgeCore::MakePlanStepResult(
 				Step.StepIndex,
-				TEXT("error"),
-				TEXT("screenshot is not supported in runtime mode yet"));
+				TEXT("success"),
+				FString::Printf(TEXT("Called %s on %s"), *FunctionName, *TargetName));
+		});
+
+		CommandRouter.Register(TEXT("screenshot"), [](const NovaBridgeCore::FPlanStepContext& Step)
+		{
+			const TSharedPtr<FJsonObject> Params = Step.Params.IsValid() ? Step.Params : MakeShared<FJsonObject>();
+			const bool bReturnBase64 = (Params->HasTypedField<EJson::Boolean>(TEXT("inline")) && Params->GetBoolField(TEXT("inline")))
+				|| (Params->HasTypedField<EJson::Boolean>(TEXT("return_base64")) && Params->GetBoolField(TEXT("return_base64")));
+
+			int32 Width = 0;
+			int32 Height = 0;
+			TArray64<uint8> PngBytes;
+			FString CaptureError;
+			if (!CaptureRuntimeViewportPng(PngBytes, Width, Height, CaptureError))
+			{
+				return NovaBridgeCore::MakePlanStepResult(
+					Step.StepIndex,
+					TEXT("error"),
+					CaptureError.IsEmpty() ? TEXT("Runtime screenshot capture failed") : CaptureError);
+			}
+
+			TSharedPtr<FJsonObject> Result = NovaBridgeCore::MakePlanStepResult(
+				Step.StepIndex,
+				TEXT("success"),
+				TEXT("Captured runtime screenshot"));
+			Result->SetStringField(TEXT("format"), TEXT("png"));
+			Result->SetNumberField(TEXT("width"), Width);
+			Result->SetNumberField(TEXT("height"), Height);
+			Result->SetNumberField(TEXT("bytes"), static_cast<double>(PngBytes.Num()));
+			if (bReturnBase64)
+			{
+				Result->SetStringField(TEXT("image"), FBase64::Encode(PngBytes.GetData(), static_cast<int32>(PngBytes.Num())));
+			}
+			return Result;
 		});
 
 		for (int32 StepIndex = 0; StepIndex < Steps.Num(); ++StepIndex)
@@ -643,6 +853,17 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 			}
 
 			StepActions[StepIndex] = StepContext.Action;
+			if (!NovaBridgeCore::IsRuntimePlanActionAllowedForRole(ResolvedRole, StepContext.Action))
+			{
+				TSharedPtr<FJsonObject> PermissionError = NovaBridgeCore::MakePlanStepResult(
+					StepIndex,
+					TEXT("error"),
+					FString::Printf(TEXT("Role '%s' cannot execute action '%s' in runtime mode"), *ResolvedRole, *StepContext.Action));
+				StepResults.Add(MakeShared<FJsonValueObject>(PermissionError));
+				ErrorCount++;
+				continue;
+			}
+
 			TSharedPtr<FJsonObject> StepResult = CommandRouter.Dispatch(StepContext);
 			if (!StepResult.IsValid())
 			{
@@ -666,6 +887,7 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 		TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
 		Result->SetStringField(TEXT("status"), TEXT("ok"));
 		Result->SetStringField(TEXT("mode"), RuntimeModeName);
+		Result->SetStringField(TEXT("role"), ResolvedRole);
 		Result->SetStringField(TEXT("plan_id"), PlanId);
 		Result->SetArrayField(TEXT("results"), StepResults);
 		Result->SetNumberField(TEXT("step_count"), Steps.Num());
@@ -708,7 +930,7 @@ bool FNovaBridgeRuntimeModule::HandleExecutePlan(const FHttpServerRequest& Reque
 
 		SendJsonResponse(OnComplete, Result);
 		PushAuditEntry(TEXT("/nova/executePlan"), TEXT("executePlan.complete"), TEXT("success"),
-			FString::Printf(TEXT("Plan %s complete: %d success, %d error"), *PlanId, SuccessCount, ErrorCount));
+			FString::Printf(TEXT("Plan %s complete: %d success, %d error (role=%s)"), *PlanId, SuccessCount, ErrorCount, *ResolvedRole));
 	});
 
 	return true;
@@ -757,6 +979,10 @@ bool FNovaBridgeRuntimeModule::HandleUndo(const FHttpServerRequest& Request, con
 		}
 
 		Actor->Destroy();
+		{
+			FScopeLock ActorLock(&RuntimeActorCountMutex);
+			RuntimeActiveActorCount = FMath::Max(0, RuntimeActiveActorCount - 1);
+		}
 
 		TSharedPtr<FJsonObject> DeleteEvent = MakeShared<FJsonObject>();
 		DeleteEvent->SetStringField(TEXT("type"), TEXT("delete"));

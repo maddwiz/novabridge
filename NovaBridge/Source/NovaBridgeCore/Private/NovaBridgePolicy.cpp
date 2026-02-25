@@ -100,4 +100,41 @@ bool IsEditorPlanActionAllowedForRole(const FString& NormalizedRole, const FStri
 
 	return false;
 }
+
+int32 GetRuntimePlanSpawnLimit(const FString& NormalizedRole)
+{
+	if (NormalizedRole == TEXT("admin"))
+	{
+		return 100;
+	}
+	if (NormalizedRole == TEXT("automation"))
+	{
+		return 25;
+	}
+	return 0;
+}
+
+bool IsRuntimePlanActionAllowedForRole(const FString& NormalizedRole, const FString& Action)
+{
+	if (NormalizedRole == TEXT("admin"))
+	{
+		return true;
+	}
+
+	if (NormalizedRole == TEXT("automation"))
+	{
+		return Action == TEXT("spawn")
+			|| Action == TEXT("delete")
+			|| Action == TEXT("set")
+			|| Action == TEXT("call")
+			|| Action == TEXT("screenshot");
+	}
+
+	if (NormalizedRole == TEXT("read_only"))
+	{
+		return Action == TEXT("screenshot");
+	}
+
+	return false;
+}
 } // namespace NovaBridgeCore

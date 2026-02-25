@@ -10,6 +10,7 @@ on:
       - "novabridge-studio/**"
       - "assistant-server/**"
       - "scripts/ci/validate_novabridge_cpp.py"
+      - "scripts/ci/run_automation_tests_mac.sh"
       - ".github/workflows/qa-fast.yml"
   pull_request:
     paths:
@@ -19,6 +20,7 @@ on:
       - "novabridge-studio/**"
       - "assistant-server/**"
       - "scripts/ci/validate_novabridge_cpp.py"
+      - "scripts/ci/run_automation_tests_mac.sh"
       - ".github/workflows/qa-fast.yml"
   workflow_dispatch:
 
@@ -32,6 +34,22 @@ jobs:
 
       - name: Run NovaBridge C++ static checks
         run: python3 scripts/ci/validate_novabridge_cpp.py
+
+  cpp-automation-tests:
+    name: Unreal Automation (Core)
+    if: ${{ vars.ENABLE_UNREAL_AUTOMATION_TESTS == 'true' }}
+    runs-on: [self-hosted, macOS, ARM64, unreal]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run NovaBridge core automation tests
+        shell: bash
+        env:
+          UE_ROOT_MAC: ${{ vars.UE_ROOT_MAC || '' }}
+        run: |
+          chmod +x scripts/ci/run_automation_tests_mac.sh
+          scripts/ci/run_automation_tests_mac.sh "$GITHUB_WORKSPACE" "$UE_ROOT_MAC"
 
   python-tests:
     name: Python SDK + MCP Tests

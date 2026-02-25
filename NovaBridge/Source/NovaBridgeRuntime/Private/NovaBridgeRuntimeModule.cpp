@@ -16,7 +16,7 @@ void FNovaBridgeRuntimeModule::StartupModule()
 
 	if (!IsRuntimeEnabledByConfig())
 	{
-		UE_LOG(LogNovaBridgeRuntime, Log, TEXT("NovaBridgeRuntime disabled (set -NovaBridgeRuntime=1 or NOVABRIDGE_RUNTIME=1 to enable)."));
+		UE_LOG(LogNovaBridgeRuntime, Log, TEXT("NovaBridgeRuntime disabled (recommended for packaged builds: set -NovaBridgeRuntime=1 or NOVABRIDGE_RUNTIME=1)."));
 		return;
 	}
 
