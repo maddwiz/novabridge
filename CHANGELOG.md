@@ -57,6 +57,7 @@
 - Split websocket/event stream infrastructure into `NovaBridgeWebSocketHandlers.cpp` (`Start/StopWebSocketServer`, event subscription handshake, stream ticker/frame pump); `NovaBridgeModule.cpp` reduced further to `1316` lines.
 - Split shared editor actor/property helpers into `NovaBridgeEditorUtilityHelpers.cpp` (`FindActorByName`, `ActorToJson`, class/transform parsers, `SetActorPropertyValue`) and trimmed `NovaBridgeModule.cpp` to `872` lines.
 - Split shared editor policy/control state into `NovaBridgeEditorPolicyState.cpp` (`default role`, route policy, rate-limit buckets, undo stack, audit trail, pending event queue) and trimmed `NovaBridgeModule.cpp` to `480` lines.
+- Split HTTP bootstrap/auth/CORS/JSON response helpers into `NovaBridgeHttpServer.cpp` and reduced `NovaBridgeModule.cpp` to lifecycle-only (`23` lines).
 - Exposed shared internal editor helper contracts (role/policy lookups, audit/event snapshots, capability registration) through `NovaBridgeEditorInternals.h` to support multi-unit control-plane decomposition.
 - Fixed Python SDK raw screenshot path to include auth/runtime headers and shared error handling (`NovaBridge._request_bytes`).
 - Added Python SDK unit tests for request header propagation and raw screenshot auth path (`python-sdk/tests/test_novabridge_client.py`).
