@@ -234,6 +234,7 @@ Runtime checks (port `30820`, events port `30822`):
   - `npm install` succeeded.
   - `npm run build` succeeded (`tsc -b && vite build`).
   - Added and compiled plan-permission preflight (`/nova/caps` `permissions`) before execute.
+  - Added and compiled Connect/PlanPreview policy UX (snapshot display + inline execute-block reasons).
 - Note:
   - `pnpm` is not installed on this validation host; package scripts still include `pnpm dev`, `pnpm build`, `pnpm tauri dev`, and `pnpm tauri build`.
 

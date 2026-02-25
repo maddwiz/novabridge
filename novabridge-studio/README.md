@@ -9,6 +9,7 @@ NovaBridge Studio is a desktop control surface for NovaBridge (UE5 plugin).
 - Generates a strict JSON plan from a prompt
 - Previews plan steps before execution
 - Performs permission preflight using `/nova/caps` `permissions` (when available) to block disallowed actions before execution
+- Shows current policy snapshot in Connect and inline policy-block reasons in Plan Preview
 - Executes via `POST /nova/executePlan`
 - Falls back to endpoint calls if `executePlan` is not available:
   - `POST /nova/scene/spawn`

@@ -50,6 +50,10 @@ export function App() {
   useEffect(() => saveSettingsState(settingsState), [settingsState]);
 
   const routeCount = useMemo(() => connectState.caps?.length, [connectState.caps]);
+  const policyErrors = useMemo(() => {
+    if (!plannerState.plan) return [];
+    return validatePlanAgainstPermissions(plannerState.plan, connectState.permissions);
+  }, [plannerState.plan, connectState.permissions]);
 
   const pushLog = (entry: ActivityLog) => {
     setExecutorState((prev) => ({ ...prev, activity: [entry, ...prev.activity].slice(0, 200) }));
@@ -77,7 +81,7 @@ export function App() {
       pushLog(makeLog("info", "/nova/health", `Connected in ${mode} mode`));
       showToast("Connected", "info");
     } catch (error) {
-      setConnectState((prev) => ({ ...prev, connected: false, mode: "unknown" }));
+      setConnectState((prev) => ({ ...prev, connected: false, mode: "unknown", permissions: undefined }));
       const message = error instanceof Error ? error.message : "Connect failed";
       pushLog(makeLog("error", "/nova/health", message));
       showToast(message, "error");
@@ -127,7 +131,6 @@ export function App() {
     const plan = plannerState.plan;
     if (!plan) return;
 
-    const policyErrors = validatePlanAgainstPermissions(plan, connectState.permissions);
     if (policyErrors.length > 0) {
       const summary = policyErrors[0];
       pushLog(makeLog("error", "/nova/executePlan", summary));
@@ -169,6 +172,7 @@ export function App() {
                 baseUrl={connectState.baseUrl}
                 connected={connectState.connected}
                 mode={connectState.mode}
+                permissions={connectState.permissions}
                 onBaseUrlChange={(value) => setConnectState((prev) => ({ ...prev, baseUrl: value }))}
                 onConnect={onConnect}
               />
@@ -179,6 +183,7 @@ export function App() {
                 <PlanPreview
                   plan={plannerState.plan}
                   showJson={plannerState.showJson}
+                  policyErrors={policyErrors}
                   onToggleJson={() => setPlannerState((prev) => ({ ...prev, showJson: !prev.showJson }))}
                   onExecute={onExecutePlan}
                   onBack={() => setPlannerState((prev) => ({ ...prev, plan: null }))}
