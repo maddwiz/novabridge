@@ -99,6 +99,22 @@
   - `NovaBridgeModule.cpp` line count reduced to `4474`.
   - Smoke summary reported editor `success_count=2/error_count=0` and runtime `success_count=2/error_count=0`.
 
+## macOS Asset Handler Split Validation
+
+- Date: 2026-02-25
+- Source project:
+  - `/tmp/novabridge-smoke-20260224-195531/NovaBridgeDefault/NovaBridgeDefault.uproject`
+- Command:
+  - `NOVABRIDGE_PROJECT=/tmp/novabridge-smoke-20260224-195531/NovaBridgeDefault/NovaBridgeDefault.uproject NOVABRIDGE_BUILD=1 ./scripts/mac_executeplan_smoke.sh`
+- Result:
+  - `Succeeded` (build + editor/runtime execute-plan smoke)
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260224-230608/artifacts/executeplan-smoke`
+- Notes:
+  - `NovaBridgeAssetHandlers.cpp` compiled and linked with `NovaBridge` module.
+  - `NovaBridgeModule.cpp` line count reduced to `3953`.
+  - Smoke summary reported editor `success_count=2/error_count=0` and runtime `success_count=2/error_count=0`.
+
 ## macOS Validation Refresh (v0.9.5-dev)
 
 - Date: 2026-02-24

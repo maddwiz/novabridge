@@ -25,7 +25,7 @@ Optional Blender path:
 
 - HTTP server runs in UE module.
 - Route handlers marshal editor work to UE game thread with `AsyncTask`.
-- Editor handler implementations are being decomposed into focused translation units (for example, `NovaBridgeOptimizeHandlers.cpp`, `NovaBridgeSequencerHandlers.cpp`, `NovaBridgeSceneHandlers.cpp`, `NovaBridgeBlueprintBuildHandlers.cpp`, `NovaBridgeStreamHandlers.cpp`, `NovaBridgeMaterialHandlers.cpp`) instead of one monolithic module file.
+- Editor handler implementations are being decomposed into focused translation units (for example, `NovaBridgeOptimizeHandlers.cpp`, `NovaBridgeSequencerHandlers.cpp`, `NovaBridgeSceneHandlers.cpp`, `NovaBridgeBlueprintBuildHandlers.cpp`, `NovaBridgeStreamHandlers.cpp`, `NovaBridgeMaterialHandlers.cpp`, `NovaBridgeAssetHandlers.cpp`) instead of one monolithic module file.
 - Scene screenshots use a dedicated `SceneCapture2D` actor (`NovaBridge_SceneCapture`).
 - Capability discovery is exposed via `GET /nova/caps`.
 - Editor capability discovery is role-scoped to the resolved caller role.

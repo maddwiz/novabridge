@@ -153,6 +153,7 @@ Primary API reference lives at [docs/API.md](docs/API.md).
 - Editor blueprint/build handlers (`/nova/blueprint/*`, `/nova/build/lighting`, `/nova/exec`) are now isolated in `NovaBridgeBlueprintBuildHandlers.cpp`.
 - Editor stream handlers (`/nova/stream/*`) are now isolated in `NovaBridgeStreamHandlers.cpp`.
 - Editor material handlers (`/nova/material/*`) are now isolated in `NovaBridgeMaterialHandlers.cpp`.
+- Editor asset handlers (`/nova/asset/*`) are now isolated in `NovaBridgeAssetHandlers.cpp`.
 - `GET /nova/optimize/stats` spotlight counting now uses `USpotLightComponent` detection (component-based, no class-name string matching).
 - Python SDK raw screenshot path now includes auth/runtime headers and shared HTTP error handling (`NovaBridge._request_bytes`).
 - Added baseline automated tests for Python integrations (`python-sdk/tests` and `mcp-server/tests`) and core execute-plan schema automation coverage (`NovaBridgePlanSchemaTests`).
