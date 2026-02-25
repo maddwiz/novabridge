@@ -27,6 +27,7 @@ Optional Blender path:
 - Route handlers marshal editor work to UE game thread with `AsyncTask`.
 - Scene screenshots use a dedicated `SceneCapture2D` actor (`NovaBridge_SceneCapture`).
 - Capability discovery is exposed via `GET /nova/caps`.
+- Editor capability discovery is role-scoped to the resolved caller role.
 - Structured multi-step execution is exposed via `POST /nova/executePlan`.
 - `executePlan` schema validation and action support registry are shared in `NovaBridgeCore`.
 - Reversible operation tracking is exposed via `POST /nova/undo`.

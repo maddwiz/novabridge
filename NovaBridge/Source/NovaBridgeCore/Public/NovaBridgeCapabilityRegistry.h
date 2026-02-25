@@ -27,4 +27,5 @@ private:
 };
 
 NOVABRIDGECORE_API TSharedPtr<FJsonObject> CapabilityToJson(const FCapabilityRecord& Capability);
+NOVABRIDGECORE_API bool IsCapabilityAllowedForRole(const FCapabilityRecord& Capability, const FString& NormalizedRole);
 } // namespace NovaBridgeCore

@@ -36,6 +36,7 @@ Runtime base URL (experimental, when enabled): `http://localhost:30020/nova`
   - Includes `version`, `mode`, `default_role`, `api_key_required`, `stream_ws_port`, `events_ws_port`
 - `GET /project/info`
 - `GET /caps`
+  - In editor mode, capability list is filtered by resolved role (`X-NovaBridge-Role` or default role).
 - `GET /events`
   - Query: `types` (optional comma-separated type filter for metadata counters)
   - Returns event socket metadata:

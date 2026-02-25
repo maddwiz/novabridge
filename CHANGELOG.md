@@ -28,6 +28,7 @@
 - Added strict `executePlan` schema validation in shared core (rejects unknown/malformed top-level, step, and action-param fields).
 - Added shared plan action registry in core used by editor/runtime execute-plan schema enforcement.
 - Added shared action metadata in `GET /nova/caps` `executePlan` capability (`actions`, `max_steps`) sourced from core plan-action registry.
+- `GET /nova/caps` now filters editor capabilities by resolved role (`admin`, `automation`, `read_only`).
 - Fixed deferred event-stream bug: event WebSocket delivery is now gated until subscription ACK (`status=ok`) in editor and runtime modules.
 - Added `novabridge-studio` v0.1 scaffold (Tauri + React + TypeScript) with Connect, Build, Settings, provider adapters, and execute fallback flow.
 - Enforced localhost-only runtime request policy (`Host` must be loopback).

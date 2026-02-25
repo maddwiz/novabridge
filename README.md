@@ -101,6 +101,7 @@ curl -sS -X POST http://127.0.0.1:30010/nova/scene/spawn \
 ## Platform Control Additions (v0.9.5-dev)
 
 - `GET /nova/caps` for capability + policy discovery.
+- `GET /nova/caps` is role-aware in editor mode (`X-NovaBridge-Role`) and only returns capabilities permitted for that role.
 - `GET /nova/events` for event channel discovery (`ws://localhost:30012` by default) with type-aware metadata (`supported_types`, `pending_by_type`) and optional `types` filter query.
 - Event WebSocket now supports per-client subscription control (`{"action":"subscribe","types":[...]}`) with server ACKs and filter metrics (`clients_with_filters`).
 - Event sockets now hold back action/audit traffic until a subscription ACK is received (fixes pre-subscription event leakage).

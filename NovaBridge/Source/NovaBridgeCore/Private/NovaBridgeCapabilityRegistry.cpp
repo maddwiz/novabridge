@@ -5,6 +5,17 @@
 
 namespace NovaBridgeCore
 {
+namespace
+{
+static FString NormalizeRoleValue(const FString& InRole)
+{
+	FString Role = InRole;
+	Role.TrimStartAndEndInline();
+	Role.ToLowerInline();
+	return Role;
+}
+} // namespace
+
 FCapabilityRegistry& FCapabilityRegistry::Get()
 {
 	static FCapabilityRegistry Registry;
@@ -71,5 +82,29 @@ TSharedPtr<FJsonObject> CapabilityToJson(const FCapabilityRecord& Capability)
 	}
 
 	return JsonObject;
+}
+
+bool IsCapabilityAllowedForRole(const FCapabilityRecord& Capability, const FString& NormalizedRole)
+{
+	if (Capability.Roles.Num() == 0)
+	{
+		return true;
+	}
+
+	const FString CanonicalRole = NormalizeRoleValue(NormalizedRole);
+	if (CanonicalRole.IsEmpty())
+	{
+		return false;
+	}
+
+	for (const FString& Role : Capability.Roles)
+	{
+		if (NormalizeRoleValue(Role) == CanonicalRole)
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 } // namespace NovaBridgeCore

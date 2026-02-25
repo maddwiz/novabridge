@@ -150,6 +150,23 @@ Runtime checks (port `30620`, events port `30622`):
 - Artifact root:
   - `/tmp/novabridge-smoke-20260224-195531/artifacts/subscription-gating-runtime`
 
+### macOS Capability Role Filter Validation
+
+- Date: 2026-02-25
+- Run root:
+  - `/tmp/novabridge-smoke-20260224-195531`
+
+Editor checks (port `30730`, events port `30732`):
+- `GET /nova/caps` (default admin role) returns:
+  - `spawn`, `delete`, `set`, `screenshot`, `events`, `executePlan`, `undo`
+- `GET /nova/caps` with `X-NovaBridge-Role: automation` returns the same allowed action set.
+- `GET /nova/caps` with `X-NovaBridge-Role: read_only` returns only:
+  - `screenshot`, `events`
+- Validation status:
+  - `caps_role_filter_validation=ok`
+- Artifact root:
+  - `/tmp/novabridge-smoke-20260224-195531/artifacts/caps-role-filter-2`
+
 ### NovaBridge Studio Scaffold Validation
 
 - Date: 2026-02-25

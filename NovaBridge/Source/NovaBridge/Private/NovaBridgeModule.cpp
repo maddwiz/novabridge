@@ -2086,6 +2086,10 @@ bool FNovaBridgeModule::HandleCapabilities(const FHttpServerRequest& Request, co
 	Capabilities.Reserve(Snapshot.Num());
 	for (const NovaBridgeCore::FCapabilityRecord& Capability : Snapshot)
 	{
+		if (!NovaBridgeCore::IsCapabilityAllowedForRole(Capability, Role))
+		{
+			continue;
+		}
 		Capabilities.Add(MakeShareable(new FJsonValueObject(NovaBridgeCore::CapabilityToJson(Capability))));
 	}
 
