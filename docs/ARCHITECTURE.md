@@ -54,6 +54,7 @@ Optional Blender path:
 - Runtime execute/undo handlers and runtime actor/property mutation helpers are now isolated in `NovaBridgeRuntimeExecutePlanHandlers.cpp`.
 - Runtime control handlers and capability/permission snapshot builders are now isolated in `NovaBridgeRuntimeControlHandlers.cpp`.
 - Runtime event/audit/undo state transitions are now isolated in `NovaBridgeRuntimeState.cpp`.
+- Runtime HTTP startup/route binding is now isolated in `NovaBridgeRuntimeHttpServer.cpp`; `NovaBridgeRuntimeModule.cpp` only owns module lifecycle wiring.
 - Runtime pairing endpoint: `POST /nova/runtime/pair`.
 - Runtime audit trail endpoint: token-gated `GET /nova/audit`.
 - Runtime undo endpoint: token-gated `POST /nova/undo` (spawn entries currently tracked).

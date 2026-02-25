@@ -63,6 +63,7 @@
 - Split runtime `executePlan`/`undo` handlers and runtime actor/property helper logic into `NovaBridgeRuntimeExecutePlanHandlers.cpp` and reduced `NovaBridgeRuntimeModule.cpp` to `643` lines.
 - Split runtime control handlers (`health`, `caps`, `audit`, `runtime/pair`) and capability/permission builders into `NovaBridgeRuntimeControlHandlers.cpp`; `NovaBridgeRuntimeModule.cpp` is now `366` lines.
 - Split runtime event/audit/undo state helpers into `NovaBridgeRuntimeState.cpp`; `NovaBridgeRuntimeModule.cpp` is now `271` lines.
+- Split runtime HTTP bootstrap/auth-route binding into `NovaBridgeRuntimeHttpServer.cpp`; `NovaBridgeRuntimeModule.cpp` is now lifecycle-only (`33` lines).
 - Exposed shared internal editor helper contracts (role/policy lookups, audit/event snapshots, capability registration) through `NovaBridgeEditorInternals.h` to support multi-unit control-plane decomposition.
 - Fixed Python SDK raw screenshot path to include auth/runtime headers and shared error handling (`NovaBridge._request_bytes`).
 - Added Python SDK unit tests for request header propagation and raw screenshot auth path (`python-sdk/tests/test_novabridge_client.py`).
