@@ -5,6 +5,7 @@ Python SDK for NovaBridge with:
 - async client (`novabridge_async.py`)
 - pydantic models (`novabridge_models.py`)
 - CLI (`novabridge-cli`)
+- assistant/planner convenience methods (`/assistant/*`)
 
 ## Install
 
@@ -31,6 +32,9 @@ result = ue5.execute_plan(
     role="automation",
 )
 print(result)
+
+print(ue5.assistant_health())
+print(ue5.assistant_plan("spawn a point light near origin", mode="editor"))
 ```
 
 ## Async Client
@@ -56,6 +60,8 @@ novabridge-cli spawn-actor PointLight --label LaunchSmokeLight --x 0 --y 0 --z 2
 novabridge-cli execute-plan --plan-file ./examples/plan.json
 novabridge-cli screenshot --output viewport.png
 novabridge-cli runtime-pair 123456 --plan-role automation --port 30020
+novabridge-cli assistant-health
+novabridge-cli assistant-plan "build a simple lighting pass" --mode editor
 ```
 
 ## Retry/Error Handling

@@ -10,8 +10,8 @@ Node.js sidecar that adds:
 
 ## Support Status
 
-This server is **experimental** and not part of the supported core NovaBridge plugin surface.
-It is provided as an optional sidecar and may change without compatibility guarantees.
+This server is a **supported core companion** for NovaBridge Studio/planner workflows.
+It is covered by fast CI checks and included in launch-facing documentation.
 
 ## Run
 

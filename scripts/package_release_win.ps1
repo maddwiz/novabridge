@@ -39,6 +39,7 @@ Copy-Tree (Join-Path $RepoRoot "NovaBridgeDemo") $pkgDir
 Copy-Tree (Join-Path $RepoRoot "NovaBridgeDefault") $pkgDir
 Copy-Tree (Join-Path $RepoRoot "python-sdk") $pkgDir
 Copy-Tree (Join-Path $RepoRoot "mcp-server") $pkgDir
+Copy-Tree (Join-Path $RepoRoot "assistant-server") $pkgDir
 Copy-Tree (Join-Path $RepoRoot "blender") $pkgDir
 Copy-Tree (Join-Path $RepoRoot "extensions") $pkgDir
 Copy-Tree (Join-Path $RepoRoot "examples") $pkgDir
@@ -58,6 +59,10 @@ Copy-Item -Force (Join-Path $RepoRoot "QUICK_START.md") $pkgDir
 Copy-Item -Force (Join-Path $RepoRoot ".gitignore") (Join-Path $pkgDir ".gitignore.example")
 foreach ($doc in @("INSTALL.md", "BuyerGuide.md", "CHANGELOG.md", "SUPPORT.md", "EULA.txt")) {
     $src = Join-Path $RepoRoot $doc
+    if (Test-Path $src) { Copy-Item -Force $src $pkgDir }
+}
+foreach ($file in @("NovaBridge-OneClick.command", "NovaBridge-OneClick.bat", "novabridge.env.example")) {
+    $src = Join-Path $RepoRoot $file
     if (Test-Path $src) { Copy-Item -Force $src $pkgDir }
 }
 if (Test-Path (Join-Path $RepoRoot "LICENSE")) {

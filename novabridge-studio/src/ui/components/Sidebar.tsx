@@ -22,7 +22,7 @@ export function Sidebar({ route, onSelect, connected, mode }: SidebarProps) {
     <aside className="glass flex h-full flex-col gap-3 rounded-2xl p-3">
       <div className="mb-2 px-2">
         <div className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">NovaBridge</div>
-        <div className="mt-1 text-lg font-semibold">Studio v0.1</div>
+        <div className="mt-1 text-lg font-semibold">Studio v1.0.2</div>
       </div>
 
       <div className="space-y-1">

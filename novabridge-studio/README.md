@@ -1,4 +1,4 @@
-# NovaBridge Studio v0.1.0
+# NovaBridge Studio v1.0.2
 
 NovaBridge Studio is a desktop control surface for NovaBridge (UE5 plugin).
 

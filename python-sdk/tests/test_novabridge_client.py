@@ -90,6 +90,35 @@ class NovaBridgeClientTests(unittest.TestCase):
         )
         self.assertEqual(captured["timeout"], 23)
 
+    def test_assistant_plan_uses_assistant_base_url_and_api_key(self) -> None:
+        captured = {}
+
+        def fake_urlopen(req, timeout):  # type: ignore[no-untyped-def]
+            captured["req"] = req
+            captured["timeout"] = timeout
+            return _FakeResponse(json.dumps({"status": "ok", "plan": {"steps": []}}).encode("utf-8"))
+
+        client = NovaBridge(
+            host="127.0.0.1",
+            port=30125,
+            assistant_port=30126,
+            api_key="k_assistant",
+            role="automation",
+            runtime_token="tok_ignore",
+            timeout=19,
+        )
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = client.assistant_plan("spawn a point light", mode="editor")
+
+        self.assertEqual(result["status"], "ok")
+        req = captured["req"]
+        self.assertEqual(req.full_url, "http://127.0.0.1:30126/assistant/plan")
+        self.assertEqual(req.get_header("X-api-key"), "k_assistant")
+        self.assertIsNone(req.get_header("X-novabridge-role"))
+        self.assertIsNone(req.get_header("X-novabridge-token"))
+        self.assertEqual(captured["timeout"], 19)
+
 
 if __name__ == "__main__":
     unittest.main()

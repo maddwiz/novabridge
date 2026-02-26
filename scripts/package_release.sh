@@ -41,6 +41,7 @@ copy_tree "${ROOT_DIR}/NovaBridgeDemo" "${PKG_DIR}/"
 copy_tree "${ROOT_DIR}/NovaBridgeDefault" "${PKG_DIR}/"
 copy_tree "${ROOT_DIR}/python-sdk" "${PKG_DIR}/"
 copy_tree "${ROOT_DIR}/mcp-server" "${PKG_DIR}/"
+copy_tree "${ROOT_DIR}/assistant-server" "${PKG_DIR}/"
 copy_tree "${ROOT_DIR}/blender" "${PKG_DIR}/"
 copy_tree "${ROOT_DIR}/extensions" "${PKG_DIR}/"
 copy_tree "${ROOT_DIR}/examples" "${PKG_DIR}/"
@@ -61,6 +62,11 @@ cp "${ROOT_DIR}/.gitignore" "${PKG_DIR}/.gitignore.example"
 for root_doc in INSTALL.md BuyerGuide.md CHANGELOG.md SUPPORT.md EULA.txt; do
   if [[ -f "${ROOT_DIR}/${root_doc}" ]]; then
     cp "${ROOT_DIR}/${root_doc}" "${PKG_DIR}/${root_doc}"
+  fi
+done
+for root_file in NovaBridge-OneClick.command NovaBridge-OneClick.bat novabridge.env.example; do
+  if [[ -f "${ROOT_DIR}/${root_file}" ]]; then
+    cp "${ROOT_DIR}/${root_file}" "${PKG_DIR}/${root_file}"
   fi
 done
 if [[ -f "${ROOT_DIR}/LICENSE" ]]; then

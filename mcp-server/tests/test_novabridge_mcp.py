@@ -49,6 +49,8 @@ class _StubClient:
         self.last_execute_plan = None
         self.last_runtime_pair = None
         self.last_undo = None
+        self.last_assistant_plan = None
+        self.last_assistant_execute = None
 
     def spawn(self, *args, **kwargs):  # type: ignore[no-untyped-def]
         self.last_spawn = {"args": args, "kwargs": kwargs}
@@ -65,6 +67,20 @@ class _StubClient:
     def undo(self, *args, **kwargs):  # type: ignore[no-untyped-def]
         self.last_undo = {"args": args, "kwargs": kwargs}
         return {"status": "ok", "action": "undo"}
+
+    def assistant_health(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        return {"status": "ok", "service": "assistant"}
+
+    def assistant_catalog(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        return {"status": "ok", "catalog": []}
+
+    def assistant_plan(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        self.last_assistant_plan = {"args": args, "kwargs": kwargs}
+        return {"status": "ok", "plan": {"steps": []}}
+
+    def assistant_execute(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        self.last_assistant_execute = {"args": args, "kwargs": kwargs}
+        return {"status": "ok", "result": "executed"}
 
 
 class NovaBridgeMcpTests(unittest.TestCase):
@@ -142,6 +158,32 @@ class NovaBridgeMcpTests(unittest.TestCase):
         self.assertEqual(stub.last_runtime_pair["kwargs"]["role"], "admin")
         self.assertIsNotNone(stub.last_undo)
         self.assertEqual(stub.last_undo["kwargs"]["role"], "automation")
+
+    def test_assistant_tools_forward_arguments(self) -> None:
+        stub = _StubClient()
+        original_client = self.mod.client
+        self.mod.client = stub
+        try:
+            health = self.mod.ue5_assistant_health()
+            catalog = self.mod.ue5_assistant_catalog()
+            plan_result = self.mod.ue5_assistant_plan("spawn a light", mode="editor")
+            execute_result = self.mod.ue5_assistant_execute(
+                {"plan_id": "p1", "mode": "editor", "steps": []},
+                allow_high_risk=True,
+                risk={"highest_risk": "high"},
+            )
+        finally:
+            self.mod.client = original_client
+
+        self.assertEqual(health["status"], "ok")
+        self.assertEqual(catalog["status"], "ok")
+        self.assertEqual(plan_result["status"], "ok")
+        self.assertEqual(execute_result["status"], "ok")
+        self.assertIsNotNone(stub.last_assistant_plan)
+        self.assertEqual(stub.last_assistant_plan["kwargs"]["prompt"], "spawn a light")
+        self.assertEqual(stub.last_assistant_plan["kwargs"]["mode"], "editor")
+        self.assertIsNotNone(stub.last_assistant_execute)
+        self.assertEqual(stub.last_assistant_execute["kwargs"]["allow_high_risk"], True)
 
 
 if __name__ == "__main__":

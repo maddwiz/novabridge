@@ -19,6 +19,7 @@ python novabridge_mcp.py
 ## Exposed Tool Categories
 
 - Control: `ue5_health`, `ue5_caps`, `ue5_project_info`
+- Assistant/Planner: `ue5_assistant_health`, `ue5_assistant_catalog`, `ue5_assistant_plan`, `ue5_assistant_execute`
 - Plan engine: `ue5_execute_plan`, `ue5_undo`, `ue5_runtime_pair`
 - Scene: list/spawn/transform/delete/get/set-property
 - Viewport: screenshot/camera set/get
@@ -38,6 +39,8 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 - `NOVABRIDGE_HOST` (default `localhost`)
 - `NOVABRIDGE_PORT` (default `30010`)
 - `NOVABRIDGE_API_KEY` (optional)
+- `NOVABRIDGE_ASSISTANT_HOST` (default `NOVABRIDGE_HOST`)
+- `NOVABRIDGE_ASSISTANT_PORT` (default `30016`)
 
 ## Claude Desktop Example
 

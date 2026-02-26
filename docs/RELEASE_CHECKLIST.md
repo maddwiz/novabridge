@@ -19,6 +19,7 @@
 
 - [x] Linux ARM64 build and runtime smoke tested
 - [ ] Linux x86_64 build smoke tested
+  - Current status: workflow-dispatch run queued (`Build Plugin (Self-Hosted)` run `22424013709`) pending an online self-hosted `Linux/X64/unreal` runner.
 - [x] Windows Win64 compile smoke tested
 - [x] macOS compile smoke tested
 - [x] macOS full smoke checklist complete (`docs/MACOS_SMOKE_TEST.md`)
@@ -28,7 +29,7 @@ Reference command outcomes: `docs/BUILD_STATUS.md`.
 ## Packaging
 
 - [x] `scripts/package_release.sh` generates zip in `dist/`
-- [x] Bundle contains plugin, demo project, SDK, MCP server, docs, examples
+- [x] Bundle contains plugin, demo project, SDK, MCP server, assistant server, docs, examples
 - [x] No `Intermediate/`, `Saved/`, logs, or crash artifacts in zip
 
 ## Integrations

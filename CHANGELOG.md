@@ -11,6 +11,13 @@
 - Added one-click setup docs and launch wiring:
   - `docs/ONE_CLICK_SETUP.md`
   - `README.md`, `INSTALL.md`, and `QUICK_START.md`
+- Aligned NovaBridge Studio version metadata to `1.0.2` across package, Tauri, and UI labels.
+- Promoted `assistant-server/` to a supported core companion (docs + support status), and removed it from experimental-sidecar positioning.
+- Expanded Python SDK + async SDK + CLI with assistant/planner convenience coverage (`/assistant/health`, `/assistant/catalog`, `/assistant/plan`, `/assistant/execute`).
+- Expanded MCP server tools with assistant/planner routes and added unit coverage for forwarding behavior.
+- Extended package release scripts to include `assistant-server/` plus one-click launcher assets (`NovaBridge-OneClick.*`, `novabridge.env.example`).
+- Kept `ai-gen-server/`, `voice-server/`, and `livelink-server/` explicitly marked as experimental source-level references.
+- Dispatched Linux x86_64 self-hosted build workflow run `22424013709`; pending runner availability is now documented in release checklists.
 - Bumped plugin/package metadata to `v1.0.2` (`.uplugin`, core version constant, package defaults, release workflow defaults, and docs).
 - No API contract changes from `v1.0.1`; this is a launch UX and packaging patch release.
 

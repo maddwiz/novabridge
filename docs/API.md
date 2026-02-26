@@ -6,6 +6,9 @@ Editor base URL:
 Runtime base URL:
 - `http://127.0.0.1:30020/nova`
 
+Assistant companion base URL:
+- `http://127.0.0.1:30016/assistant`
+
 ## Global Conventions
 
 - Write routes use `POST` with JSON body.
@@ -55,6 +58,16 @@ Response:
 ```json
 {"status":"ok","mode":"runtime","role":"automation","token":"..."}
 ```
+
+## Assistant Companion Endpoints
+
+- `GET /assistant/health`
+- `GET /assistant/catalog`
+- `POST /assistant/plan`
+- `POST /assistant/execute`
+
+Studio UI (from assistant server):
+- `GET /nova/studio`
 
 ## Scene Endpoints
 

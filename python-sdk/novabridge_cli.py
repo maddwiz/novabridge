@@ -31,6 +31,8 @@ def _client_from_args(args: argparse.Namespace) -> NovaBridge:
     return NovaBridge(
         host=args.host,
         port=args.port,
+        assistant_host=args.assistant_host,
+        assistant_port=args.assistant_port,
         timeout=args.timeout,
         api_key=args.api_key,
         role=args.role,
@@ -51,6 +53,34 @@ def cmd_health(args: argparse.Namespace) -> int:
 
 def cmd_caps(args: argparse.Namespace) -> int:
     _print(_client_from_args(args).caps())
+    return 0
+
+
+def cmd_assistant_health(args: argparse.Namespace) -> int:
+    _print(_client_from_args(args).assistant_health())
+    return 0
+
+
+def cmd_assistant_catalog(args: argparse.Namespace) -> int:
+    _print(_client_from_args(args).assistant_catalog())
+    return 0
+
+
+def cmd_assistant_plan(args: argparse.Namespace) -> int:
+    _print(_client_from_args(args).assistant_plan(args.prompt, mode=args.mode))
+    return 0
+
+
+def cmd_assistant_execute(args: argparse.Namespace) -> int:
+    client = _client_from_args(args)
+    payload = _load_plan(args)
+    risk: Optional[Dict[str, Any]] = None
+    if args.risk_json:
+        parsed = json.loads(args.risk_json)
+        if not isinstance(parsed, dict):
+            raise ValueError("--risk-json must be a JSON object")
+        risk = parsed
+    _print(client.assistant_execute(payload, allow_high_risk=args.allow_high_risk, risk=risk))
     return 0
 
 
@@ -110,6 +140,8 @@ def _base_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="novabridge-cli", description="NovaBridge command-line interface")
     parser.add_argument("--host", default="127.0.0.1", help="NovaBridge host (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=30010, help="NovaBridge port (default: 30010)")
+    parser.add_argument("--assistant-host", default=None, help="Assistant server host (defaults to --host)")
+    parser.add_argument("--assistant-port", type=int, default=30016, help="Assistant server port (default: 30016)")
     parser.add_argument("--timeout", type=int, default=60, help="HTTP timeout in seconds")
     parser.add_argument("--api-key", default=None, help="Optional NovaBridge API key")
     parser.add_argument("--role", default=None, help="Default role header (admin|automation|read_only)")
@@ -128,6 +160,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     caps = sub.add_parser("caps", help="GET /nova/caps")
     caps.set_defaults(func=cmd_caps)
+
+    assistant_health = sub.add_parser("assistant-health", help="GET /assistant/health")
+    assistant_health.set_defaults(func=cmd_assistant_health)
+
+    assistant_catalog = sub.add_parser("assistant-catalog", help="GET /assistant/catalog")
+    assistant_catalog.set_defaults(func=cmd_assistant_catalog)
+
+    assistant_plan = sub.add_parser("assistant-plan", help="POST /assistant/plan")
+    assistant_plan.add_argument("prompt", help="Planner prompt")
+    assistant_plan.add_argument("--mode", choices=["editor", "runtime"], default="editor")
+    assistant_plan.set_defaults(func=cmd_assistant_plan)
+
+    assistant_execute = sub.add_parser("assistant-execute", help="POST /assistant/execute")
+    assistant_execute.add_argument("--plan-file", default=None, help="Path to JSON plan object")
+    assistant_execute.add_argument("--plan-json", default=None, help="Inline JSON plan object")
+    assistant_execute.add_argument("--allow-high-risk", action="store_true", help="Allow high-risk execution plans")
+    assistant_execute.add_argument("--risk-json", default=None, help="Optional risk summary JSON object")
+    assistant_execute.set_defaults(func=cmd_assistant_execute)
 
     spawn = sub.add_parser("spawn-actor", help="POST /nova/scene/spawn")
     spawn.add_argument("actor_class", help="UE actor class (PointLight, StaticMeshActor, etc.)")

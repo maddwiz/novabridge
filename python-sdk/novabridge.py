@@ -24,6 +24,8 @@ class NovaBridgeError(RuntimeError):
 class NovaBridge:
     host: str = "localhost"
     port: int = 30010
+    assistant_host: Optional[str] = None
+    assistant_port: int = 30016
     timeout: int = 60
     api_key: Optional[str] = None
     role: Optional[str] = None
@@ -34,6 +36,11 @@ class NovaBridge:
     @property
     def base_url(self) -> str:
         return f"http://{self.host}:{self.port}/nova"
+
+    @property
+    def assistant_base_url(self) -> str:
+        host = self.assistant_host or self.host
+        return f"http://{host}:{self.assistant_port}/assistant"
 
     def _build_headers(
         self,
@@ -151,6 +158,49 @@ class NovaBridge:
     ) -> Dict[str, Any]:
         return self._request("POST", route, data or {}, role=role, runtime_token=runtime_token)
 
+    def _assistant_request(
+        self,
+        method: str,
+        route: str,
+        data: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        body = None
+        headers = self._build_headers(role="", runtime_token="")
+        if data is not None:
+            body = json.dumps(data).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+            headers["Content-Length"] = str(len(body))
+
+        retries = max(0, int(self.max_retries))
+        for attempt in range(retries + 1):
+            req = urllib.request.Request(
+                f"{self.assistant_base_url}{route}",
+                data=body,
+                headers=headers,
+                method=method,
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    payload = resp.read()
+                    if not payload:
+                        return {"status": "ok"}
+                    return json.loads(payload)
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")
+                if exc.code in (429, 500, 502, 503, 504) and attempt < retries:
+                    time.sleep(self.retry_backoff * (2**attempt))
+                    continue
+                raise NovaBridgeError(f"HTTP {exc.code}: {detail}") from exc
+            except urllib.error.URLError as exc:
+                if attempt < retries:
+                    time.sleep(self.retry_backoff * (2**attempt))
+                    continue
+                raise NovaBridgeError(f"Connection failed: {exc.reason}") from exc
+            except json.JSONDecodeError as exc:
+                raise NovaBridgeError(f"Invalid JSON response: {exc}") from exc
+
+        raise NovaBridgeError("Request failed after retries")
+
     def health(self) -> Dict[str, Any]:
         return self._get("/health")
 
@@ -159,6 +209,34 @@ class NovaBridge:
 
     def caps(self) -> Dict[str, Any]:
         return self._get("/caps")
+
+    def assistant_health(self) -> Dict[str, Any]:
+        return self._assistant_request("GET", "/health")
+
+    def assistant_catalog(self) -> Dict[str, Any]:
+        return self._assistant_request("GET", "/catalog")
+
+    def assistant_plan(self, prompt: str, *, mode: str = "editor") -> Dict[str, Any]:
+        payload = {
+            "prompt": prompt,
+            "mode": "runtime" if mode == "runtime" else "editor",
+        }
+        return self._assistant_request("POST", "/plan", payload)
+
+    def assistant_execute(
+        self,
+        plan: Dict[str, Any],
+        *,
+        allow_high_risk: bool = False,
+        risk: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {
+            "plan": plan,
+            "allow_high_risk": bool(allow_high_risk),
+        }
+        if risk is not None:
+            payload["risk"] = risk
+        return self._assistant_request("POST", "/execute", payload)
 
     def events(self) -> Dict[str, Any]:
         return self._get("/events")

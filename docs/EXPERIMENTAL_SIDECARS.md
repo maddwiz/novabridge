@@ -6,7 +6,8 @@ core NovaBridge plugin contract:
 - `ai-gen-server/`
 - `voice-server/`
 - `livelink-server/`
-- `assistant-server/`
+
+`assistant-server/` is not experimental; it is a supported companion service for Studio/planner flows.
 
 ## Support Expectations
 
@@ -19,3 +20,4 @@ core NovaBridge plugin contract:
 - Do not market these as production features unless they are explicitly promoted in release notes.
 - Keep user-facing claims focused on core plugin/API capabilities.
 - If shipping these sidecars to customers, label them as optional experimental utilities.
+- Release zips should prioritize core components (plugin, SDK, MCP, assistant companion) and treat these as source-only examples unless explicitly bundled.

@@ -921,6 +921,7 @@ Evidence:
 ## Outstanding
 
 - Linux x86_64 native smoke remains blocked on ARM host dependency (`TextureFormatOodle ... liboo2texlinux64.2.9.6.so`).
+- Linux x86_64 self-hosted build workflow was dispatched (`Build Plugin (Self-Hosted)` run `22424013709`) and is waiting for an eligible `Linux/X64/unreal` runner.
 
 ## Windows Win64 Validation (Completed)
 

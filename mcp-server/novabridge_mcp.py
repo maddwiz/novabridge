@@ -32,9 +32,17 @@ except Exception as exc:  # pragma: no cover - runtime dependency check
 HOST = os.environ.get("NOVABRIDGE_HOST", "localhost")
 PORT = int(os.environ.get("NOVABRIDGE_PORT", "30010"))
 API_KEY = os.environ.get("NOVABRIDGE_API_KEY")
+ASSISTANT_HOST = os.environ.get("NOVABRIDGE_ASSISTANT_HOST", HOST)
+ASSISTANT_PORT = int(os.environ.get("NOVABRIDGE_ASSISTANT_PORT", "30016"))
 
 mcp = FastMCP("novabridge")
-client = NovaBridge(host=HOST, port=PORT, api_key=API_KEY)
+client = NovaBridge(
+    host=HOST,
+    port=PORT,
+    assistant_host=ASSISTANT_HOST,
+    assistant_port=ASSISTANT_PORT,
+    api_key=API_KEY,
+)
 
 
 def _wrap(callable_):
@@ -56,6 +64,35 @@ def ue5_health() -> Dict[str, Any]:
 def ue5_caps() -> Dict[str, Any]:
     """Discover capabilities, permissions, and mode from /nova/caps."""
     return _wrap(client.caps)
+
+
+@mcp.tool()
+def ue5_assistant_health() -> Dict[str, Any]:
+    """Check assistant-server status from GET /assistant/health."""
+    return _wrap(client.assistant_health)
+
+
+@mcp.tool()
+def ue5_assistant_catalog() -> Dict[str, Any]:
+    """Get planner command/risk catalog from GET /assistant/catalog."""
+    return _wrap(client.assistant_catalog)
+
+
+@mcp.tool()
+def ue5_assistant_plan(prompt: str, mode: str = "editor") -> Dict[str, Any]:
+    """Generate a structured plan from prompt via POST /assistant/plan."""
+    normalized_mode = "runtime" if mode == "runtime" else "editor"
+    return _wrap(lambda: client.assistant_plan(prompt=prompt, mode=normalized_mode))
+
+
+@mcp.tool()
+def ue5_assistant_execute(
+    plan: Dict[str, Any],
+    allow_high_risk: bool = False,
+    risk: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Execute a planner-produced plan via POST /assistant/execute."""
+    return _wrap(lambda: client.assistant_execute(plan=plan, allow_high_risk=allow_high_risk, risk=risk))
 
 
 @mcp.tool()

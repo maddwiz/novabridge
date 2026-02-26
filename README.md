@@ -170,6 +170,15 @@ Location: `mcp-server/`
 
 MCP now exposes health, caps, executePlan, undo, runtime pairing, scene tools, viewport tools, sequencer, PCG, and optimization tools through FastMCP wrappers.
 
+## Assistant Server (Core Companion)
+
+Location: `assistant-server/`
+
+Assistant server is a supported companion service for Studio/planner workflows:
+- serves Studio UI at `/nova/studio`
+- exposes planner routes (`/assistant/health`, `/assistant/catalog`, `/assistant/plan`, `/assistant/execute`)
+- includes automated tests in CI (`assistant-server/tests`)
+
 ## Testing
 
 Run fast CI-equivalent checks locally:
@@ -212,7 +221,6 @@ These are explicitly experimental and not part of supported core plugin guarante
 - `ai-gen-server/`
 - `voice-server/`
 - `livelink-server/`
-- `assistant-server/`
 
 ## Security Defaults
 

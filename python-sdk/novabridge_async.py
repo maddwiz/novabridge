@@ -19,6 +19,8 @@ class AsyncNovaBridgeError(RuntimeError):
 class AsyncNovaBridge:
     host: str = "localhost"
     port: int = 30010
+    assistant_host: Optional[str] = None
+    assistant_port: int = 30016
     timeout: int = 60
     api_key: Optional[str] = None
     role: Optional[str] = None
@@ -32,6 +34,11 @@ class AsyncNovaBridge:
     @property
     def base_url(self) -> str:
         return f"http://{self.host}:{self.port}/nova"
+
+    @property
+    def assistant_base_url(self) -> str:
+        host = self.assistant_host or self.host
+        return f"http://{host}:{self.assistant_port}/assistant"
 
     async def __aenter__(self) -> "AsyncNovaBridge":
         await self._ensure_session()
@@ -80,9 +87,11 @@ class AsyncNovaBridge:
         role: Optional[str] = None,
         runtime_token: Optional[str] = None,
         expect_bytes: bool = False,
+        base_url_override: Optional[str] = None,
     ) -> Any:
         session = await self._ensure_session()
-        url = f"{self.base_url}{route}"
+        base = base_url_override or self.base_url
+        url = f"{base}{route}"
         headers = self._build_headers(role=role, runtime_token=runtime_token)
 
         last_error: Optional[Exception] = None
@@ -117,11 +126,58 @@ class AsyncNovaBridge:
             raise AsyncNovaBridgeError(f"Connection failed: {last_error}")
         raise AsyncNovaBridgeError("Request failed")
 
+    async def _assistant_request(
+        self,
+        method: str,
+        route: str,
+        data: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        result = await self._request(
+            method,
+            route,
+            data=data,
+            role="",
+            runtime_token="",
+            expect_bytes=False,
+            base_url_override=self.assistant_base_url,
+        )
+        if not isinstance(result, dict):
+            raise AsyncNovaBridgeError("Assistant endpoint returned non-JSON object")
+        return result
+
     async def health(self) -> Dict[str, Any]:
         return await self._request("GET", "/health")
 
     async def caps(self) -> Dict[str, Any]:
         return await self._request("GET", "/caps")
+
+    async def assistant_health(self) -> Dict[str, Any]:
+        return await self._assistant_request("GET", "/health")
+
+    async def assistant_catalog(self) -> Dict[str, Any]:
+        return await self._assistant_request("GET", "/catalog")
+
+    async def assistant_plan(self, prompt: str, *, mode: str = "editor") -> Dict[str, Any]:
+        payload = {
+            "prompt": prompt,
+            "mode": "runtime" if mode == "runtime" else "editor",
+        }
+        return await self._assistant_request("POST", "/plan", payload)
+
+    async def assistant_execute(
+        self,
+        plan: Dict[str, Any],
+        *,
+        allow_high_risk: bool = False,
+        risk: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {
+            "plan": plan,
+            "allow_high_risk": bool(allow_high_risk),
+        }
+        if risk is not None:
+            payload["risk"] = risk
+        return await self._assistant_request("POST", "/execute", payload)
 
     async def scene_list(self) -> Dict[str, Any]:
         return await self._request("GET", "/scene/list")

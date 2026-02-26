@@ -58,6 +58,12 @@ class _RecordingHandler(BaseHTTPRequestHandler):
         if route == "/nova/health":
             self._write_json({"status": "ok"})
             return
+        if route == "/assistant/health":
+            self._write_json({"status": "ok", "service": "assistant"})
+            return
+        if route == "/assistant/catalog":
+            self._write_json({"status": "ok", "commands": []})
+            return
         if route == "/nova/viewport/screenshot":
             png = b"\x89PNG\r\n\x1a\nmock-png"
             self.send_response(200)
@@ -77,6 +83,21 @@ class _RecordingHandler(BaseHTTPRequestHandler):
             self._write_json({"status": "ok", "name": "MockActor_1"})
             return
         if route == "/nova/executePlan":
+            self._write_json({"status": "ok", "results": []})
+            return
+        if route == "/assistant/plan":
+            self._write_json(
+                {
+                    "status": "ok",
+                    "plan": {
+                        "plan_id": "assistant-test",
+                        "mode": "editor",
+                        "steps": [{"action": "spawn", "params": {"type": "PointLight"}}],
+                    },
+                }
+            )
+            return
+        if route == "/assistant/execute":
             self._write_json({"status": "ok", "results": []})
             return
         self._write_json({"error": "not found"}, status=404)
@@ -115,6 +136,7 @@ class NovaBridgeHeaderIntegrationTests(unittest.TestCase):
         client = NovaBridge(
             host="127.0.0.1",
             port=self.port,
+            assistant_port=self.port,
             api_key="k_live",
             role="read_only",
             runtime_token="tok_live",
@@ -137,10 +159,21 @@ class NovaBridgeHeaderIntegrationTests(unittest.TestCase):
         self.assertEqual(screenshot["status"], "ok")
         self.assertEqual(screenshot["format"], "png")
 
+        assistant_plan = client.assistant_plan("spawn one light", mode="editor")
+        self.assertEqual(assistant_plan["status"], "ok")
+        assistant_execute = client.assistant_execute(
+            {"plan_id": "assistant-test", "mode": "editor", "steps": []},
+            allow_high_risk=True,
+            risk={"highest_risk": "high"},
+        )
+        self.assertEqual(assistant_execute["status"], "ok")
+
         health_req = self._find_route("GET", "/nova/health")
         spawn_req = self._find_route("POST", "/nova/scene/spawn")
         plan_req = self._find_route("POST", "/nova/executePlan")
         screenshot_req = self._find_route("GET", "/nova/viewport/screenshot")
+        assistant_plan_req = self._find_route("POST", "/assistant/plan")
+        assistant_execute_req = self._find_route("POST", "/assistant/execute")
 
         for req in [health_req, spawn_req, plan_req, screenshot_req]:
             headers = req["headers"]
@@ -159,6 +192,12 @@ class NovaBridgeHeaderIntegrationTests(unittest.TestCase):
         self.assertEqual(query.get("format"), ["raw"])
         self.assertEqual(query.get("width"), ["320"])
         self.assertEqual(query.get("height"), ["200"])
+
+        for req in [assistant_plan_req, assistant_execute_req]:
+            headers = req["headers"]
+            self.assertEqual(headers.get("x-api-key"), "k_live")
+            self.assertIsNone(headers.get("x-novabridge-role"))
+            self.assertIsNone(headers.get("x-novabridge-token"))
 
 
 if __name__ == "__main__":
